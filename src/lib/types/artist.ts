@@ -30,6 +30,17 @@ export interface ArtistEntry {
   rating?: number;                 // 1 - 5 星級
   audiophileGrade?: 'Reference' | 'Hi-Res Lossless' | 'Standard';
   dynamicRange?: number;           // DR 分數（例如 14）
+  
+  // 發燒友唱片架與刻號欄位 (Crate Digger Spec)
+  catalogNumber?: string;          // 例如 'CAT# XQIF-1003'
+  runoutMatrix?: string;           // 例如 'RUNOUT: A-1 SST'
+  formatSpec?: string;             // 例如 'DR 14 // 96kHz 24bit'
+  fileSize?: string;               // 例如 '1.18 GB FLAC'
+  coverImage?: string;             // 專輯或藝人封面
+  
+  // 聲學星系座標 (Honeycomb Cluster Matrix)
+  clusterCategory?: 'math-rock' | 'jazz' | 'neo-classical' | 'ambient';
+  clusterPos?: { x: number; y: number };
 }
 
 export interface CloudSyncPayload {
