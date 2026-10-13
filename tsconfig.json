@@ -1,7 +1,28 @@
 {
-	"extends": "$app/tsconfig",
 	"compilerOptions": {
-		"strict": true
+		"moduleResolution": "bundler",
+		"module": "ESNext",
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"allowJs": true,
+		"checkJs": true,
+		"isolatedModules": true,
+		"paths": {
+			"$lib": ["./src/lib"],
+			"$lib/*": ["./src/lib/*"],
+			"$components/*": ["./src/lib/components/*"],
+			"$types/*": ["./src/lib/types/*"]
+		},
+		"types": ["node"]
 	},
-	"include": ["src", "vite.config.ts"]
+	"include": [
+		"src/**/*.d.ts",
+		"src/**/*.ts",
+		"src/**/*.js",
+		"src/**/*.svelte",
+		"vite.config.ts"
+	]
 }
