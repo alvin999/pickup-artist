@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #fec486;
+  --color-primary-container: #e0a96d;
+  --color-on-primary: #482900;
+  
+  --color-secondary: #fa383e;
+  --color-secondary-container: #c4011f;
+  --color-on-secondary: #ffffff;
+  
+  --color-tertiary: #8e9298;
+  --color-tertiary-container: #cccfd6;
+  
+  --color-surface-base: #08090a;
+  --color-surface-raised: #121417;
+  --color-surface-overlay: #1b1e23;
+  --color-surface-inset: #040405;
+  --color-surface-border: #1f2228;
+  --color-surface-border-focused: #323740;
+
+  --color-signal-phosphor: #eef0f2;
+  --color-signal-graphite: #52565e;
+
+  --font-serif: "Noto Serif TC", "Noto Serif", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* Acoustic Dossier Precision Utilities */
+@layer utilities {
+  .sunken-well {
+    background-color: #040405;
+    border: 1px solid #1f2228;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.85);
+  }
+
+  .sunken-well:focus-within {
+    border-color: #e0a96d;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 12px rgba(224, 169, 109, 0.15);
+  }
+
+  .beveled-plate {
+    background-color: #121417;
+    border: 1px solid #1f2228;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+
+  .beveled-plate-overlay {
+    background-color: #1b1e23;
+    border: 1px solid #282d36;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.7);
+  }
+
+  .halo-amber {
+    box-shadow: 0 0 20px rgba(224, 169, 109, 0.12);
+  }
+
+  .halo-crimson {
+    box-shadow: 0 0 16px rgba(250, 56, 62, 0.2);
+  }
+
+  .milled-line {
+    border-color: #1f2228;
+  }
+
+  .font-tabular {
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+}
