@@ -1,8 +1,12 @@
 export interface NotableAlbum {
   title: string;
   year: string;
+  tier?: 'milestone' | 'hidden-treasure'; // 時代基石 vs 深埋寶藏 (Hidden Treasure)
   description: string;
   appleMusicSearchUrl: string;
+  rarityReason?: string;                  // 挖寶理由 (非演算法芭樂、冷門現場、絕版小品)
+  audiophileHighlight?: string;           // 聲學亮點 (極致動態、原木共振、真空管純度)
+  dynamicRangeScore?: number;             // DR 動態值 (如 14+)
 }
 
 export interface ArtistAnalysis {
@@ -15,13 +19,31 @@ export interface ArtistAnalysis {
 
 export interface ArtistEntry {
   id: string;                      // UUID 或 slug
-  name: string;                    // 藝人名稱
+  name: string;                    // 藝人名稱 (以 Artist 為本體核心)
   aliases?: string[];              // 羅馬拼音、日文、英文別名
   appleMusicUrl?: string;          // Apple Music 連結
   status: 'inbox' | 'analyzed';    // inbox (拾音未解剖) | analyzed (已完成 AI 解剖)
   addedAt: number;                 // UTC 毫秒
   updatedAt: number;               // UTC 毫秒
   
+  // 多重身分系譜 (Side Projects & Collaborations)
+  entityType?: 'solo' | 'band' | 'side-project' | 'supergroup';
+  lineage?: {
+    primaryArtistId?: string;      // 母體藝人 ID (如 Thom Yorke, toe)
+    primaryArtistName?: string;    // 母體藝人名稱
+    memberRoster?: string[];       // 核心成員名單
+  };
+
+  // 古典樂雙軸座標 (Classical Music Dual-Key Dimensions: 作曲家 ✕ 詮釋者)
+  classicalRole?: 'performer' | 'conductor' | 'composer' | 'orchestra';
+  classicalMetadata?: {
+    composer?: string;             // 作曲家 (例如 J.S. Bach, Beethoven, Chopin)
+    workTitle?: string;            // 代表作品名稱 (例如 Goldberg Variations, BWV 988)
+    instrumentOrRole?: string;     // 樂器/職稱 (例如 Piano, Cello, Conductor)
+    orchestra?: string;            // 合作樂團 (例如 Berliner Philharmoniker)
+    recordingYear?: string;        // 錄音版本年代 (發燒版本學核心)
+  };
+
   // AI 結構化音樂學分析
   analysis?: ArtistAnalysis;
   

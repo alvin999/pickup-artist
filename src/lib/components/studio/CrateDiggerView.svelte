@@ -270,9 +270,27 @@
           </h2>
 
           {#if selectedArtist.aliases && selectedArtist.aliases.length > 0}
-            <p class="font-mono text-xs text-[#8E9298] mb-3">
+            <p class="font-mono text-xs text-[#8E9298] mb-1">
               AKA: {selectedArtist.aliases.join(' / ')}
             </p>
+          {/if}
+
+          <!-- 古典樂雙軸銘牌 (Classical Dual-Key Plaque) -->
+          {#if selectedArtist.classicalMetadata}
+            <div class="my-2.5 p-2 rounded-[3px] bg-[#14120D] border border-[#E0A96D]/40 font-mono text-[11px] space-y-0.5">
+              <div class="text-[#FEC486] font-bold flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#E0A96D]"></span>
+                COMPOSER: {selectedArtist.classicalMetadata.composer}
+              </div>
+              <div class="text-[#CCCFD6] text-[10px]">
+                WORK: {selectedArtist.classicalMetadata.workTitle} • {selectedArtist.classicalMetadata.instrumentOrRole}
+              </div>
+              {#if selectedArtist.classicalMetadata.recordingYear}
+                <div class="text-[#8E9298] text-[9px]">
+                  EDITION: {selectedArtist.classicalMetadata.recordingYear}
+                </div>
+              {/if}
+            </div>
           {/if}
 
           <!-- 核心動作列 -->
@@ -338,37 +356,82 @@
               </div>
             {/if}
 
-            <!-- 代表性專輯 -->
+            <!-- 代表性專輯矩陣 (雙軌：時代基石 Milestone ✕ 深埋寶藏 Hidden Treasure) -->
             {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
               <div>
-                <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-1.5 flex items-center gap-1.5">
-                  <Disc3 class="w-3.5 h-3.5 text-[#FA383E]" />
-                  代表專輯矩陣
+                <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-2 flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <Disc3 class="w-3.5 h-3.5 text-[#FA383E]" />
+                    <span>唱片矩陣 (DISCOGRAPHY)</span>
+                  </div>
+                  <span class="text-[9px] text-[#FEC486]">MILESTONE // HIDDEN TREASURES</span>
                 </h4>
-                <div class="space-y-2">
+                <div class="space-y-2.5">
                   {#each selectedArtist.analysis.notableAlbums as alb}
-                    <div class="bg-[#050608] p-2.5 rounded-[3px] border border-[#1A1D23] flex items-start justify-between gap-2">
-                      <div>
-                        <div class="flex items-center gap-2">
-                          <span class="font-serif text-xs font-bold text-[#EEF0F2]">
+                    {@const isHidden = alb.tier === 'hidden-treasure'}
+                    <div class="p-3 rounded-[3px] border transition-all {isHidden ? 'bg-[#0E0B07] border-[#E0A96D]/60 shadow-[0_0_16px_rgba(224,169,109,0.12)]' : 'bg-[#050608] border-[#1A1D23]'}">
+                      <div class="flex items-start justify-between gap-2">
+                        <div>
+                          <!-- 階層徽章 -->
+                          <div class="flex items-center gap-2 mb-1">
+                            {#if isHidden}
+                              <span class="inline-flex items-center gap-1 px-1.5 py-0.2 bg-[#E0A96D]/20 text-[#FEC486] border border-[#E0A96D]/50 rounded-[2px] font-mono text-[9px] font-bold uppercase tracking-wider">
+                                <span class="w-1 h-1 rounded-full bg-[#FEC486] animate-pulse"></span>
+                                HIDDEN TREASURE // 深埋明珠
+                              </span>
+                            {:else}
+                              <span class="inline-flex items-center px-1.5 py-0.2 bg-[#1A1D24] text-[#CCCFD6] border border-[#2B303C] rounded-[2px] font-mono text-[9px] uppercase tracking-wider">
+                                ESSENTIAL MILESTONE // 時代基石
+                              </span>
+                            {/if}
+                            <span class="font-mono text-[10px] text-[#8E9298]">
+                              {alb.year}
+                            </span>
+                            {#if alb.dynamicRangeScore}
+                              <span class="font-mono text-[10px] text-[#63C78B] font-bold">
+                                DR{alb.dynamicRangeScore}
+                              </span>
+                            {/if}
+                          </div>
+
+                          <h5 class="font-serif text-sm font-bold text-[#EEF0F2]">
                             {alb.title}
-                          </span>
-                          <span class="font-mono text-[10px] text-[#E0A96D] px-1 bg-[#E0A96D]/10 rounded">
-                            {alb.year}
-                          </span>
+                          </h5>
+
+                          <p class="font-sans text-[11px] text-[#8E9298] mt-1 leading-relaxed">
+                            {alb.description}
+                          </p>
+
+                          <!-- Hidden Treasure 專屬發燒指標 -->
+                          {#if isHidden && (alb.rarityReason || alb.audiophileHighlight)}
+                            <div class="mt-2 pt-2 border-t border-[#E0A96D]/20 space-y-1">
+                              {#if alb.rarityReason}
+                                <div class="font-mono text-[10px] text-[#FEC486]/90 flex items-start gap-1">
+                                  <span class="text-[#E0A96D] shrink-0 font-bold">[挖寶理由]</span>
+                                  <span>{alb.rarityReason}</span>
+                                </div>
+                              {/if}
+                              {#if alb.audiophileHighlight}
+                                <div class="font-mono text-[10px] text-[#63C78B]/90 flex items-start gap-1">
+                                  <span class="text-[#63C78B] shrink-0 font-bold">[聲學亮點]</span>
+                                  <span>{alb.audiophileHighlight}</span>
+                                </div>
+                              {/if}
+                            </div>
+                          {/if}
                         </div>
-                        <p class="font-sans text-[11px] text-[#8E9298] mt-1 leading-normal">
-                          {alb.description}
-                        </p>
+
+                        <!-- Apple Music 跳轉按鈕 -->
+                        <a
+                          href={alb.appleMusicSearchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="p-1.5 rounded-[2px] {isHidden ? 'bg-[#E0A96D]/10 text-[#FEC486] hover:bg-[#E0A96D] hover:text-black' : 'bg-[#14161A] text-[#FA383E] hover:bg-[#FA383E] hover:text-white'} transition-colors shrink-0"
+                          title="在 Apple Music 搜尋此專輯"
+                        >
+                          <ArrowUpRight class="w-3.5 h-3.5" />
+                        </a>
                       </div>
-                      <a
-                        href={alb.appleMusicSearchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="p-1 rounded bg-[#14161A] text-[#FA383E] hover:bg-[#FA383E] hover:text-white transition-colors shrink-0"
-                      >
-                        <ArrowUpRight class="w-3.5 h-3.5" />
-                      </a>
                     </div>
                   {/each}
                 </div>

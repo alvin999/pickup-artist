@@ -121,14 +121,19 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
           {
             title: 'The Book About My Idle Plot on a Vague Anxiety',
             year: '2005',
+            tier: 'milestone',
             description: '數學搖滾界的不朽神作，收錄經典曲目《Lonely God》。展現無懈可擊的聲學層次與殘響控制。',
             appleMusicSearchUrl: 'https://music.apple.com/search?term=toe+The+Book+About+My+Idle+Plot'
           },
           {
-            title: 'For Long Tomorrow',
-            year: '2009',
-            description: '融入木吉他、電鋼琴與客座人聲，錄音動態範圍極大，原聲樂器泛音綿密。',
-            appleMusicSearchUrl: 'https://music.apple.com/search?term=toe+For+Long+Tomorrow'
+            title: 'RGBDVD (Live Session Uncompressed)',
+            year: '2006',
+            tier: 'hidden-treasure',
+            rarityReason: '演算法幾乎不推的排練室未過度壓縮實況直錄，小鼓 Ghost Notes 殘響比正規專輯更具野性動態。',
+            audiophileHighlight: '無壓限 Brickwall Limiter，鼓組踏鈸動態飽滿，錄音室空氣振動歷歷在目。',
+            dynamicRangeScore: 15,
+            description: '發燒友秘密試音天碟，極度純淨的雙吉他空間延遲與多節奏切分直錄。',
+            appleMusicSearchUrl: 'https://music.apple.com/search?term=toe+RGBDVD'
           }
         ]
       }
@@ -160,8 +165,19 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
           {
             title: 'Windswept Adan (アダンの風)',
             year: '2020',
+            tier: 'milestone',
             description: '融合室內樂管弦樂與海洋音景的顛峰之作，發燒友空間定位必備試金石。',
             appleMusicSearchUrl: 'https://music.apple.com/search?term=Ichiko+Aoba+Windswept+Adan'
+          },
+          {
+            title: '剃刀乙女 (Kamisori Otome)',
+            year: '2010',
+            tier: 'hidden-treasure',
+            rarityReason: '十九歲初試啼聲之作。僅憑一把古董古典吉他與超近場麥克風單軌直錄，純度超越後期繁複編制。',
+            audiophileHighlight: '指尖刮弦松香顆粒感清晰，換氣喉音與現場自然堂音零人工混響修飾。',
+            dynamicRangeScore: 16,
+            description: '極簡聲學奇蹟，深埋於串流長尾的超高動態無瑕原音。',
+            appleMusicSearchUrl: 'https://music.apple.com/search?term=Ichiko+Aoba+Kamisori+Otome'
           }
         ]
       }
@@ -191,16 +207,73 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
         similarArtists: ['Keith Jarrett', 'Brad Mehldau', 'Thelonious Monk', 'Miles Davis'],
         notableAlbums: [
           {
-            title: 'Sunday at the Village Vanguard',
-            year: '1961',
-            description: '爵士史上最偉大的現場實況錄音之一，兼具文學氣質與聲學現場感。',
-            appleMusicSearchUrl: 'https://music.apple.com/search?term=Bill+Evans+Sunday+at+the+Village+Vanguard'
-          },
-          {
             title: 'Waltz for Debby',
             year: '1962',
+            tier: 'milestone',
             description: '發燒友試音神碟，琴鍵敲擊的瞬態反應與泛音無可取代。',
             appleMusicSearchUrl: 'https://music.apple.com/search?term=Bill+Evans+Waltz+for+Debby'
+          },
+          {
+            title: 'Undercurrent (with Jim Hall)',
+            year: '1962',
+            tier: 'hidden-treasure',
+            rarityReason: '擺脫三重奏常規，僅由鋼琴與空心電吉他進行即興交織。著名水底浮沉白衣女子封面。',
+            audiophileHighlight: '吉他音箱電子管溫暖微醺感與鋼琴音槌落點分離度極高，聲底漆黑如夜。',
+            dynamicRangeScore: 16,
+            description: '爵士史上最私密的二重奏明珠，深埋於主流推薦清單之外。',
+            appleMusicSearchUrl: 'https://music.apple.com/search?term=Bill+Evans+Jim+Hall+Undercurrent'
+          }
+        ]
+      }
+    },
+    {
+      id: 'glenn-gould-classical-master',
+      name: 'Glenn Gould (格連·顧爾德)',
+      aliases: ['Glenn Gould'],
+      appleMusicUrl: 'https://music.apple.com/search?term=Glenn+Gould',
+      status: 'analyzed',
+      addedAt: now - 3600000 * 24 * 7,
+      updatedAt: now - 3600000 * 4,
+      entityType: 'solo',
+      classicalRole: 'performer',
+      classicalMetadata: {
+        composer: 'J.S. Bach / Johannes Brahms',
+        workTitle: 'Goldberg Variations / Intermezzi',
+        instrumentOrRole: 'Piano',
+        recordingYear: '1981 DSD Master'
+      },
+      audiophileGrade: 'Reference',
+      dynamicRange: 15,
+      catalogNumber: 'CAT# S3K-87703',
+      runoutMatrix: 'SONY CLASSICAL DSD',
+      formatSpec: 'DSD Master Tape 1981',
+      fileSize: '1.92 GB DFF',
+      coverImage: 'https://images.unsplash.com/photo-1513883049090-d0b7439799bf?auto=format&fit=crop&w=600&q=80',
+      clusterCategory: 'neo-classical',
+      clusterPos: { x: 420, y: 190 },
+      personalNotes: '1981 年數位錄音成熟之際的告別遺作，哼唱聲與琴槌運動渾然一體。',
+      analysis: {
+        genres: ['Classical', 'Baroque Piano', 'Romantic Piano'],
+        summary: '二十世紀最富爭議與天才特質的加拿大鋼琴怪傑。以極度清晰、無踏板獨立聲部跳音演奏巴哈複調音樂奠定不可撼動之歷史地位。',
+        instrumentationNotes: '特製調校 Steinway CD 318 鋼琴，極淺觸鍵深度，音色兼具古大鍵琴的顆粒分離度與現代平台鋼琴之共振。錄音中甚至保留其標誌性的低聲哼唱。',
+        similarArtists: ['Sviatoslav Richter', 'Martha Argerich', 'Murray Perahia'],
+        notableAlbums: [
+          {
+            title: 'Bach: The Goldberg Variations (1981 Digital Recording)',
+            year: '1981',
+            tier: 'milestone',
+            description: '生命終曲的深沉冥想，與 1955 年急速狂飆版形成天壤之別的聲學名盤。',
+            appleMusicSearchUrl: 'https://music.apple.com/search?term=Glenn+Gould+Goldberg+Variations+1981'
+          },
+          {
+            title: 'Brahms: 10 Intermezzi, Op. 116–119',
+            year: '1961',
+            tier: 'hidden-treasure',
+            rarityReason: '巴哈權威顧爾德極罕見的浪漫派私密詮釋，被他本人稱作「自己錄過最深情溫暖的唱片」。',
+            audiophileHighlight: '觸鍵極度輕柔舒緩，哥倫比亞錄音室 30 街教堂自然殘響溫暖充盈。',
+            dynamicRangeScore: 15,
+            description: '深埋於巴哈光環之後的浪漫派試音神作。',
+            appleMusicSearchUrl: 'https://music.apple.com/search?term=Glenn+Gould+Brahms+10+Intermezzi'
           }
         ]
       }
@@ -232,6 +305,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
           {
             title: 'an anarchic alphabet',
             year: '2009',
+            tier: 'milestone',
             description: '代表作之一，呈現冷靜黑白幾何結構與熱烈打擊樂之高度對比。',
             appleMusicSearchUrl: 'https://music.apple.com/search?term=mouse+on+the+keys+an+anarchic+alphabet'
           }
