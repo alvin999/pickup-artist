@@ -1,6 +1,12 @@
 import Dexie, { type Table } from 'dexie';
 import type { ArtistEntry } from '$lib/types/artist';
-import { buildAppleMusicSearchUrl, extractFromAppleMusicUrl } from '$lib/utils/appleMusic';
+import {
+  buildAppleMusicSearchUrl,
+  extractFromAppleMusicUrl,
+  fetchAppleMusicMetadata,
+  type ArtistCandidate
+} from '$lib/utils/appleMusic';
+import { fetchArtistPortrait } from '$lib/utils/artistImage';
 
 export interface Tombstone {
   id: string;
@@ -33,20 +39,60 @@ export function generateId(name: string): string {
   return `${slug || 'artist'}-${Date.now().toString(36)}`;
 }
 
-// 快速拾音
-export async function quickPickupArtist(rawInput: string): Promise<ArtistEntry> {
+// 快速拾音（支援自動查詢 Apple Music 高清封面，或直接套用使用者選定之候選藝人）
+export async function quickPickupArtist(rawInput: string, candidate?: ArtistCandidate): Promise<ArtistEntry> {
   const now = Date.now();
+
+  if (candidate) {
+    const finalName = candidate.name;
+    const appleMusicUrl = candidate.appleMusicUrl || buildAppleMusicSearchUrl(finalName);
+    const formatSpec = candidate.releaseYear ? `${candidate.releaseYear} // Lossless Master` : 'Lossless Hi-Res';
+
+    const entry: ArtistEntry = {
+      id: generateId(finalName),
+      name: finalName,
+      status: 'inbox',
+      appleMusicUrl,
+      coverImage: candidate.coverImage,
+      formatSpec,
+      addedAt: now,
+      updatedAt: now
+    };
+
+    await db.artists.put(entry);
+    return entry;
+  }
+
   const trimmed = rawInput.trim();
   const { isUrl, name, cleanUrl } = extractFromAppleMusicUrl(trimmed);
 
   const finalName = name || (isUrl ? 'Apple Music 拾音' : trimmed);
-  const appleMusicUrl = cleanUrl || (isUrl ? trimmed : buildAppleMusicSearchUrl(finalName));
+  let appleMusicUrl = cleanUrl || (isUrl ? trimmed : buildAppleMusicSearchUrl(finalName));
+  let coverImage: string | undefined = undefined;
+  let formatSpec = 'Lossless Hi-Res';
+
+  // 方案 A：以藝人肖像優先，自動抓取官方宣傳照/舞台肖像照；若無則由 Apple Music 中繼獲取
+  try {
+    const portrait = await fetchArtistPortrait(finalName);
+    if (portrait) coverImage = portrait;
+
+    const meta = await fetchAppleMusicMetadata(finalName);
+    if (meta) {
+      if (!coverImage && meta.coverImage) coverImage = meta.coverImage;
+      if (meta.appleMusicUrl && !isUrl) appleMusicUrl = meta.appleMusicUrl;
+      if (meta.releaseYear) formatSpec = `${meta.releaseYear} // Lossless Master`;
+    }
+  } catch (err) {
+    console.warn('[PickupArtist] 查詢藝人肖像與 Apple Music 異常:', err);
+  }
 
   const entry: ArtistEntry = {
     id: generateId(finalName),
     name: finalName,
     status: 'inbox',
     appleMusicUrl,
+    coverImage,
+    formatSpec,
     addedAt: now,
     updatedAt: now
   };
@@ -87,6 +133,34 @@ export async function getTombstones(): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
+// 自動修復封面：若藝人無封面或使用失效的原型暫存網址，自動向 Apple Music 抓取官方高清封面
+export async function autoHealArtistCovers(): Promise<boolean> {
+  const all = await db.artists.toArray();
+  let updatedAny = false;
+
+  for (const artist of all) {
+    const isInvalid = !artist.coverImage || artist.coverImage.includes('lh3.googleusercontent.com');
+    if (isInvalid) {
+      try {
+        const cleanName = artist.name.replace(/\(.*?\)/g, '').trim();
+        const meta = await fetchAppleMusicMetadata(cleanName || artist.name);
+        if (meta?.coverImage) {
+          await db.artists.update(artist.id, {
+            coverImage: meta.coverImage,
+            appleMusicUrl: artist.appleMusicUrl || meta.appleMusicUrl,
+            updatedAt: Date.now()
+          });
+          updatedAny = true;
+        }
+      } catch (err) {
+        console.warn(`[AutoHeal] 修復藝人「${artist.name}」封面失敗:`, err);
+      }
+    }
+  }
+
+  return updatedAny;
+}
+
 // 預設發燒友種子資料（初次使用時載入經典 Studio 資料）
 export async function seedInitialSampleIfEmpty(): Promise<void> {
   const count = await db.artists.count();
@@ -108,11 +182,16 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       runoutMatrix: 'RUNOUT: A-1 SST',
       formatSpec: 'DR 14 // 96kHz 24bit',
       fileSize: '1.18 GB FLAC',
-      coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-      clusterCategory: 'math-rock',
+      coverImage: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNLqkgl6LIvCPRm3PJ7vvSR9yQkN4eOwekMdbIPPvuxwWJl_gKbdga0PxkjKxdu0lqPTZUrUfCJcT4Tc0GZm56AYfaJah3GJWBrOjNLl0fPtgTLWHbCGSa1UeUgzB6MPlI2VDHZ6gH9Oy-DQ87suf38iqBYrswRpNXsV8-32mnRp0zaT8NfeeArCk7mGoPhY9aUzcbv5b3Adj1qU1LaknYrK91pLpJPyUVPSo2Fud0SjJ6DlGTup0',
+      countryCode: 'JP',
+      clusterCategory: 'ROCK',
+      clusterSector: 'ROCK',
       clusterPos: { x: 390, y: 520 },
       personalNotes: '吉他 Fender Twin Reverb 管機音色顆粒清脆，小鼓 Ghost Notes 極度動態，發燒測試片首選。',
       analysis: {
+        sector: 'ROCK',
+        subGenre: 'Math Rock',
+        aestheticTags: ['indie', 'analog-recording', 'complex-polyrhythm'],
         genres: ['Math Rock', 'Instrumental Rock', 'Post-Rock'],
         summary: '2000 年成軍於日本東京的傳奇器樂搖滾/數學搖滾名團。由山嵜廣和（吉他）、美濃隆章（吉他）、山根敏史（貝斯）與柏倉隆史（鼓）四人組成。以細密繁複的點弦、動態龐大的鼓點切分以及無可挑剔的類比錄音品質聞名於世。',
         instrumentationNotes: '極低壓縮比的純淨錄音。柏倉隆史狂暴卻精確的軍鼓多節奏切分、美濃隆章空間系延遲以及 Fender 原聲吉他琴弦摩擦質地清晰可聞。',
@@ -152,11 +231,16 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       runoutMatrix: 'TASCAM 2-TRACK',
       formatSpec: '192kHz Master Tape',
       fileSize: '1.84 GB ALAC',
-      coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-      clusterCategory: 'ambient',
+      coverImage: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDMys1KzvRVMY8yMLhehAhAQlCemU59ljtuVLMGMNrrsgXG21bpD_PxmK7Y4LKzHeihDQx0TDrJBFTsTEHJ8ipM7OCP-hNNCsdaJO0i12k06VDPB46Wgx6GOi8Id3IlYCRFhTDlUIKePSbdhwll-Qs-AUJ8795ckLy49R47Y9fzK3YRiSH-6XU5vU2SMk24IEWgazIh_VIUmgZN4kJeUErR_LRVQD3FPfaUYUnrq9MzyayJFAJ3lDY',
+      countryCode: 'JP',
+      clusterCategory: 'AMBIENT',
+      clusterSector: 'AMBIENT',
       clusterPos: { x: 550, y: 380 },
       personalNotes: '尼龍弦古典吉他與超近場人聲拾音，底噪極低，空氣感如同置身原木錄音室。',
       analysis: {
+        sector: 'AMBIENT',
+        subGenre: 'Ambient Folk',
+        aestheticTags: ['indie', 'pure-acoustic', 'tube-mic'],
         genres: ['Ambient Folk', 'Acoustic Folk', 'Chamber Music'],
         summary: '日本當代氛圍民謠作曲家、吉他手兼歌手。善於利用空間自然混響與清澈透明的古典吉他指彈，建構如同水底世界般的沉浸聽覺場景。',
         instrumentationNotes: '單聲道與立體聲麥克風超微距收音，人聲喉音細節與吉他琴體共振被完整捕捉，高頻泛音延伸自然不刺耳。',
@@ -196,11 +280,16 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       runoutMatrix: 'DSD64 SACD RIVERSIDE',
       formatSpec: 'DSD64 SACD Riverside 1961',
       fileSize: '1.45 GB DFF',
-      coverImage: 'https://images.unsplash.com/photo-1520523839898-507125cd53c1?auto=format&fit=crop&w=600&q=80',
-      clusterCategory: 'jazz',
+      coverImage: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCtWYRNDOdNst_nEcLM7STm8h9RKIqSSdSA5p17OBKxRbRt-iMZ2GQStUOoGAd19pY5TTX4JSUcqWa2oOtYGL_WyHnda4M29fwhaPIUHqo2lObbo1T5LxI2ECRvF27xx80sFCS9JiY_-16NhV6QQ_3Nk-JIyZEaKOvUkumdvdmLOFO_BH6sb_4WtWWc1kg-B9N38Utq-gIN9Snp8d67zK0HV_9D6qWdxMDVFZ0hIT9HC3tj11wSLDs',
+      countryCode: 'US',
+      clusterCategory: 'JAZZ',
+      clusterSector: 'JAZZ',
       clusterPos: { x: 230, y: 260 },
       personalNotes: '現場杯盤碰撞聲與空氣流動感歷歷在目，史考特·拉法羅低音提琴撥弦彈跳感無敵。',
       analysis: {
+        sector: 'JAZZ',
+        subGenre: 'Modal Jazz Trio',
+        aestheticTags: ['legendary-trio', 'vanguard-live', 'deep-soundstage'],
         genres: ['Modal Jazz', 'Cool Jazz', 'Piano Trio'],
         summary: '爵士鋼琴傳奇大師 Bill Evans 與天才貝斯手 Scott LaFaro、鼓手 Paul Motian 共同組成的歷史標竿三重奏。1961 年在 Village Vanguard 的現場錄音奠定了三方對等即興對話之典範。',
         instrumentationNotes: '三軌類比母帶極致還原。低音提琴高頻泛音與琴身木質共鳴深沉而飽滿，鼓刷在鈸片上的微弱沙沙聲精雕細琢。',
@@ -236,6 +325,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       updatedAt: now - 3600000 * 4,
       entityType: 'solo',
       classicalRole: 'performer',
+      countryCode: 'CA',
       classicalMetadata: {
         composer: 'J.S. Bach / Johannes Brahms',
         workTitle: 'Goldberg Variations / Intermezzi',
@@ -249,10 +339,14 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       formatSpec: 'DSD Master Tape 1981',
       fileSize: '1.92 GB DFF',
       coverImage: 'https://images.unsplash.com/photo-1513883049090-d0b7439799bf?auto=format&fit=crop&w=600&q=80',
-      clusterCategory: 'neo-classical',
+      clusterCategory: 'CLASSICAL',
+      clusterSector: 'CLASSICAL',
       clusterPos: { x: 420, y: 190 },
       personalNotes: '1981 年數位錄音成熟之際的告別遺作，哼唱聲與琴槌運動渾然一體。',
       analysis: {
+        sector: 'CLASSICAL',
+        subGenre: 'Baroque Keyboard',
+        aestheticTags: ['analytical-clarity', 'unpedaled-counterpoint', 'columbia-master'],
         genres: ['Classical', 'Baroque Piano', 'Romantic Piano'],
         summary: '二十世紀最富爭議與天才特質的加拿大鋼琴怪傑。以極度清晰、無踏板獨立聲部跳音演奏巴哈複調音樂奠定不可撼動之歷史地位。',
         instrumentationNotes: '特製調校 Steinway CD 318 鋼琴，極淺觸鍵深度，音色兼具古大鍵琴的顆粒分離度與現代平台鋼琴之共振。錄音中甚至保留其標誌性的低聲哼唱。',
@@ -293,10 +387,14 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       formatSpec: '96kHz 24bit FLAC',
       fileSize: '0.95 GB FLAC',
       coverImage: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=600&q=80',
-      clusterCategory: 'math-rock',
+      clusterCategory: 'ROCK',
+      clusterSector: 'ROCK',
       clusterPos: { x: 260, y: 590 },
       personalNotes: '雙鋼琴與狂暴鼓點的幾何交織，低頻下潛厚重且速度感極佳。',
       analysis: {
+        sector: 'ROCK',
+        subGenre: 'Math Rock / Post-Jazz',
+        aestheticTags: ['indie', 'dual-piano', 'heavy-drumming'],
         genres: ['Math Rock', 'Post-Rock', 'Jazz Fusion'],
         summary: '以雙鋼琴與爵士鼓為核心編制的日本前衛後搖/數學樂團。兼具極簡主義現代音樂之冷冽與後硬核節奏之狂熱爆發力。',
         instrumentationNotes: '雙鋼琴在立體聲場左右兩側精準分佈，琴槌重擊瞬態響應俐落，鼓點多節奏切分清晰可聞。',

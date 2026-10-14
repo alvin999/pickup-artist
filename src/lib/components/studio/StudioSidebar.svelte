@@ -16,102 +16,128 @@
   }: Props = $props();
 </script>
 
-<aside class="fixed left-0 top-0 h-full w-64 bg-[#0D0E11] border-r border-[#1F2228] z-40 flex flex-col justify-between py-4 shadow-[0_1px_8px_rgba(0,0,0,0.4)] select-none">
-  <!-- 上半部：系統狀態與容量指標 -->
-  <div class="flex flex-col gap-4">
-    <!-- 系統連線狀態 -->
-    <div class="px-4 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-[#FEC486] animate-pulse shadow-[0_0_8px_rgba(254,196,134,0.8)]"></span>
-        <span class="font-mono text-[10px] text-[#8E9298] tracking-widest uppercase font-medium">SYSTEM STATUS</span>
+<aside class="fixed left-0 top-0 h-full w-60 bg-chassis/95 backdrop-blur-xl border-r border-wire z-40 flex flex-col justify-between select-none">
+  <div>
+    <!-- 頂部系統狀態模組 -->
+    <div class="h-16 px-4 border-b border-wire flex flex-col justify-center bg-void/60">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
+          <span class="w-2 h-2 rounded-full bg-signal -ml-4"></span>
+          <span class="font-dot text-xs tracking-[0.2em] text-ink uppercase">SYS.TELEMETRY</span>
+        </div>
+        <span class="font-mono text-[10px] px-1.5 py-0.5 border border-signal/50 text-signal bg-signal-dim">ONLINE</span>
       </div>
-      <span class="font-mono text-[10px] text-[#FEC486] font-bold tracking-wider">ONLINE</span>
-    </div>
-
-    <!-- 儲存空間配額指示器 (STORAGE ARCHIVE) -->
-    <div class="px-4">
-      <div class="p-3 bg-[#15171C] rounded-[4px] border border-[#1F2228] flex flex-col gap-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
-        <div class="flex items-center justify-between font-mono text-[10px] text-[#8E9298] uppercase">
-          <span>STORAGE ARCHIVE</span>
-          <span class="text-[#63C78B]">IDB // OK</span>
-        </div>
-        <div class="flex items-center justify-between font-mono text-xs">
-          <span class="text-[#E3E2E6] font-medium">FLAC / 24-192</span>
-          <span class="text-[#FEC486] font-bold font-tabular">1.42 TB</span>
-        </div>
-        <div class="w-full h-1 bg-[#090A0D] rounded-full overflow-hidden mt-0.5 border border-[#1F2228]">
-          <div class="h-full bg-[#E0A96D] w-2/3 shadow-[0_0_8px_rgba(224,169,109,0.7)]"></div>
-        </div>
+      <div class="font-mono text-[9px] text-ink-dim mt-1 flex justify-between">
+        <span>NODE // TW-TPE-04</span>
+        <span>LATENCY: 4.2ms</span>
       </div>
     </div>
 
-    <!-- 主導航選單 (Studio Navigation) -->
-    <nav class="flex flex-col px-2.5 gap-1">
-      <button
-        type="button"
-        onclick={() => onselectView('crate-digger')}
-        class="w-full flex items-center justify-between px-3.5 py-2 rounded-[3px] transition-all font-mono text-xs cursor-pointer {activeView === 'crate-digger' ? 'bg-[#1E222A] text-[#FEC486] border border-[#E0A96D]/40 font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.7)]' : 'text-[#8E9298] hover:bg-[#14161A] hover:text-[#EEF0F2] border border-transparent'}"
-      >
-        <div class="flex items-center gap-2.5">
-          <span class="material-symbols-outlined text-[19px] {activeView === 'crate-digger' ? 'text-[#FEC486]' : 'text-[#8E9298]'}">album</span>
-          <span>唱片架庫存 (Crates)</span>
-        </div>
-        {#if inboxCount > 0}
-          <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-[#FA383E]/20 text-[#FA383E] border border-[#FA383E]/40 font-bold">
-            {inboxCount}
-          </span>
-        {/if}
-      </button>
+    <!-- 儲存陣列監控 (Storage Matrix) -->
+    <div class="p-4 border-b border-wire border-dashed bg-panel/40">
+      <div class="flex items-center justify-between font-mono text-[10px] text-ink-muted mb-1.5">
+        <span>[STORAGE_ARRAY]</span>
+        <span class="text-ink font-bold">{totalArtistsCount} ARTISTS</span>
+      </div>
+      <div class="font-dot text-xs text-signal tracking-wider mb-2">FLAC // 24BIT-192KHZ</div>
+      <!-- 點陣式進度條 -->
+      <div class="grid grid-cols-12 gap-0.5 h-2 bg-void p-0.5 border border-wire">
+        <div class="bg-ink"></div><div class="bg-ink"></div><div class="bg-ink"></div><div class="bg-ink"></div>
+        <div class="bg-ink"></div><div class="bg-ink"></div><div class="bg-ink"></div><div class="bg-signal"></div>
+        <div class="bg-signal/40"></div><div class="bg-wire"></div><div class="bg-wire"></div><div class="bg-wire"></div>
+      </div>
+      <div class="flex justify-between font-mono text-[9px] text-ink-dim mt-1.5">
+        <span>0%</span>
+        <span>SECTORS: 8,492</span>
+        <span>100%</span>
+      </div>
+    </div>
 
-      <button
-        type="button"
-        onclick={() => onselectView('honeycomb-cluster')}
-        class="w-full flex items-center justify-between px-3.5 py-2 rounded-[3px] transition-all font-mono text-xs cursor-pointer {activeView === 'honeycomb-cluster' ? 'bg-[#1E222A] text-[#FEC486] border border-[#E0A96D]/40 font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.7)]' : 'text-[#8E9298] hover:bg-[#14161A] hover:text-[#EEF0F2] border border-transparent'}"
-      >
-        <div class="flex items-center gap-2.5">
-          <span class="material-symbols-outlined text-[19px] {activeView === 'honeycomb-cluster' ? 'text-[#FEC486]' : 'text-[#8E9298]'}">hub</span>
-          <span>聲學蜂巢星系 (Cluster)</span>
-        </div>
-        <span class="w-1.5 h-1.5 rounded-full bg-[#E0A96D]"></span>
-      </button>
+    <!-- 導覽矩陣 -->
+    <div class="p-3">
+      <div class="font-mono text-[9px] text-ink-dim uppercase tracking-[0.2em] px-2 mb-2">// MODULE_SELECT</div>
+      <nav class="flex flex-col gap-1 font-mono text-xs">
+        <button
+          type="button"
+          onclick={() => onselectView('crate-digger')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'crate-digger' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[16px]">album</span>
+            <span>01_藝人展間</span>
+          </div>
+          {#if activeView === 'crate-digger'}
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[ACT]</span>
+          {:else if inboxCount > 0}
+            <span class="font-mono text-[9px] text-signal font-bold">[{inboxCount}]</span>
+          {/if}
+        </button>
 
-      <button
-        type="button"
-        onclick={() => onselectView('lossless-matrix')}
-        class="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-[3px] transition-all font-mono text-xs cursor-pointer {activeView === 'lossless-matrix' ? 'bg-[#1E222A] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'text-[#8E9298] hover:bg-[#14161A] hover:text-[#EEF0F2] border border-transparent'}"
-      >
-        <span class="material-symbols-outlined text-[19px]">graphic_eq</span>
-        <span>母帶矩陣 (Matrix)</span>
-      </button>
+        <button
+          type="button"
+          onclick={() => onselectView('honeycomb-cluster')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'honeycomb-cluster' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[16px] {activeView === 'honeycomb-cluster' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">hub</span>
+            <span>02_藝人星系</span>
+          </div>
+          <span class="text-[9px] {activeView === 'honeycomb-cluster' ? 'text-void font-bold' : 'text-ink-dim'}">HEX</span>
+        </button>
 
-      <button
-        type="button"
-        onclick={() => onselectView('hardware-racks')}
-        class="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-[3px] transition-all font-mono text-xs cursor-pointer {activeView === 'hardware-racks' ? 'bg-[#1E222A] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'text-[#8E9298] hover:bg-[#14161A] hover:text-[#EEF0F2] border border-transparent'}"
-      >
-        <span class="material-symbols-outlined text-[19px]">settings_input_component</span>
-        <span>硬體機架 (Racks)</span>
-      </button>
+        <button
+          type="button"
+          onclick={() => onselectView('lossless-matrix')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'lossless-matrix' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[16px] {activeView === 'lossless-matrix' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">graphic_eq</span>
+            <span>03_母帶矩陣</span>
+          </div>
+          <span class="text-[9px] {activeView === 'lossless-matrix' ? 'text-void font-bold' : 'text-ink-dim'}">MTX</span>
+        </button>
 
-      <button
-        type="button"
-        onclick={() => onselectView('telemetry-audit')}
-        class="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-[3px] transition-all font-mono text-xs cursor-pointer {activeView === 'telemetry-audit' ? 'bg-[#1E222A] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'text-[#8E9298] hover:bg-[#14161A] hover:text-[#EEF0F2] border border-transparent'}"
-      >
-        <span class="material-symbols-outlined text-[19px]">monitoring</span>
-        <span>頻譜分析 (Telemetry)</span>
-      </button>
-    </nav>
+        <button
+          type="button"
+          onclick={() => onselectView('hardware-racks')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'hardware-racks' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[16px] {activeView === 'hardware-racks' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">settings_input_component</span>
+            <span>04_硬體機架</span>
+          </div>
+          <span class="text-[9px] {activeView === 'hardware-racks' ? 'text-void font-bold' : 'text-ink-dim'}">RCK</span>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => onselectView('telemetry-audit')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'telemetry-audit' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[16px] {activeView === 'telemetry-audit' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">monitoring</span>
+            <span>05_頻譜分析</span>
+          </div>
+          <span class="text-[9px] {activeView === 'telemetry-audit' ? 'text-void font-bold' : 'text-ink-dim'}">FFT</span>
+        </button>
+      </nav>
+    </div>
   </div>
 
-  <!-- 下半部：雲端封裝與庫存狀態 -->
-  <div class="px-4 flex flex-col gap-2">
-    <div class="p-3 bg-[#131519] border border-[#1F2228] rounded-[4px]">
-      <div class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider">PUA_LIBRARY.JSON</div>
-      <div class="font-mono text-[10px] text-[#CCCFD6] flex items-center gap-1.5 mt-1 font-medium">
-        <span class="w-1.5 h-1.5 rounded-full bg-[#E0A96D]"></span>
-        <span>REV: 2026.04 // SYNC READY</span>
+  <!-- 底部資料庫狀態與硬體銘牌 -->
+  <div class="p-4 border-t border-wire bg-void/80 font-mono">
+    <div class="border border-wire p-2.5 bg-chassis relative">
+      <div class="flex items-center justify-between text-[10px] text-ink-muted">
+        <span>DB_MOUNT</span>
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"></span>
+      </div>
+      <div class="text-xs text-ink font-bold tracking-tight mt-0.5">PUA_LIBRARY.JSON</div>
+      <div class="text-[9px] text-ink-dim mt-2 pt-1.5 border-t border-wire border-dashed flex justify-between">
+        <span>REV: 2026.10</span>
+        <span class="text-signal">SHA-256</span>
       </div>
     </div>
   </div>
 </aside>
+

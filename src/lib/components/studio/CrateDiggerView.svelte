@@ -1,14 +1,11 @@
 <script lang="ts">
   import type { ArtistEntry } from '$lib/types/artist';
   import { t } from '$lib/i18n/index.svelte';
-  import SpecBadge from '$lib/components/SpecBadge.svelte';
-  import TactileButton from '$lib/components/TactileButton.svelte';
   import {
     Music,
     Sparkles,
     Trash2,
     ArrowUpRight,
-    SlidersHorizontal,
     Disc3,
     Flame,
     ExternalLink
@@ -72,428 +69,539 @@
         return b.updatedAt - a.updatedAt;
       })
   );
+
+  const DEFAULT_COVER = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80';
+
+  function getSafeCover(url?: string): string {
+    if (!url || url.includes('lh3.googleusercontent.com')) {
+      return DEFAULT_COVER;
+    }
+    return url;
+  }
+
+  // 舞台聚光燈與氛圍光暈運算 (Stage Aura Calculation)
+  function getStageAuraStyle(sector?: string, isHighlighted: boolean = false) {
+    const s = sector?.toUpperCase() || '';
+    if (s === 'ROCK' || s === 'METAL') {
+      return {
+        auraGlow: isHighlighted ? 'rgba(255, 42, 60, 0.4)' : 'rgba(255, 42, 60, 0.18)',
+        spotlight: isHighlighted ? 'rgba(255, 42, 60, 0.25)' : 'rgba(255, 42, 60, 0.08)',
+        accentColor: '#ff2a3c',
+        stageSector: 'ROCK / METAL STAGE'
+      };
+    }
+    if (s === 'JAZZ' || s === 'GROOVE') {
+      return {
+        auraGlow: isHighlighted ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.18)',
+        spotlight: isHighlighted ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.08)',
+        accentColor: '#f59e0b',
+        stageSector: 'JAZZ & GROOVE CLUB'
+      };
+    }
+    if (s === 'AMBIENT' || s === 'CLASSICAL') {
+      return {
+        auraGlow: isHighlighted ? 'rgba(56, 189, 248, 0.4)' : 'rgba(56, 189, 248, 0.18)',
+        spotlight: isHighlighted ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.08)',
+        accentColor: '#38bdf8',
+        stageSector: 'ACOUSTIC HALL'
+      };
+    }
+    if (s === 'ELECTRONIC') {
+      return {
+        auraGlow: isHighlighted ? 'rgba(168, 85, 247, 0.4)' : 'rgba(168, 85, 247, 0.18)',
+        spotlight: isHighlighted ? 'rgba(168, 85, 247, 0.25)' : 'rgba(168, 85, 247, 0.08)',
+        accentColor: '#a855f7',
+        stageSector: 'MODULAR SYNTH LAB'
+      };
+    }
+    return {
+      auraGlow: isHighlighted ? 'rgba(255, 42, 60, 0.35)' : 'rgba(255, 42, 60, 0.12)',
+      spotlight: isHighlighted ? 'rgba(255, 42, 60, 0.2)' : 'rgba(255, 42, 60, 0.06)',
+      accentColor: '#ff2a3c',
+      stageSector: 'SOUNDSTAGE'
+    };
+  }
+
+  function handleImageError(e: Event) {
+    const el = e.currentTarget as HTMLImageElement;
+    if (el && el.src !== DEFAULT_COVER) {
+      el.src = DEFAULT_COVER;
+    }
+  }
 </script>
 
-<div class="flex flex-col w-full text-[#EEF0F2] select-none">
-  <!-- 頂部次級工具列 (Sub-header Filter Toolbar) -->
-  <div class="bg-[#0D0E11] p-3 sm:p-4 rounded-[4px] border border-[#1F2228] mb-5 shadow-sm">
-    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-      <!-- 篩選膠囊 (Filter Pills) -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 xl:pb-0 scrollbar-none">
-        <button
-          type="button"
-          onclick={() => (activeFilter = activeFilter === 'inbox' ? 'all' : 'inbox')}
-          class="flex items-center gap-1.5 px-3 py-1 rounded-[3px] font-mono text-xs shrink-0 cursor-pointer transition-all {activeFilter === 'inbox' ? 'bg-[#FA383E] text-white shadow-[0_0_12px_rgba(250,56,62,0.3)] font-bold' : 'bg-[#15171C] text-[#8E9298] hover:text-[#EEF0F2] border border-[#232731]'}"
-        >
-          <span class="material-symbols-outlined text-[15px]">inbox</span>
-          <span>待解剖收件匣 ({inboxCount})</span>
-        </button>
+<div class="flex flex-col w-full text-ink select-none font-sans">
+  <!-- 頂部次級濾鏡尺規列 (Filter Matrix Bar) -->
+  <div class="bg-chassis/80 border-b border-wire px-4 sm:px-6 py-2.5 mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-3 font-mono">
+    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 xl:pb-0 scrollbar-none">
+      <span class="text-[9px] text-ink-dim uppercase tracking-widest mr-2 shrink-0">FILTER_BUS //</span>
 
-        <button
-          type="button"
-          onclick={() => (activeFilter = activeFilter === 'all' ? 'all' : 'all')}
-          class="flex items-center gap-1.5 px-3 py-1 rounded-[3px] font-mono text-xs shrink-0 cursor-pointer transition-all {activeFilter === 'all' ? 'bg-[#1C2027] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'bg-[#15171C] text-[#8E9298] hover:text-[#EEF0F2] border border-[#232731]'}"
-        >
-          <span class="material-symbols-outlined text-[15px] text-[#FEC486]">album</span>
-          <span>全部唱片 ({artists.length})</span>
-        </button>
+      <button
+        type="button"
+        onclick={() => (activeFilter = activeFilter === 'inbox' ? 'all' : 'inbox')}
+        class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'inbox' ? 'border border-signal bg-signal-dim text-signal font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+      >
+        <span class="w-1.5 h-1.5 bg-signal"></span>
+        <span>INBOX_待解剖 [{inboxCount}]</span>
+      </button>
 
-        <button
-          type="button"
-          onclick={() => (activeFilter = activeFilter === 'math' ? 'all' : 'math')}
-          class="flex items-center gap-1.5 px-3 py-1 rounded-[3px] font-mono text-xs shrink-0 cursor-pointer transition-all {activeFilter === 'math' ? 'bg-[#1C2027] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'bg-[#15171C] text-[#8E9298] hover:text-[#EEF0F2] border border-[#232731]'}"
-        >
-          <span class="material-symbols-outlined text-[15px] text-[#FEC486]">grain</span>
-          <span>Math Rock & Inst. ({genreCounts.math})</span>
-        </button>
+      <button
+        type="button"
+        onclick={() => (activeFilter = 'all')}
+        class="flex items-center gap-1.5 px-3 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'all' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+      >
+        <span class="material-symbols-outlined text-[14px]">album</span>
+        <span>ALL_RECORDS [{artists.length}]</span>
+      </button>
 
-        <button
-          type="button"
-          onclick={() => (activeFilter = activeFilter === 'jazz' ? 'all' : 'jazz')}
-          class="flex items-center gap-1.5 px-3 py-1 rounded-[3px] font-mono text-xs shrink-0 cursor-pointer transition-all {activeFilter === 'jazz' ? 'bg-[#1C2027] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'bg-[#15171C] text-[#8E9298] hover:text-[#EEF0F2] border border-[#232731]'}"
-        >
-          <span class="material-symbols-outlined text-[15px] text-[#FEC486]">audiotrack</span>
-          <span>當代爵士 ({genreCounts.jazz})</span>
-        </button>
+      <button
+        type="button"
+        onclick={() => (activeFilter = activeFilter === 'math' ? 'all' : 'math')}
+        class="flex items-center gap-1.5 px-3 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'math' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+      >
+        <span class="material-symbols-outlined text-[14px]">grain</span>
+        <span>MATH_ROCK & INST [{genreCounts.math}]</span>
+      </button>
 
-        <button
-          type="button"
-          onclick={() => (activeFilter = activeFilter === 'ambient' ? 'all' : 'ambient')}
-          class="flex items-center gap-1.5 px-3 py-1 rounded-[3px] font-mono text-xs shrink-0 cursor-pointer transition-all {activeFilter === 'ambient' ? 'bg-[#1C2027] text-[#FEC486] border border-[#E0A96D]/40 font-bold' : 'bg-[#15171C] text-[#8E9298] hover:text-[#EEF0F2] border border-[#232731]'}"
-        >
-          <span class="material-symbols-outlined text-[15px] text-[#FEC486]">waves</span>
-          <span>原聲氛圍與民謠 ({genreCounts.ambient})</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        onclick={() => (activeFilter = activeFilter === 'jazz' ? 'all' : 'jazz')}
+        class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'jazz' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+      >
+        <span>JAZZ_MODAL [{genreCounts.jazz}]</span>
+      </button>
 
-      <!-- 排序下拉 (Sort Selector) -->
-      <div class="flex items-center gap-2 shrink-0 self-end xl:self-auto">
-        <div class="flex items-center bg-[#040405] border border-[#1F2228] rounded-[3px] px-2.5 py-1 gap-1.5">
-          <span class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider">排序 :</span>
-          <select
-            bind:value={sortBy}
-            class="bg-transparent text-[#FEC486] font-mono text-xs focus:outline-none cursor-pointer"
-          >
-            <option value="recent">最近更新 (Recent Play)</option>
-            <option value="cat">依盤號 / 刻號 (CAT#)</option>
-            <option value="dr">DR 動態值 (Dynamic Range)</option>
-            <option value="audiophile">發燒等級 (Audiophile Grade)</option>
-          </select>
-        </div>
+      <button
+        type="button"
+        onclick={() => (activeFilter = activeFilter === 'ambient' ? 'all' : 'ambient')}
+        class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'ambient' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+      >
+        <span>AMBIENT_FOLK [{genreCounts.ambient}]</span>
+      </button>
+    </div>
+
+    <!-- 排序選單 -->
+    <div class="flex items-center gap-3 shrink-0 text-[10px] self-end xl:self-auto">
+      <div class="flex items-center gap-2 bg-void border border-wire px-2.5 py-1">
+        <span class="text-ink-dim">SORT_BY:</span>
+        <select
+          bind:value={sortBy}
+          class="bg-transparent text-ink font-mono text-[10px] focus:outline-none cursor-pointer uppercase"
+        >
+          <option value="recent">RECENT_PLAY 最近聆聽</option>
+          <option value="cat">CAT# 矩陣刻號</option>
+          <option value="dr">DYNAMIC_RANGE 動態值</option>
+          <option value="audiophile">AUDIOPHILE 發燒等級</option>
+        </select>
       </div>
     </div>
   </div>
 
-  <!-- 主分割工作區：Crate Grid (唱片架) + 右側 Slide-Out Dossier Drawer -->
-  <div class="flex flex-col 2xl:flex-row gap-6 items-start">
-    <!-- 唱片架網格 (Crate Grid) -->
-    <div class="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      {#each processedArtists as artist (artist.id)}
-        {@const isActive = selectedArtistId === artist.id}
-        <div
-          role="button"
-          tabindex="0"
-          onclick={() => onselectArtist(artist.id)}
-          onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
-          class="group relative bg-[#0D0E11] p-3 rounded-[4px] flex flex-col justify-between cursor-pointer transition-all duration-200 border {isActive ? 'border-[#E0A96D] shadow-[0_0_24px_rgba(224,169,109,0.2)] bg-gradient-to-b from-[#1C2027]/70 to-[#0D0E11]' : 'border-[#1F2228] hover:border-[#383D48] hover:bg-[#121417]'}"
-        >
-          <!-- 頂部脊背資訊 (Spine Header) -->
-          <div class="flex items-center justify-between font-mono text-[10px] pb-2">
-            <div class="flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full {isActive ? 'bg-[#FEC486] animate-pulse' : 'bg-[#52565E]'}"></span>
-              <span class="{isActive ? 'text-[#FEC486] font-bold' : 'text-[#8E9298]'}">
-                {artist.catalogNumber || 'CAT# PUA-RAW'}
-              </span>
-            </div>
-            {#if isActive}
-              <span class="px-1.5 py-0.2 bg-[#E0A96D]/10 text-[#FEC486] border border-[#E0A96D]/30 rounded-[2px] font-bold text-[9px] tracking-wider uppercase">
-                ACTIVE INSPECTION
-              </span>
-            {:else if artist.status === 'inbox'}
-              <span class="px-1.5 py-0.2 bg-[#FA383E]/10 text-[#FA383E] border border-[#FA383E]/30 rounded-[2px] font-bold text-[9px] uppercase">
-                INBOX RAW
-              </span>
-            {/if}
-          </div>
+  <!-- 主工作區：裸露網格黑膠櫃 + 右側透明硬體解剖艙 -->
+  <div class="flex-1 flex flex-col 2xl:flex-row items-start gap-6">
 
-          <!-- 12吋黑膠唱片外套 (12-inch Jacket with Peek Vinyl) -->
-          <div class="relative w-full aspect-square overflow-hidden rounded-[2px] bg-[#040405] my-1 shadow-md border border-[#1A1D23]">
-            <!-- 右側露出黑膠微動紋理 (Peeking Vinyl Disc) -->
-            <div class="absolute -right-8 top-1/2 -translate-y-1/2 w-36 h-36 rounded-full bg-[#050505] flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:translate-x-3 pointer-events-none border border-[#222]">
-              <!-- 黑膠唱片同心圓微凹槽 (Concentric Grooves) -->
-              <div class="w-32 h-32 rounded-full bg-[#0c0c0e] flex items-center justify-center border border-[#18181a]">
-                <div class="w-24 h-24 rounded-full bg-[#050505] flex items-center justify-center border border-[#222]">
-                  <!-- 唱片中央貼標 (Center Label) -->
-                  <div class="w-11 h-11 rounded-full bg-[#E0A96D] flex items-center justify-center shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
-                    <div class="w-2.5 h-2.5 rounded-full bg-[#040405]"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 外套封面圖與文字疊層 (Front Cover Jacket) -->
-            <div class="relative z-10 w-full h-full bg-[#121417] overflow-hidden">
-              <img
-                src={artist.coverImage || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80'}
-                alt={artist.name}
-                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-80"
-              />
-              <div class="absolute inset-0 bg-gradient-to-t from-[#040405] via-[#040405]/30 to-transparent"></div>
-
-              <!-- 左上角聲學指標 -->
-              <div class="absolute top-2 left-2 px-1.5 py-0.5 bg-[#0D0E11]/85 backdrop-blur rounded-[2px] font-mono text-[10px] text-[#FEC486] border border-[#E0A96D]/30">
-                {artist.formatSpec || (artist.dynamicRange ? `DR ${artist.dynamicRange} // 96kHz 24bit` : 'Lossless Hi-Res')}
-              </div>
-
-              <!-- 左下角專輯與藝人名稱 -->
-              <div class="absolute bottom-2 left-2 right-2">
-                <span class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider block">
-                  {artist.status === 'analyzed' ? 'MASTER RECORD' : 'UNCATALOGED ENTRY'}
+    <!-- 左側：裸露網格黑膠櫃 (Exposed Grid Crate) -->
+    <main class="flex-1 w-full">
+      <!-- 採用 1px 裸露網格線連接所有單元 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 bg-wire gap-px border border-wire">
+        {#each processedArtists as artist (artist.id)}
+          {@const isActive = selectedArtistId === artist.id}
+          {@const aura = getStageAuraStyle(artist.analysis?.sector, isActive)}
+          <div
+            role="button"
+            tabindex="0"
+            onclick={() => onselectArtist(artist.id)}
+            onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
+            class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : 'bg-void hover:bg-[#0d0e14]'}"
+          >
+            <!-- 頂部微距數據列 -->
+            <div class="flex items-center justify-between font-mono text-[10px] pb-3 border-b border-wire border-dashed">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full {isActive ? 'animate-pulse' : 'bg-ink-dim'}" style="{isActive ? `background-color: ${aura.accentColor}` : ''}"></span>
+                <span class="{isActive ? 'text-ink font-bold tracking-wider' : 'text-ink-muted'}">
+                  {artist.catalogNumber || `STAGE-${artist.id.substring(0, 6).toUpperCase()}`}
                 </span>
-                <h3 class="font-serif text-base font-bold text-[#EEF0F2] group-hover:text-[#FEC486] transition-colors truncate">
+              </div>
+              {#if isActive}
+                <span class="px-1.5 py-0.5 bg-signal text-white font-dot text-[9px] tracking-widest uppercase">
+                  ON_STAGE
+                </span>
+              {:else if artist.status === 'inbox'}
+                <span class="px-1.5 py-0.5 border border-signal/40 bg-signal-dim text-signal font-mono text-[9px] uppercase">
+                  STANDBY
+                </span>
+              {:else}
+                <span class="text-ink-dim text-[9px]">
+                  {artist.dynamicRange ? `DR${artist.dynamicRange}` : '44.1k/24b'}
+                </span>
+              {/if}
+            </div>
+
+            <!-- 舞台聚光艙與氛圍光暈結構 (Stage Aura & Spotlight Viewport) -->
+            <div class="relative w-full aspect-square my-3 bg-[#07080c] border border-wire group-hover:border-wire-bright overflow-hidden rounded-[2px] transition-all duration-500 shadow-inner">
+              <!-- 1. 後景舞台光暈擴散層 (Stage Halo Glow) -->
+              <div
+                class="absolute inset-0 pointer-events-none transition-all duration-700 ease-out group-hover:scale-110"
+                style="background: radial-gradient(circle at 50% 45%, {aura.auraGlow} 0%, transparent 75%);"
+              ></div>
+
+              <!-- 2. 舞台頂部聚光光錐 (Stage Overhead Spotlight Cone) -->
+              <div
+                class="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-60 pointer-events-none opacity-70 group-hover:opacity-100 transition-opacity duration-500"
+                style="background: conic-gradient(from 150deg at 50% 0%, transparent 0deg, {aura.spotlight} 30deg, transparent 60deg);"
+              ></div>
+
+              <!-- 3. 藝人舞台肖像主體 (Stage Artist Subject - 預設黑白，Hover 或選中綻放彩色) -->
+              <div class="relative z-0 w-full h-full overflow-hidden flex items-center justify-center">
+                <img
+                  src={getSafeCover(artist.coverImage)}
+                  alt={artist.name}
+                  onerror={handleImageError}
+                  class="w-full h-full object-cover object-top contrast-125 transition-all duration-500 {isActive ? 'grayscale-0 brightness-100' : 'grayscale brightness-90'} group-hover:grayscale-0 group-hover:brightness-105 group-hover:scale-105"
+                />
+                <!-- 底部舞台暗場漸層 (Stage Floor Shadow) -->
+                <div class="absolute inset-0 bg-gradient-to-t from-[#07080c] via-[#07080c]/35 to-transparent"></div>
+              </div>
+
+              <!-- 4. 舞台左上監聽 HUD (Top-Left Stage HUD) -->
+              <div class="absolute top-2 left-2 z-20 px-2 py-0.5 bg-void/90 border border-wire-bright/50 font-mono text-[9px] text-ink flex items-center gap-1.5 backdrop-blur-sm">
+                <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background-color: {aura.accentColor}"></span>
+                <span class="font-bold tracking-wider">{artist.dynamicRange ? `DR${artist.dynamicRange} // LIVE` : 'STAGE_FEED'}</span>
+              </div>
+
+              <!-- 5. 舞台右上風格領域 (Top-Right Stage Sector) -->
+              <div class="absolute top-2 right-2 z-20 font-mono text-[8px] text-ink-muted bg-void/85 px-1.5 py-0.5 border border-wire backdrop-blur-sm tracking-widest uppercase">
+                {artist.analysis?.sector || artist.countryCode || 'STAGE'}
+              </div>
+
+              <!-- 6. 底部藝人舞台焦點 (Bottom Artist Stage Typography) -->
+              <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20">
+                <div class="flex items-center gap-1.5 text-[9px] font-mono tracking-widest uppercase mb-0.5">
+                  <span style="color: {aura.accentColor}">●</span>
+                  <span class="text-ink-dim">{artist.status === 'analyzed' ? 'STAGE_ARCHIVE' : 'LIVE_STANDBY'}</span>
+                </div>
+                <h3 class="font-sans text-lg text-ink font-black tracking-tight leading-snug truncate drop-shadow-md">
                   {artist.name}
                 </h3>
               </div>
             </div>
-          </div>
 
-          <!-- 底部元數據橫條 (Footer Metadata Strip) -->
-          <div class="pt-2 flex flex-col gap-1.5">
-            <div class="flex flex-wrap gap-1">
-              {#if artist.analysis?.genres}
-                {#each artist.analysis.genres.slice(0, 2) as g}
-                  <span class="px-1.5 py-0.2 bg-[#14161B] text-[#CCCFD6] border border-[#232731] font-mono text-[9px] rounded-[2px]">
-                    {g}
+            <!-- 底部硬體參數條 -->
+            <div class="pt-2 border-t border-wire flex flex-col gap-2 font-mono">
+              <div class="flex flex-wrap gap-1">
+                {#if artist.analysis?.genres}
+                  {#each artist.analysis.genres.slice(0, 2) as g}
+                    <span class="px-1.5 py-0.5 bg-void border border-wire text-ink text-[9px]">
+                      {g.toUpperCase()}
+                    </span>
+                  {/each}
+                  <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal text-[9px]">
+                    AI_PARSED
                   </span>
-                {/each}
-              {:else}
-                <span class="px-1.5 py-0.2 bg-[#1A1113] text-[#FA383E] border border-[#FA383E]/30 font-mono text-[9px] rounded-[2px]">
-                  待 AI 聲學解剖
-                </span>
-              {/if}
-              {#if artist.dynamicRange}
-                <span class="px-1.5 py-0.2 bg-[#0F1813] text-[#63C78B] border border-[#254C34] font-mono text-[9px] rounded-[2px] font-bold">
-                  DR {artist.dynamicRange}
-                </span>
-              {/if}
-            </div>
-
-            <div class="flex items-center justify-between font-mono text-[10px] text-[#52565E] pt-1 border-t border-[#1F2228]">
-              <span class="truncate max-w-[150px]">{artist.runoutMatrix || 'RUNOUT: A-1 SST'}</span>
-              <span class="text-[#FEC486] font-tabular">{artist.fileSize || '1.18 GB FLAC'}</span>
+                {:else}
+                  <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal text-[9px]">
+                    AWAITING_ANALYZE
+                  </span>
+                {/if}
+              </div>
+              <div class="flex items-center justify-between text-[10px] text-ink-dim">
+                <span class="truncate max-w-[120px]">{artist.runoutMatrix || 'MTX: A-1 SST'}</span>
+                <span class="text-ink font-bold">{artist.fileSize || '1.18 GB [FLAC]'}</span>
+              </div>
             </div>
           </div>
-        </div>
-      {/each}
-    </div>
+        {/each}
+      </div>
+    </main>
 
-    <!-- 右側 Slide-Out Dossier Drawer (深潛解剖抽屜) -->
-    <aside class="w-full 2xl:w-[460px] bg-[#0E1013] border border-[#1F2228] p-5 rounded-[4px] shadow-2xl flex flex-col gap-4 sticky top-20">
+    <!-- 右側：整合式透明硬體解剖艙 (Unified Cyber-Hardware Dossier & Telemetry) -->
+    <aside class="w-full 2xl:w-[460px] shrink-0 bg-chassis/95 backdrop-blur-xl border border-wire 2xl:border-l 2xl:border-t-0 2xl:border-r-0 2xl:border-b-0 flex flex-col justify-between sticky top-20">
       {#if selectedArtist}
-        <!-- 抽屜標題列 -->
-        <div class="border-b border-[#1F2228] pb-4">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="font-mono text-[10px] tracking-widest uppercase text-[#FEC486] flex items-center gap-1.5 font-bold">
-              <span class="w-2 h-0.5 bg-[#FEC486]"></span>
-              DOSSIER INSPECTOR // MASTER FILE
-            </span>
-            <div class="flex items-center gap-1">
-              {#if selectedArtist.dynamicRange}
-                <SpecBadge type="dr" text={`DR${selectedArtist.dynamicRange}`} />
-              {/if}
-              <SpecBadge type="hires" text="HI-RES" />
+        <div class="p-5 flex flex-col gap-5">
+
+          <!-- 艙門頂部狀態列 -->
+          <div class="flex items-center justify-between border-b border-wire pb-3 font-mono">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-signal"></span>
+              <span class="font-dot text-xs tracking-[0.15em] text-ink">
+                DOSSIER_INSPECTOR // #{selectedArtist.catalogNumber || '0824'}
+              </span>
+              <span class="px-1.5 py-0.5 border border-wire bg-void text-ink-muted text-[9px]">MASTER_TIER</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[9px] text-ink-dim">BYOK_ACTIVE</span>
+              <button
+                type="button"
+                onclick={() => ondeleteArtist(selectedArtist.id)}
+                title="移出機架"
+                class="w-6 h-6 border border-wire hover:border-signal text-ink-muted hover:text-signal flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          <h2 class="font-serif text-2xl font-bold text-[#EEF0F2] mb-1">
-            {selectedArtist.name}
-          </h2>
-
-          {#if selectedArtist.aliases && selectedArtist.aliases.length > 0}
-            <p class="font-mono text-xs text-[#8E9298] mb-1">
-              AKA: {selectedArtist.aliases.join(' / ')}
-            </p>
-          {/if}
-
-          <!-- 古典樂雙軸銘牌 (Classical Dual-Key Plaque) -->
-          {#if selectedArtist.classicalMetadata}
-            <div class="my-2.5 p-2 rounded-[3px] bg-[#14120D] border border-[#E0A96D]/40 font-mono text-[11px] space-y-0.5">
-              <div class="text-[#FEC486] font-bold flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#E0A96D]"></span>
-                COMPOSER: {selectedArtist.classicalMetadata.composer}
-              </div>
-              <div class="text-[#CCCFD6] text-[10px]">
-                WORK: {selectedArtist.classicalMetadata.workTitle} • {selectedArtist.classicalMetadata.instrumentOrRole}
-              </div>
-              {#if selectedArtist.classicalMetadata.recordingYear}
-                <div class="text-[#8E9298] text-[9px]">
-                  EDITION: {selectedArtist.classicalMetadata.recordingYear}
+          <!-- 藝人主視覺與即時頻譜整合模組 -->
+          <div class="crosshair-box border border-wire bg-void p-4">
+            <div class="flex gap-4 items-start">
+              <div class="w-24 h-24 border border-wire-bright shrink-0 relative overflow-hidden bg-panel">
+                <img
+                  src={getSafeCover(selectedArtist.coverImage)}
+                  alt={selectedArtist.name}
+                  onerror={handleImageError}
+                  class="w-full h-full object-cover grayscale contrast-125 hover:grayscale-0 transition-all duration-300"
+                />
+                <div class="absolute bottom-0 right-0 bg-signal text-white font-mono text-[8px] px-1">
+                  {selectedArtist.countryCode || 'RAW'}
                 </div>
-              {/if}
+              </div>
+              <div class="flex-1 font-mono min-w-0">
+                <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                  <span class="px-1.5 py-0.5 bg-signal text-white text-[9px] font-bold tracking-wider">
+                    {selectedArtist.audiophileGrade || 'HI-RES LOSSLESS'}
+                  </span>
+                  <span class="px-1.5 py-0.5 border border-wire text-ink-muted text-[9px]">
+                    {selectedArtist.catalogNumber || 'CAT# PUA-RAW'}
+                  </span>
+                </div>
+                <h2 class="font-serif text-2xl sm:text-3xl text-ink font-black tracking-tight leading-none my-1.5 truncate">
+                  {selectedArtist.name}
+                </h2>
+                <div class="text-[10px] text-ink-muted tracking-wider truncate">
+                  {selectedArtist.analysis?.genres ? selectedArtist.analysis.genres.join(' // ') : 'ACOUSTIC ARCHITECTURE'}
+                </div>
+              </div>
             </div>
-          {/if}
 
-          <!-- 核心動作列 -->
-          <div class="flex items-center gap-2 mt-3">
+            <!-- 內嵌硬體級頻譜與母帶遙測 (Embedded Telemetry Matrix) -->
+            <div class="mt-4 pt-3 border-t border-wire border-dashed grid grid-cols-3 gap-2 font-mono text-[10px]">
+              <div class="bg-chassis p-2 border border-wire">
+                <span class="text-ink-dim text-[8px] block">DYNAMIC RANGE</span>
+                <span class="text-ink font-bold">DR {selectedArtist.dynamicRange || 14} <span class="text-signal text-[9px]">[REF]</span></span>
+              </div>
+              <div class="bg-chassis p-2 border border-wire">
+                <span class="text-ink-dim text-[8px] block">PEAK LEVEL</span>
+                <span class="text-ink font-bold">-0.1 dBFS</span>
+              </div>
+              <div class="bg-chassis p-2 border border-wire">
+                <span class="text-ink-dim text-[8px] block">STAGE SECTOR</span>
+                <span class="text-ink font-bold truncate block">{selectedArtist.analysis?.sector || 'SOUNDSTAGE'}</span>
+              </div>
+            </div>
+
+            <!-- 點陣頻譜波形 (Waveform Recon) -->
+            <div class="mt-2 bg-chassis border border-wire p-2.5">
+              <div class="flex justify-between items-center font-mono text-[9px] text-ink-dim mb-1.5">
+                <span>WAVEFORM_RECON // 20Hz - 48kHz</span>
+                <span class="text-signal animate-pulse">● LIVE_SCAN</span>
+              </div>
+              <div class="h-10 flex items-end justify-between gap-0.5 pt-1">
+                <span class="flex-1 h-2 bg-wire-bright"></span>
+                <span class="flex-1 h-4 bg-wire-bright"></span>
+                <span class="flex-1 h-6 bg-ink-muted"></span>
+                <span class="flex-1 h-8 bg-ink"></span>
+                <span class="flex-1 h-5 bg-ink-muted"></span>
+                <span class="flex-1 h-10 bg-signal animate-pulse"></span>
+                <span class="flex-1 h-7 bg-ink"></span>
+                <span class="flex-1 h-9 bg-signal"></span>
+                <span class="flex-1 h-4 bg-ink-muted"></span>
+                <span class="flex-1 h-6 bg-ink"></span>
+                <span class="flex-1 h-3 bg-wire-bright"></span>
+                <span class="flex-1 h-8 bg-ink"></span>
+                <span class="flex-1 h-10 bg-signal animate-pulse"></span>
+                <span class="flex-1 h-6 bg-ink-muted"></span>
+                <span class="flex-1 h-5 bg-wire-bright"></span>
+                <span class="flex-1 h-9 bg-ink"></span>
+                <span class="flex-1 h-4 bg-wire-bright"></span>
+                <span class="flex-1 h-7 bg-ink-muted"></span>
+                <span class="flex-1 h-3 bg-wire-bright"></span>
+                <span class="flex-1 h-2 bg-wire"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 動作按鈕：外部串流觸發器 + AI 解剖按鈕 -->
+          <div class="flex flex-col gap-2">
             {#if selectedArtist.appleMusicUrl}
               <a
                 href={selectedArtist.appleMusicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex-1 inline-flex items-center justify-center gap-1.5 font-mono text-xs bg-[#FA383E] text-white py-2 px-3 rounded-[3px] font-semibold hover:bg-[#E0262C] transition-all shadow-[0_0_12px_rgba(250,56,62,0.3)]"
+                class="corner-cut flex items-center justify-between px-4 py-2.5 bg-ink hover:bg-signal text-void hover:text-white font-mono text-xs font-bold uppercase tracking-widest transition-all"
               >
-                <Music class="w-3.5 h-3.5" />
-                <span>在 Apple Music 開啟</span>
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[16px]">play_arrow</span>
+                  <span>LAUNCH_APPLE_MUSIC_STREAM</span>
+                </div>
+                <span>[EXT ↗]</span>
               </a>
             {/if}
 
-            <TactileButton
-              variant="amber"
-              size="md"
-              disabled={isAnalyzing}
-              onclick={() => onanalyzeArtist(selectedArtist)}
-              class="flex-1 py-2 text-xs"
-            >
-              <Sparkles class="w-3.5 h-3.5 mr-1.5 text-[#FEC486]" />
-              <span>{isAnalyzing ? '解剖中...' : 'AI 音樂學解剖'}</span>
-            </TactileButton>
-
             <button
               type="button"
-              onclick={() => ondeleteArtist(selectedArtist.id)}
-              title="移出機架"
-              class="p-2 rounded-[3px] bg-[#14161A] border border-[#252930] text-[#52565E] hover:text-[#FA383E] hover:bg-[#201013] transition-colors cursor-pointer"
+              disabled={isAnalyzing}
+              onclick={() => onanalyzeArtist(selectedArtist)}
+              class="w-full corner-cut flex items-center justify-center gap-2 px-4 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
             >
-              <Trash2 class="w-3.5 h-3.5" />
+              <Sparkles class="w-3.5 h-3.5 text-signal" />
+              <span>{isAnalyzing ? 'ENGINE RUNNING...' : 'AI 深度音樂學解剖 (SPECTRUM SCAN)'}</span>
             </button>
           </div>
-        </div>
 
-        <!-- 檔案詳情內文 (滾動視圖) -->
-        <div class="flex flex-col gap-4 overflow-y-auto max-h-[580px] pr-1">
+          <!-- AI 音樂脈絡精析 (AI Context Breakdown) -->
           {#if selectedArtist.analysis}
-            <!-- 聲響演進 -->
-            <div>
-              <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-1.5 flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 bg-[#E0A96D] rounded-full"></span>
-                聲響簽名與脈絡演進
-              </h4>
-              <p class="font-sans text-xs text-[#CCCFD6] leading-relaxed bg-[#050608] p-3 rounded-[3px] border border-[#1A1D23]">
-                {selectedArtist.analysis.summary}
-              </p>
+            <div class="border border-wire bg-void/60 p-4 flex flex-col gap-3">
+              <div class="flex items-center justify-between border-b border-wire pb-2 font-mono">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-signal text-xs">■</span>
+                  <span class="font-dot text-xs text-ink tracking-wider">AI_ACOUSTIC_SPECTRUM [脈絡解剖]</span>
+                </div>
+                <span class="text-[9px] text-ink-dim">LLAMA-3.3 // GEMINI</span>
+              </div>
+
+              <div class="space-y-3">
+                <div class="border-l-2 border-signal pl-3 py-0.5">
+                  <span class="font-mono text-[10px] text-signal font-bold tracking-wider block mb-1">01 // ARTIST_ESSENCE [音樂人/藝人介紹與美學脈絡]</span>
+                  <p class="text-xs text-ink-muted leading-relaxed">
+                    {selectedArtist.analysis.summary}
+                  </p>
+                </div>
+                {#if selectedArtist.analysis.instrumentationNotes}
+                  <div class="border-l-2 border-amber-400 pl-3 py-0.5">
+                    <span class="font-mono text-[10px] text-amber-400 font-bold tracking-wider block mb-1">02 // LISTENING_FOCUS [發燒聆聽重點與聲學質地]</span>
+                    <p class="text-xs text-ink-muted leading-relaxed">
+                      {selectedArtist.analysis.instrumentationNotes}
+                    </p>
+                  </div>
+                {/if}
+              </div>
             </div>
 
-            <!-- 配器聲學特徵 -->
-            {#if selectedArtist.analysis.instrumentationNotes}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-1.5 flex items-center gap-1.5">
-                  <SlidersHorizontal class="w-3.5 h-3.5 text-[#E0A96D]" />
-                  配器質地與錄音特徵
-                </h4>
-                <p class="font-mono text-xs text-[#E0A96D]/90 bg-[#12100A] p-3 rounded-[3px] border border-[#E0A96D]/30 leading-relaxed">
-                  {selectedArtist.analysis.instrumentationNotes}
-                </p>
-              </div>
-            {/if}
-
-            <!-- 代表性專輯矩陣 (雙軌：時代基石 Milestone ✕ 深埋寶藏 Hidden Treasure) -->
+            <!-- 雙軌唱片挖掘：核心推薦專輯 ✕ 深埋發燒寶藏 (Dual-Track Archives) -->
             {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-2 flex items-center justify-between">
-                  <div class="flex items-center gap-1.5">
-                    <Disc3 class="w-3.5 h-3.5 text-[#FA383E]" />
-                    <span>唱片矩陣 (DISCOGRAPHY)</span>
-                  </div>
-                  <span class="text-[9px] text-[#FEC486]">MILESTONE // HIDDEN TREASURES</span>
-                </h4>
-                <div class="space-y-2.5">
+              <div class="font-mono flex flex-col gap-2">
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-ink-muted uppercase tracking-widest">// RECORD_ARCHIVES [推薦專輯 ✕ 深埋寶藏]</span>
+                  <span class="text-signal">0{selectedArtist.analysis.notableAlbums.length}_ENCODED</span>
+                </div>
+                <div class="flex flex-col gap-2">
                   {#each selectedArtist.analysis.notableAlbums as alb}
-                    {@const isHidden = alb.tier === 'hidden-treasure'}
-                    <div class="p-3 rounded-[3px] border transition-all {isHidden ? 'bg-[#0E0B07] border-[#E0A96D]/60 shadow-[0_0_16px_rgba(224,169,109,0.12)]' : 'bg-[#050608] border-[#1A1D23]'}">
-                      <div class="flex items-start justify-between gap-2">
-                        <div>
-                          <!-- 階層徽章 -->
-                          <div class="flex items-center gap-2 mb-1">
-                            {#if isHidden}
-                              <span class="inline-flex items-center gap-1 px-1.5 py-0.2 bg-[#E0A96D]/20 text-[#FEC486] border border-[#E0A96D]/50 rounded-[2px] font-mono text-[9px] font-bold uppercase tracking-wider">
-                                <span class="w-1 h-1 rounded-full bg-[#FEC486] animate-pulse"></span>
-                                HIDDEN TREASURE // 深埋明珠
-                              </span>
-                            {:else}
-                              <span class="inline-flex items-center px-1.5 py-0.2 bg-[#1A1D24] text-[#CCCFD6] border border-[#2B303C] rounded-[2px] font-mono text-[9px] uppercase tracking-wider">
-                                ESSENTIAL MILESTONE // 時代基石
-                              </span>
-                            {/if}
-                            <span class="font-mono text-[10px] text-[#8E9298]">
-                              {alb.year}
-                            </span>
-                            {#if alb.dynamicRangeScore}
-                              <span class="font-mono text-[10px] text-[#63C78B] font-bold">
-                                DR{alb.dynamicRangeScore}
-                              </span>
-                            {/if}
-                          </div>
+                    {@const isHidden = alb.tier === 'hidden-treasure' || alb.trackType === 'hidden-treasure'}
+                    <div class="border p-2.5 flex flex-col gap-1.5 transition-colors {isHidden ? 'border-amber-500/40 bg-amber-950/10' : 'border-wire bg-void hover:bg-panel'}">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 min-w-0">
+                          {#if isHidden}
+                            <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold shrink-0">深埋寶藏</span>
+                          {:else}
+                            <span class="text-[9px] px-1.5 py-0.2 bg-signal-dim text-signal border border-signal/40 font-bold shrink-0">核心推薦</span>
+                          {/if}
+                          <span class="text-[10px] text-ink-dim font-bold shrink-0">{alb.year || 'HIST'}</span>
+                          <span class="font-sans text-xs text-ink font-bold truncate">{alb.title}</span>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0 ml-2">
+                          {#if alb.dynamicRangeScore}
+                            <span class="text-[9px] text-signal font-bold">DR{alb.dynamicRangeScore}</span>
+                          {/if}
+                          {#if alb.appleMusicSearchUrl}
+                            <a
+                              href={alb.appleMusicSearchUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-ink-dim hover:text-signal"
+                              title="在 Apple Music 開啟"
+                            >
+                              <ArrowUpRight class="w-3.5 h-3.5" />
+                            </a>
+                          {/if}
+                        </div>
+                      </div>
 
-                          <h5 class="font-serif text-sm font-bold text-[#EEF0F2]">
-                            {alb.title}
-                          </h5>
+                      {#if alb.description}
+                        <p class="font-sans text-[11px] text-ink-muted leading-relaxed pl-1">
+                          {alb.description}
+                        </p>
+                      {/if}
 
-                          <p class="font-sans text-[11px] text-[#8E9298] mt-1 leading-relaxed">
-                            {alb.description}
-                          </p>
-
-                          <!-- Hidden Treasure 專屬發燒指標 -->
-                          {#if isHidden && (alb.rarityReason || alb.audiophileHighlight)}
-                            <div class="mt-2 pt-2 border-t border-[#E0A96D]/20 space-y-1">
-                              {#if alb.rarityReason}
-                                <div class="font-mono text-[10px] text-[#FEC486]/90 flex items-start gap-1">
-                                  <span class="text-[#E0A96D] shrink-0 font-bold">[挖寶理由]</span>
-                                  <span>{alb.rarityReason}</span>
-                                </div>
-                              {/if}
-                              {#if alb.audiophileHighlight}
-                                <div class="font-mono text-[10px] text-[#63C78B]/90 flex items-start gap-1">
-                                  <span class="text-[#63C78B] shrink-0 font-bold">[聲學亮點]</span>
-                                  <span>{alb.audiophileHighlight}</span>
-                                </div>
-                              {/if}
+                      {#if isHidden && (alb.rarityReason || alb.audiophileHighlight)}
+                        <div class="pt-1.5 mt-0.5 border-t border-amber-500/20 text-[10px] flex flex-col gap-1 pl-1">
+                          {#if alb.rarityReason}
+                            <div class="text-ink-dim flex items-start gap-1">
+                              <span class="text-amber-400 shrink-0 font-bold">[挖寶理由]</span>
+                              <span class="text-ink-muted">{alb.rarityReason}</span>
+                            </div>
+                          {/if}
+                          {#if alb.audiophileHighlight}
+                            <div class="text-ink-dim flex items-start gap-1">
+                              <span class="text-emerald-400 shrink-0 font-bold">[聲學亮點]</span>
+                              <span class="text-ink-muted">{alb.audiophileHighlight}</span>
                             </div>
                           {/if}
                         </div>
-
-                        <!-- Apple Music 跳轉按鈕 -->
-                        <a
-                          href={alb.appleMusicSearchUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="p-1.5 rounded-[2px] {isHidden ? 'bg-[#E0A96D]/10 text-[#FEC486] hover:bg-[#E0A96D] hover:text-black' : 'bg-[#14161A] text-[#FA383E] hover:bg-[#FA383E] hover:text-white'} transition-colors shrink-0"
-                          title="在 Apple Music 搜尋此專輯"
-                        >
-                          <ArrowUpRight class="w-3.5 h-3.5" />
-                        </a>
-                      </div>
+                      {/if}
                     </div>
                   {/each}
                 </div>
               </div>
             {/if}
 
-            <!-- 相似風格系譜一鍵拾取 -->
+            <!-- 脈絡相似推薦 (Interactive Network Matrix) -->
             {#if selectedArtist.analysis.similarArtists && selectedArtist.analysis.similarArtists.length > 0}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-1.5 flex items-center gap-1.5">
-                  <Flame class="w-3.5 h-3.5 text-[#E0A96D]" />
-                  相關風格系譜（點擊一鍵拾取入庫）
-                </h4>
-                <div class="flex flex-wrap gap-1.5">
-                  {#each selectedArtist.analysis.similarArtists as sim}
-                    <button
-                      type="button"
-                      onclick={() => onpickupSimilar(sim)}
-                      class="px-2.5 py-1 rounded-[2px] bg-[#14161B] hover:bg-[#20252E] hover:border-[#E0A96D] border border-[#232731] font-mono text-xs text-[#CCCFD6] hover:text-[#FEC486] transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <span>+ {sim}</span>
-                    </button>
+              <div class="font-mono flex flex-col gap-2">
+                <span class="text-[10px] text-ink-muted uppercase tracking-widest">// ACOUSTIC_AFFINITY [相似頻率推薦]</span>
+                <div class="grid grid-cols-3 gap-1.5">
+                  {#each selectedArtist.analysis.similarArtists.slice(0, 3) as sim, idx}
+                    <div class="border border-wire bg-void p-2 flex flex-col justify-between gap-2 hover:border-ink transition-colors">
+                      <div>
+                        <div class="text-xs text-ink font-bold truncate">{sim}</div>
+                        <div class="text-[9px] text-signal mt-0.5">SYNC: {92 - idx * 4}%</div>
+                      </div>
+                      <button
+                        type="button"
+                        onclick={() => onpickupSimilar(sim)}
+                        class="w-full py-0.5 bg-panel hover:bg-signal text-ink hover:text-white text-[9px] border border-wire transition-colors cursor-pointer"
+                      >
+                        + 拾取
+                      </button>
+                    </div>
                   {/each}
                 </div>
               </div>
             {/if}
-          {:else}
-            <!-- 待解剖空狀態 -->
-            <div class="p-8 text-center bg-[#050608] border border-[#1A1D23] rounded-[3px] my-4">
-              <Sparkles class="w-8 h-8 mx-auto text-[#E0A96D]/60 mb-2" />
-              <p class="font-sans text-xs text-[#8E9298] mb-4">
-                此唱片尚未進行 AI 深度解剖。點擊按鈕探索其創作風格與聲學特徵。
-              </p>
-              <TactileButton
-                variant="amber"
-                size="md"
-                disabled={isAnalyzing}
-                onclick={() => onanalyzeArtist(selectedArtist)}
-              >
-                {isAnalyzing ? '解剖中...' : '啟動 AI 聲學解剖'}
-              </TactileButton>
-            </div>
           {/if}
 
-          <!-- 私藏筆記 -->
-          <div class="mt-2 pt-3 border-t border-[#1F2228]">
-            <h4 class="font-mono text-[11px] uppercase tracking-wider text-[#8E9298] font-bold mb-1">
-              私藏聆聽筆記
-            </h4>
+          <!-- 本地私密試聽筆記 (Hardware Impressions) -->
+          <div class="border border-wire border-dashed bg-void/80 p-3 font-mono flex flex-col gap-2">
+            <div class="flex items-center justify-between text-[10px]">
+              <span class="text-ink-muted uppercase tracking-wider">// LOCAL_IMPRESSIONS [私密試聽鏈路]</span>
+              <span class="material-symbols-outlined text-ink-dim text-[14px]">edit_note</span>
+            </div>
+            <div class="p-2 bg-chassis border border-wire text-[10px] text-ink flex items-center justify-between">
+              <span>CHAIN: HD600 // 4.4mm BALANCED</span>
+              <span class="text-ink-dim">2026.10</span>
+            </div>
             <textarea
               bind:value={selectedArtist.personalNotes}
-              placeholder="記錄耳機搭配、管機音色或現場聆聽印象..."
-              rows="3"
-              class="w-full bg-[#040405] text-xs text-[#EEF0F2] placeholder-[#52565E] p-2.5 rounded-[3px] border border-[#1F2228] focus:border-[#E0A96D] focus:outline-none resize-none"
+              placeholder="輸入私藏監聽耳機搭配、管機音色或現場聆聽筆記..."
+              rows="2"
+              class="w-full bg-void text-xs text-ink placeholder-ink-dim p-2 border border-wire focus:border-signal focus:outline-none resize-none font-mono"
             ></textarea>
+            <div class="flex items-center justify-between text-[9px] text-ink-dim pt-1">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>COMMITTED: pua_library.json</span>
+              </span>
+              <span>IDB_LATENCY &lt;12ms</span>
+            </div>
           </div>
+
         </div>
       {:else}
-        <div class="py-24 text-center text-[#52565E] font-mono text-xs">
-          請選擇一張唱片檢視檔案。
+        <div class="p-12 text-center text-ink-dim font-mono text-xs">
+          [STANDBY: NO_ARTIST_SELECTED]
         </div>
       {/if}
     </aside>
+
   </div>
 </div>
+

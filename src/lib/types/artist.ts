@@ -2,6 +2,8 @@ export interface NotableAlbum {
   title: string;
   year: string;
   tier?: 'milestone' | 'hidden-treasure'; // 時代基石 vs 深埋寶藏 (Hidden Treasure)
+  trackType?: string;                     // 相容別名
+  losslessSpec?: string;                  // 無損規格 (例如 96kHz 24bit ALAC)
   description: string;
   appleMusicSearchUrl: string;
   rarityReason?: string;                  // 挖寶理由 (非演算法芭樂、冷門現場、絕版小品)
@@ -9,8 +11,24 @@ export interface NotableAlbum {
   dynamicRangeScore?: number;             // DR 動態值 (如 14+)
 }
 
+// 蜂巢 8 軸全景星系羅盤 (Level 1 固定大板塊)
+export type AcousticSector =
+  | 'ROCK'        // 0°: 搖滾 (含 Indie Rock, Math Rock, Post-Rock, Prog)
+  | 'METAL'       // 45°: 重型金屬 (Metalcore, Death Metal, Sludge, Doom)
+  | 'CLASSICAL'   // 90°: 古典 (古典/巴洛克/浪漫/現代，依 樂派 ✕ 樂器 編制)
+  | 'JAZZ'        // 135°: 爵士 (Modern Jazz, Fusion, Bebop, Hard Bop)
+  | 'AMBIENT'     // 180°: 氛圍與實驗 (Drone, Modern Classical, Soundscape)
+  | 'ELECTRONIC'  // 225°: 電子前衛 (IDM, Ambient Techno, Synthwave, Glitch)
+  | 'GROOVE'      // 270°: 律動黑樂 (Funk, Soul, Neo-Soul, R&B, Hip-Hop)
+  | 'POP';        // 315°: 流行與根源 (Art Pop, City Pop, Dream Pop, Acoustic Folk)
+
 export interface ArtistAnalysis {
-  genres: string[];
+  // 三層分類體系
+  sector: AcousticSector;        // Level 1: 蜂巢 8 軸固定大板塊
+  subGenre: string;              // Level 2: AI 決定的代表子流派 (例如 Neo-Soul, Baroque Cello, Math Rock)
+  aestheticTags?: string[];      // Level 3: 美學與態度標籤 (例如 indie, analog-warmth, lo-fi, progressive)
+  
+  genres: string[];              // 相關音樂標籤
   summary: string;
   notableAlbums: NotableAlbum[];
   similarArtists: string[];
@@ -59,9 +77,11 @@ export interface ArtistEntry {
   formatSpec?: string;             // 例如 'DR 14 // 96kHz 24bit'
   fileSize?: string;               // 例如 '1.18 GB FLAC'
   coverImage?: string;             // 專輯或藝人封面
+  countryCode?: string;            // 產地/版本標記 (如 'JP', 'TW', 'US', 'NO')
   
   // 聲學星系座標 (Honeycomb Cluster Matrix)
-  clusterCategory?: 'math-rock' | 'jazz' | 'neo-classical' | 'ambient';
+  clusterCategory?: AcousticSector | 'math-rock' | 'jazz' | 'neo-classical' | 'ambient';
+  clusterSector?: AcousticSector;
   clusterPos?: { x: number; y: number };
 }
 

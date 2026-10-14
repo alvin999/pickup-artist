@@ -46,10 +46,10 @@
         </div>
         <div class="flex flex-col">
           <span class="font-serif text-base font-bold text-[#EEF0F2] tracking-tight">
-            聲學蜂巢星系矩陣
+            藝人蜂巢星系矩陣
           </span>
           <span class="font-mono text-[9px] text-[#8E9298] tracking-wider uppercase">
-            ACOUSTIC HEXAGONAL CLUSTER MATRIX // NO-FLOAT RIGID LATTICE
+            ARTIST HEXAGONAL CLUSTER MATRIX // NO-FLOAT RIGID LATTICE
           </span>
         </div>
       </div>

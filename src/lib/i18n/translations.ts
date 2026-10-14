@@ -9,7 +9,7 @@ export const translations = {
     
     // 拾音與快速輸入
     pickup_placeholder: '拾取音樂人、樂團或貼入 Apple Music 連結...',
-    pickup_button: '拾音',
+    pickup_button: '知悉',
     pickup_shortcut_hint: '按 Enter 立即存入本地機架',
     pickup_success_toast: '已存入本地 IndexedDB，等待背景同步',
     pickup_empty_warn: '請輸入音樂人名稱或連結',
@@ -18,7 +18,7 @@ export const translations = {
     status_inbox: '待解剖',
     status_analyzed: '已建檔',
     tab_all: '全庫收錄',
-    tab_inbox: '拾音收件匣',
+    tab_inbox: '知悉收件匣',
     tab_analyzed: '發燒友智庫',
     search_placeholder: '搜尋音樂人、風格流派或別名...',
 
