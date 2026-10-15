@@ -50,6 +50,10 @@ export const translations = {
     status_sync_idle: '雲端待命',
     status_sync_syncing: '同步傳輸中',
     status_sync_success: '同步完成',
+    status_sync_connected: '已同步',
+    status_sync_not_synced: '尚未同步',
+    status_ai_ready: 'AI 引擎就緒',
+    status_ai_unconfigured: 'AI 尚未設定',
     status_storage_quota: '本地快取配額',
     
     // 語言切換
@@ -100,6 +104,10 @@ export const translations = {
     status_sync_idle: 'Cloud Standby',
     status_sync_syncing: 'Syncing',
     status_sync_success: 'Vault Synced',
+    status_sync_connected: 'SYNCED',
+    status_sync_not_synced: 'NOT SYNCED',
+    status_ai_ready: 'AI: READY',
+    status_ai_unconfigured: 'AI: NOT SET',
     status_storage_quota: 'Local Quota',
     
     lang_zh: '繁中',
@@ -149,6 +157,10 @@ export const translations = {
     status_sync_idle: '待機中',
     status_sync_syncing: '同期通信中',
     status_sync_success: '同期完了',
+    status_sync_connected: '同期済み',
+    status_sync_not_synced: '未同期',
+    status_ai_ready: 'AI 準備完了',
+    status_ai_unconfigured: 'AI 未設定',
     status_storage_quota: 'ローカル使用量',
     
     lang_zh: '繁中',

@@ -81,7 +81,7 @@ Output MUST be a single, strictly valid JSON object matching the requested schem
   "name": "${artistName}",
   "aliases": ["常見別名或日文片假名"],
   "sector": "ROCK",
-  "subGenre": "代表性子風格（例如 Math Rock / Neo-Soul / Post-Rock）",
+  "subGenre": "唯一代表性二級子流派（例如 Math Rock / Post-Rock / Neo-Soul / Modal Jazz / Ambient Folk，嚴格鎖定單一代表子流派）",
   "artistRole": "藝人核心角色與專精，簡短 2-4 個英文單字（例如 Bassist / Vocalist、Piano Trio、Producer / Beatmaker、Cellist）",
   "aestheticTags": ["4-6 個能讓人快速認識此藝人的英文小寫連字號標籤，涵蓋演奏特色、創作態度與聲響質地（例如 modal-bass, intimate-vocals, genre-fluid, analog-warmth）"],
   "genres": ["主要風格標籤 1", "主要風格標籤 2", "主要風格標籤 3"],

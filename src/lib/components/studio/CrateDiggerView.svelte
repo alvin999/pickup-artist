@@ -66,7 +66,45 @@
 
   // 篩選與排序狀態
   let activeFilter = $state<string>('all');
-  let sortBy = $state<'recent' | 'cat' | 'dr' | 'audiophile'>('recent');
+  let sortBy = $state<'recent' | 'cat' | 'dr' | 'audiophile' | 'weight'>('recent');
+
+  // 刪除二次確認計時器狀態
+  let deleteConfirmPending = $state(false);
+  let deleteCountdown = $state(3);
+  let deleteTimer: ReturnType<typeof setInterval> | null = null;
+
+  $effect(() => {
+    if (selectedArtistId) {
+      resetDeleteConfirm();
+    }
+  });
+
+  function resetDeleteConfirm() {
+    deleteConfirmPending = false;
+    deleteCountdown = 3;
+    if (deleteTimer) {
+      clearInterval(deleteTimer);
+      deleteTimer = null;
+    }
+  }
+
+  function handleTriggerDelete() {
+    if (!selectedArtist) return;
+    if (!deleteConfirmPending) {
+      deleteConfirmPending = true;
+      deleteCountdown = 3;
+      deleteTimer = setInterval(() => {
+        deleteCountdown -= 1;
+        if (deleteCountdown <= 0) {
+          resetDeleteConfirm();
+        }
+      }, 1000);
+    } else {
+      const idToDelete = selectedArtist.id;
+      resetDeleteConfirm();
+      ondeleteArtist(idToDelete);
+    }
+  }
 
   const selectedArtist = $derived(
     artists.find((a) => a.id === selectedArtistId) || artists[0] || null
@@ -150,6 +188,7 @@
         return true;
       })
       .sort((a, b) => {
+        if (sortBy === 'weight') return (b.weight ?? 20) - (a.weight ?? 20);
         if (sortBy === 'dr') return (b.dynamicRange || 0) - (a.dynamicRange || 0);
         if (sortBy === 'cat') return (a.catalogNumber || '').localeCompare(b.catalogNumber || '');
         if (sortBy === 'audiophile') {
@@ -279,6 +318,7 @@
           class="bg-transparent text-ink font-mono text-[10px] focus:outline-none cursor-pointer uppercase"
         >
           <option value="recent">RECENT_PLAY 最近聆聽</option>
+          <option value="weight">GRAVITY_WEIGHT 引力權重 (1-100)</option>
           <option value="cat">CAT# 矩陣刻號</option>
           <option value="dr">DYNAMIC_RANGE 動態值</option>
           <option value="audiophile">AUDIOPHILE 發燒等級</option>
@@ -992,6 +1032,24 @@
               </span>
               <span>IDB_LATENCY &lt;12ms</span>
             </div>
+          </div>
+
+          <!-- 底部危險操作區：二次確認防誤觸移除按鈕 -->
+          <div class="pt-3 border-t border-wire mt-2">
+            <button
+              type="button"
+              onclick={handleTriggerDelete}
+              class="w-full py-2 px-3 rounded-[2px] font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 {deleteConfirmPending
+                ? 'bg-signal text-white shadow-[0_0_16px_rgba(255,42,60,0.6)] animate-pulse'
+                : 'bg-void hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire hover:border-signal/50'}"
+            >
+              {#if deleteConfirmPending}
+                <span>⚠️ 確認移除「{selectedArtist.name}」？ ({deleteCountdown}s)</span>
+              {:else}
+                <Trash2 class="w-3.5 h-3.5 text-ink-muted" />
+                <span>自智庫與展間中移除藝人</span>
+              {/if}
+            </button>
           </div>
 
         </div>

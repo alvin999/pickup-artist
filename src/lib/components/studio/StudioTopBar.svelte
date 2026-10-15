@@ -5,15 +5,21 @@
   interface Props {
     onopenPickupModal: () => void;
     onopenAISettings?: () => void;
+    onopenCloudSync?: () => void;
     searchQuery: string;
     onsearchChange: (q: string) => void;
+    isOneDriveConnected?: boolean;
+    isAiConfigured?: boolean;
   }
 
   let {
     onopenPickupModal,
     onopenAISettings,
+    onopenCloudSync,
     searchQuery = $bindable(''),
-    onsearchChange
+    onsearchChange,
+    isOneDriveConnected = false,
+    isAiConfigured = false
   }: Props = $props();
 </script>
 
@@ -51,17 +57,23 @@
       type="button"
       onclick={onopenAISettings}
       title="點擊設定 BYOK AI 金鑰與模型保管庫"
-      class="flex items-center gap-2 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-signal border-dashed text-[10px] text-ink-muted hover:text-ink transition-all cursor-pointer"
+      class="group flex items-center gap-2 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-signal border-dashed text-[10px] text-ink-muted hover:text-ink transition-all cursor-pointer"
     >
-      <span class="w-1.5 h-1.5 bg-signal animate-pulse"></span>
-      <span class="hidden xl:inline">ENGINE: GROQ // GEMINI</span>
-      <span class="material-symbols-outlined text-[13px] text-ink-dim hover:text-signal">key</span>
+      <span class="w-1.5 h-1.5 rounded-full {isAiConfigured ? 'bg-signal animate-pulse' : 'bg-wire group-hover:bg-signal transition-colors'}"></span>
+      <span class="hidden xl:inline">{isAiConfigured ? t('status_ai_ready') : t('status_ai_unconfigured')}</span>
+      <span class="material-symbols-outlined text-[13px] {isAiConfigured ? 'text-signal' : 'text-ink-dim group-hover:text-signal transition-colors'}">key</span>
     </button>
 
-    <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis border border-wire text-[10px] text-ink-muted">
-      <span class="material-symbols-outlined text-[13px] text-ink">cloud_done</span>
-      <span>SYNC: OK</span>
-    </div>
+    <!-- 雲端同步狀態與控制台 -->
+    <button
+      type="button"
+      onclick={onopenCloudSync}
+      title="點擊設定 OneDrive 雲端備份與還原"
+      class="group hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-signal text-[10px] text-ink-muted hover:text-ink transition-all cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-[13px] {isOneDriveConnected ? 'text-signal' : 'text-ink-dim group-hover:text-signal transition-colors'}">cloud_sync</span>
+      <span>{isOneDriveConnected ? t('status_sync_connected') : t('status_sync_not_synced')}</span>
+    </button>
 
     <button
       type="button"

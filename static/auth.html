@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Microsoft Authentication</title>
+  <style>
+    body {
+      background: #0d0e11;
+      color: #eef0f2;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .box {
+      border: 1px solid #2b2d36;
+      padding: 24px;
+      background: #121318;
+      max-width: 320px;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #2b2d36;
+      border-top-color: #ff2a3c;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <div style="font-size: 12px; letter-spacing: 0.1em; font-weight: bold;">微軟授權驗證完成</div>
+    <div style="font-size: 10px; color: #8e929d; margin-top: 6px;">正在關閉視窗...</div>
+  </div>
+
+  <script>
+    (function() {
+      try {
+        var hash = window.location.hash.replace(/^#/, '');
+        var search = window.location.search.replace(/^\?/, '');
+        var payload = hash || search;
+
+        if (payload) {
+          var params = new URLSearchParams(payload);
+          var rawState = params.get('state');
+
+          if (rawState) {
+            // 解碼 state 取得 MSAL 的請求 id
+            var decodedState = decodeURIComponent(rawState);
+            // 處理 URL safe base64
+            var base64 = decodedState.replace(/-/g, '+').replace(/_/g, '/');
+            while (base64.length % 4) {
+              base64 += '=';
+            }
+            var stateJson = atob(base64);
+            var stateObj = JSON.parse(stateJson);
+            var id = stateObj.id;
+
+            if (id && typeof BroadcastChannel !== 'undefined') {
+              // 微軟 MSAL 官方 Redirect Bridge 協定：透過以 id 命名的 BroadcastChannel 廣播 payload
+              var channel = new BroadcastChannel(id);
+              channel.postMessage({
+                v: 1,
+                payload: payload
+              });
+              channel.close();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[MSAL Redirect Bridge Error]', err);
+      }
+
+      // 關閉彈窗
+      setTimeout(function() {
+        try {
+          window.close();
+        } catch (e) {}
+      }, 100);
+    })();
+  </script>
+</body>
+</html>

@@ -69,6 +69,7 @@ export interface ArtistEntry {
   // 發燒友聆聽筆記與評價
   personalNotes?: string;
   rating?: number;                 // 1 - 5 星級
+  weight?: number;                 // 聲學引力權重 1 ~ 100 (預設 20，直接控制星體體積、引力場與 LOD 宏觀可見度)
   audiophileGrade?: 'Reference' | 'Hi-Res Lossless' | 'Standard';
   dynamicRange?: number;           // DR 分數（例如 14）
   

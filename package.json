@@ -28,6 +28,7 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
+		"@azure/msal-browser": "^5.25.1",
 		"@lucide/svelte": "^1.56.0",
 		"dexie": "^4.4.6",
 		"lucide-svelte": "^1.0.1",

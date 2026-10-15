@@ -18,7 +18,10 @@
   import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
+  import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
   import { analyzeArtistWithAI } from '$lib/ai/client';
+  import { loadSecureAISettings } from '$lib/ai/vault';
+  import { getActiveAccount } from '$lib/services/onedrive';
   import { CheckCircle2 } from 'lucide-svelte';
 
   // 狀態管理 (Svelte 5 Runes)
@@ -29,9 +32,29 @@
   let isPickupModalOpen = $state(false);
   let isAISettingsOpen = $state(false);
   let isUnlockModalOpen = $state(false);
+  let isCloudSyncOpen = $state(false);
+  let isOneDriveConnected = $state(false);
+  let isAiConfigured = $state(false);
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
+
+  async function refreshTelemetryStatus() {
+    try {
+      const account = await getActiveAccount();
+      isOneDriveConnected = !!account;
+    } catch {
+      isOneDriveConnected = false;
+    }
+
+    try {
+      const { settings, isLocked } = await loadSecureAISettings();
+      const hasKey = settings.provider === 'groq' ? !!settings.groqKey : !!settings.geminiKey;
+      isAiConfigured = !isLocked && hasKey;
+    } catch {
+      isAiConfigured = false;
+    }
+  }
 
   // 待解剖收件匣計數
   const inboxCount = $derived(artists.filter((a) => a.status === 'inbox').length);
@@ -52,6 +75,7 @@
   onMount(async () => {
     await seedInitialSampleIfEmpty();
     await reloadArtists();
+    await refreshTelemetryStatus();
     if (artists.length > 0 && !selectedArtistId) {
       selectedArtistId = artists[0].id;
     }
@@ -174,6 +198,7 @@
   }
 
   function handleUnlocked() {
+    refreshTelemetryStatus();
     if (pendingArtistToAnalyze) {
       const target = pendingArtistToAnalyze;
       pendingArtistToAnalyze = null;
@@ -187,6 +212,25 @@
     await reloadArtists();
     selectedArtistId = newEntry.id;
     showToast('已知悉');
+  }
+
+  // 調整藝人聲學引力權重 (Weight: 1 ~ 100)
+  async function handleUpdateWeight(id: string, weight: number) {
+    await updateArtist(id, { weight });
+    // 即時響應更新本地狀態
+    const target = artists.find((a) => a.id === id);
+    if (target) {
+      target.weight = weight;
+    }
+  }
+
+  // 儲存藝人在星系中的手動拖曳座標 (持久化至 IndexedDB)
+  async function handleUpdatePos(id: string, clusterPos: { x: number; y: number }) {
+    await updateArtist(id, { clusterPos });
+    const target = artists.find((a) => a.id === id);
+    if (target) {
+      target.clusterPos = clusterPos;
+    }
   }
 
   // 全域快捷鍵
@@ -221,6 +265,7 @@
   <AISettingsModal
     open={isAISettingsOpen}
     onclose={() => (isAISettingsOpen = false)}
+    onsettingsSaved={refreshTelemetryStatus}
   />
 
   <!-- 主密碼解鎖 Modal -->
@@ -228,6 +273,15 @@
     open={isUnlockModalOpen}
     onclose={() => (isUnlockModalOpen = false)}
     onunlocked={handleUnlocked}
+  />
+
+  <!-- OneDrive 雲端同步與備份 Modal -->
+  <CloudSyncModal
+    isOpen={isCloudSyncOpen}
+    onclose={() => (isCloudSyncOpen = false)}
+    onRestored={reloadArtists}
+    onAccountChange={(conn) => (isOneDriveConnected = conn)}
+    localArtistsCount={artists.length}
   />
 
   <!-- 電腦版 Studio 左側固定舞台導航欄 (Studio Left Sidebar) -->
@@ -244,8 +298,11 @@
   <StudioTopBar
     onopenPickupModal={() => (isPickupModalOpen = true)}
     onopenAISettings={() => (isAISettingsOpen = true)}
+    onopenCloudSync={() => (isCloudSyncOpen = true)}
     bind:searchQuery
     onsearchChange={(q) => (searchQuery = q)}
+    {isOneDriveConnected}
+    {isAiConfigured}
   />
 
   <!-- Studio 主畫布內容區 (帶左側 60 欄位位移與頂部 16 欄位位移) -->
@@ -268,7 +325,11 @@
           artists={filteredArtists}
           bind:selectedArtistId
           onselectArtist={(id) => (selectedArtistId = id)}
+          ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
+          onpickupSimilar={handlePickupSimilar}
+          onupdateWeight={handleUpdateWeight}
+          onupdatePos={handleUpdatePos}
         />
       {:else}
         <!-- 其他 Studio 模組待命占位 -->
