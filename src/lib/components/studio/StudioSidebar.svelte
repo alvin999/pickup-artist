@@ -2,8 +2,8 @@
   import { t } from '$lib/i18n/index.svelte';
 
   interface Props {
-    activeView: 'crate-digger' | 'honeycomb-cluster' | 'lossless-matrix' | 'hardware-racks' | 'telemetry-audit';
-    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'lossless-matrix' | 'hardware-racks' | 'telemetry-audit') => void;
+    activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log';
+    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log') => void;
     totalArtistsCount?: number;
     inboxCount?: number;
   }
@@ -88,38 +88,38 @@
 
         <button
           type="button"
-          onclick={() => onselectView('lossless-matrix')}
-          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'lossless-matrix' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+          onclick={() => onselectView('acoustic-matrix')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'acoustic-matrix' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-[16px] {activeView === 'lossless-matrix' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">graphic_eq</span>
-            <span>03_母帶矩陣</span>
+            <span class="material-symbols-outlined text-[16px] {activeView === 'acoustic-matrix' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">category</span>
+            <span>03_風格矩陣</span>
           </div>
-          <span class="text-[9px] {activeView === 'lossless-matrix' ? 'text-void font-bold' : 'text-ink-dim'}">MTX</span>
+          <span class="text-[9px] {activeView === 'acoustic-matrix' ? 'text-void font-bold' : 'text-ink-dim'}">MTX</span>
         </button>
 
         <button
           type="button"
-          onclick={() => onselectView('hardware-racks')}
-          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'hardware-racks' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+          onclick={() => onselectView('listening-queue')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'listening-queue' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-[16px] {activeView === 'hardware-racks' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">settings_input_component</span>
-            <span>04_硬體舞台</span>
+            <span class="material-symbols-outlined text-[16px] {activeView === 'listening-queue' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">queue_music</span>
+            <span>04_聆賞隊列</span>
           </div>
-          <span class="text-[9px] {activeView === 'hardware-racks' ? 'text-void font-bold' : 'text-ink-dim'}">RCK</span>
+          <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
         </button>
 
         <button
           type="button"
-          onclick={() => onselectView('telemetry-audit')}
-          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'telemetry-audit' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+          onclick={() => onselectView('listening-log')}
+          class="w-full group flex items-center justify-between px-3 py-2.5 transition-all text-left {activeView === 'listening-log' ? 'bg-ink text-void font-bold tracking-wider' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-[16px] {activeView === 'telemetry-audit' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">monitoring</span>
-            <span>05_頻譜分析</span>
+            <span class="material-symbols-outlined text-[16px] {activeView === 'listening-log' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">edit_note</span>
+            <span>05_聆賞日誌</span>
           </div>
-          <span class="text-[9px] {activeView === 'telemetry-audit' ? 'text-void font-bold' : 'text-ink-dim'}">FFT</span>
+          <span class="text-[9px] {activeView === 'listening-log' ? 'text-void font-bold' : 'text-ink-dim'}">LOG</span>
         </button>
       </nav>
     </div>

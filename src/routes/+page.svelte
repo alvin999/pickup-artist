@@ -23,7 +23,7 @@
 
   // 狀態管理 (Svelte 5 Runes)
   let artists = $state<ArtistEntry[]>([]);
-  let activeStudioView = $state<'crate-digger' | 'honeycomb-cluster' | 'lossless-matrix' | 'hardware-racks' | 'telemetry-audit'>('crate-digger');
+  let activeStudioView = $state<'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log'>('crate-digger');
   let selectedArtistId = $state<string | null>(null);
   let searchQuery = $state('');
   let isPickupModalOpen = $state(false);
@@ -256,13 +256,13 @@
           onanalyzeArtist={handleAnalyze}
         />
       {:else}
-        <!-- 其他 Studio 舞台視圖占位 -->
+        <!-- 其他 Studio 模組待命占位 -->
         <div class="py-24 text-center font-mono text-xs text-[#8E9298] bg-[#0D0E11] rounded-[4px] border border-[#1F2228] p-8">
           <span class="material-symbols-outlined text-[36px] text-[#FEC486] mb-2">settings_input_component</span>
           <div class="text-sm font-bold text-[#EEF0F2] mb-1">
-            {activeStudioView.toUpperCase()} // STUDIO MODULE STANDBY
+            {activeStudioView.toUpperCase()} // MODULE STANDBY
           </div>
-          <p class="text-[#52565E]">此硬體舞台模組已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
+          <p class="text-[#52565E]">此聆賞模組電路已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
         </div>
       {/if}
     </main>
