@@ -1,4 +1,4 @@
-import { PublicClientApplication, type AccountInfo, type Configuration } from '@azure/msal-browser';
+import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
 import { db } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
 import type { Tombstone } from '$lib/db';
@@ -8,20 +8,6 @@ export const ONEDRIVE_CLIENT_ID =
 
 // 請求之權限範圍
 export const GRAPH_SCOPES = ['User.Read', 'Files.ReadWrite', 'offline_access'];
-
-const getRedirectUri = () =>
-  typeof window !== 'undefined' ? `${window.location.origin}/auth.html` : 'http://localhost:5173/auth.html';
-
-const msalConfig: Configuration = {
-  auth: {
-    clientId: ONEDRIVE_CLIENT_ID,
-    authority: 'https://login.microsoftonline.com/common',
-    redirectUri: getRedirectUri(),
-  },
-  cache: {
-    cacheLocation: 'localStorage',
-  },
-};
 
 let msalInstance: PublicClientApplication | null = null;
 let isInitialized = false;
@@ -63,7 +49,16 @@ export async function getMsalInstance(): Promise<PublicClientApplication> {
   }
 
   if (!msalInstance) {
-    msalInstance = new PublicClientApplication(msalConfig);
+    msalInstance = new PublicClientApplication({
+      auth: {
+        clientId: ONEDRIVE_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: `${window.location.origin}/auth.html`,
+      },
+      cache: {
+        cacheLocation: 'localStorage',
+      },
+    });
   }
 
   if (!isInitialized) {
@@ -96,7 +91,7 @@ export async function loginToOneDrive(): Promise<AccountInfo> {
     const loginResponse = await msal.loginPopup({
       scopes: GRAPH_SCOPES,
       prompt: 'select_account',
-      redirectUri: getRedirectUri(),
+      redirectUri: `${window.location.origin}/auth.html`,
     });
     return loginResponse.account;
   } catch (err: any) {
