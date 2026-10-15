@@ -10,6 +10,39 @@
     Flame,
     ExternalLink
   } from 'lucide-svelte';
+  import { ACOUSTIC_SECTORS } from '$lib/constants/sectors';
+
+  // 聲學腕錶風格 8 軸羅盤幾何參數 (中心 140, 140)
+  const DIAL_CENTER = 140;
+
+  // 24 根極細精密刻度（每 15° 一根，8 個 45° 主方位刻度加長）
+  const DIAL_TICKS = Array.from({ length: 24 }, (_, i) => {
+    const deg = i * 15;
+    const rad = ((deg - 90) * Math.PI) / 180;
+    const isMajor = deg % 45 === 0;
+    const rOuter = 126;
+    const rInner = isMajor ? 112 : 119;
+    return {
+      deg,
+      isMajor,
+      x1: DIAL_CENTER + rOuter * Math.cos(rad),
+      y1: DIAL_CENTER + rOuter * Math.sin(rad),
+      x2: DIAL_CENTER + rInner * Math.cos(rad),
+      y2: DIAL_CENTER + rInner * Math.sin(rad)
+    };
+  });
+
+  // 8 個方位主文字標籤 (r = 96)
+  const DIAL_SECTORS = [
+    { id: 'ROCK', label: 'ROCK', deg: 0, x: 140, y: 46 },
+    { id: 'METAL', label: 'METAL', deg: 45, x: 206, y: 74 },
+    { id: 'CLASSICAL', label: 'CLASSIC', deg: 90, x: 234, y: 140 },
+    { id: 'JAZZ', label: 'JAZZ', deg: 135, x: 206, y: 206 },
+    { id: 'AMBIENT', label: 'AMBIENT', deg: 180, x: 140, y: 234 },
+    { id: 'ELECTRONIC', label: 'ELECTRO', deg: 225, x: 74, y: 206 },
+    { id: 'GROOVE', label: 'GROOVE', deg: 270, x: 46, y: 140 },
+    { id: 'WORLD', label: 'WORLD', deg: 315, x: 74, y: 74 }
+  ] as const;
 
   interface Props {
     artists: ArtistEntry[];
@@ -38,6 +71,63 @@
   const selectedArtist = $derived(
     artists.find((a) => a.id === selectedArtistId) || artists[0] || null
   );
+
+  // 藝人角色標籤：優先使用 AI 精析的 artistRole，舊資料則退回 entityType
+  const roleLabel = $derived(
+    selectedArtist?.analysis?.artistRole ||
+      (selectedArtist?.entityType ? selectedArtist.entityType.replace('-', ' ').toUpperCase() : '')
+  );
+
+  // 當前藝人的 8 軸聲學板塊定義
+  const currentSectorDef = $derived(
+    selectedArtist?.analysis?.sector ? ACOUSTIC_SECTORS[selectedArtist.analysis.sector] : null
+  );
+
+  // 懸停預覽的樂風 ID（滑鼠 hover 錶盤節點或下方標籤時觸發）
+  let hoveredSectorId = $state<import('$lib/types/artist').AcousticSector | null>(null);
+
+  // 防抖計時器 (Debounce Timers)
+  let enterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let leaveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function setHoveredSectorDebounced(sectorId: import('$lib/types/artist').AcousticSector | null) {
+    if (enterDebounceTimer) {
+      clearTimeout(enterDebounceTimer);
+      enterDebounceTimer = null;
+    }
+    if (leaveDebounceTimer) {
+      clearTimeout(leaveDebounceTimer);
+      leaveDebounceTimer = null;
+    }
+
+    if (sectorId === null) {
+      // 滑鼠移開時微延遲 150ms，避免在相鄰樂風之間移動時畫面先閃退回原本藝人
+      leaveDebounceTimer = setTimeout(() => {
+        hoveredSectorId = null;
+        leaveDebounceTimer = null;
+      }, 150);
+    } else {
+      // 滑鼠滑入某個樂風時延遲 110ms，過濾快速劃過的晃動
+      enterDebounceTimer = setTimeout(() => {
+        hoveredSectorId = sectorId;
+        enterDebounceTimer = null;
+      }, 110);
+    }
+  }
+
+  function toggleHoverImmediate(sectorId: import('$lib/types/artist').AcousticSector) {
+    if (enterDebounceTimer) clearTimeout(enterDebounceTimer);
+    if (leaveDebounceTimer) clearTimeout(leaveDebounceTimer);
+    hoveredSectorId = hoveredSectorId === sectorId ? null : sectorId;
+  }
+
+  // 當前預覽或鎖定的流派定義
+  const activeSectorDef = $derived(
+    hoveredSectorId ? ACOUSTIC_SECTORS[hoveredSectorId] : currentSectorDef
+  );
+
+  // 腕錶指針目標角度（Hover 時平滑轉動至目標方位，移開時彈回藝人方位）
+  const needleBearing = $derived(activeSectorDef ? activeSectorDef.angleDeg : 0);
 
   // 待解剖收件匣計數
   const inboxCount = $derived(artists.filter((a) => a.status === 'inbox').length);
@@ -333,7 +423,7 @@
               <button
                 type="button"
                 onclick={() => ondeleteArtist(selectedArtist.id)}
-                title="移出機架"
+                title="離開舞台"
                 class="w-6 h-6 border border-wire hover:border-signal text-ink-muted hover:text-signal flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Trash2 class="w-3.5 h-3.5" />
@@ -373,49 +463,359 @@
               </div>
             </div>
 
-            <!-- 內嵌硬體級頻譜與母帶遙測 (Embedded Telemetry Matrix) -->
+            <!-- 藝人核心屬性矩陣 (Artist Identity Matrix)：取代無資訊量的 dBFS 假數據，改顯示 AI 精析的藝人定位 -->
             <div class="mt-4 pt-3 border-t border-wire border-dashed grid grid-cols-3 gap-2 font-mono text-[10px]">
-              <div class="bg-chassis p-2 border border-wire">
-                <span class="text-ink-dim text-[8px] block">DYNAMIC RANGE</span>
-                <span class="text-ink font-bold">DR {selectedArtist.dynamicRange || 14} <span class="text-signal text-[9px]">[REF]</span></span>
+              <div class="bg-chassis p-2 border border-wire min-w-0">
+                <span class="text-ink-dim text-[8px] block">SECTOR</span>
+                <span class="text-ink font-bold truncate block" title={selectedArtist.analysis?.subGenre}>
+                  {selectedArtist.analysis?.sector || 'UNMAPPED'}
+                </span>
+                {#if selectedArtist.analysis?.subGenre}
+                  <span class="text-ink-muted text-[9px] truncate block">{selectedArtist.analysis.subGenre}</span>
+                {/if}
               </div>
-              <div class="bg-chassis p-2 border border-wire">
-                <span class="text-ink-dim text-[8px] block">PEAK LEVEL</span>
-                <span class="text-ink font-bold">-0.1 dBFS</span>
+              <div class="bg-chassis p-2 border border-wire min-w-0">
+                <span class="text-ink-dim text-[8px] block">ROLE</span>
+                <span class="text-ink font-bold truncate block" title={roleLabel}>
+                  {roleLabel || 'AWAITING_SCAN'}
+                </span>
+                {#if selectedArtist.lineage?.memberRoster && selectedArtist.lineage.memberRoster.length > 0}
+                  <span class="text-ink-muted text-[9px] truncate block">{selectedArtist.lineage.memberRoster.length} MEMBERS</span>
+                {/if}
               </div>
-              <div class="bg-chassis p-2 border border-wire">
-                <span class="text-ink-dim text-[8px] block">STAGE SECTOR</span>
-                <span class="text-ink font-bold truncate block">{selectedArtist.analysis?.sector || 'SOUNDSTAGE'}</span>
+              <div class="bg-chassis p-2 border border-wire min-w-0">
+                <span class="text-ink-dim text-[8px] block">GRADE</span>
+                <span class="text-ink font-bold truncate block">{selectedArtist.audiophileGrade || 'STANDARD'}</span>
+                {#if selectedArtist.dynamicRange}
+                  <span class="text-signal text-[9px] block">DR{selectedArtist.dynamicRange}</span>
+                {/if}
               </div>
             </div>
 
-            <!-- 點陣頻譜波形 (Waveform Recon) -->
-            <div class="mt-2 bg-chassis border border-wire p-2.5">
-              <div class="flex justify-between items-center font-mono text-[9px] text-ink-dim mb-1.5">
-                <span>WAVEFORM_RECON // 20Hz - 48kHz</span>
-                <span class="text-signal animate-pulse">● LIVE_SCAN</span>
+            <!-- AI 美學標籤膠囊列 (Aesthetic Tags) -->
+            {#if selectedArtist.analysis?.aestheticTags && selectedArtist.analysis.aestheticTags.length > 0}
+              <div class="mt-2 flex flex-wrap gap-1.5 font-mono">
+                {#each selectedArtist.analysis.aestheticTags.slice(0, 6) as tag}
+                  <span class="px-2 py-0.5 border border-wire bg-chassis text-ink-muted text-[9px] tracking-wider hover:border-signal hover:text-signal transition-colors">
+                    #{tag}
+                  </span>
+                {/each}
               </div>
-              <div class="h-10 flex items-end justify-between gap-0.5 pt-1">
-                <span class="flex-1 h-2 bg-wire-bright"></span>
-                <span class="flex-1 h-4 bg-wire-bright"></span>
-                <span class="flex-1 h-6 bg-ink-muted"></span>
-                <span class="flex-1 h-8 bg-ink"></span>
-                <span class="flex-1 h-5 bg-ink-muted"></span>
-                <span class="flex-1 h-10 bg-signal animate-pulse"></span>
-                <span class="flex-1 h-7 bg-ink"></span>
-                <span class="flex-1 h-9 bg-signal"></span>
-                <span class="flex-1 h-4 bg-ink-muted"></span>
-                <span class="flex-1 h-6 bg-ink"></span>
-                <span class="flex-1 h-3 bg-wire-bright"></span>
-                <span class="flex-1 h-8 bg-ink"></span>
-                <span class="flex-1 h-10 bg-signal animate-pulse"></span>
-                <span class="flex-1 h-6 bg-ink-muted"></span>
-                <span class="flex-1 h-5 bg-wire-bright"></span>
-                <span class="flex-1 h-9 bg-ink"></span>
-                <span class="flex-1 h-4 bg-wire-bright"></span>
-                <span class="flex-1 h-7 bg-ink-muted"></span>
-                <span class="flex-1 h-3 bg-wire-bright"></span>
-                <span class="flex-1 h-2 bg-wire"></span>
+            {/if}
+
+            <!-- 聲學極簡腕錶指針羅盤 (Acoustic Minimalist Chrono Dial) -->
+            <div class="mt-2 bg-chassis border border-wire p-4 flex flex-col gap-3">
+              <div class="flex justify-between items-center font-mono text-[9px] text-ink-dim border-b border-wire pb-2">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 {hoveredSectorId ? 'bg-amber-400 animate-pulse' : 'bg-signal'}"></span>
+                  {#if hoveredSectorId}
+                    <span class="text-amber-400 font-bold">PREVIEWING // {activeSectorDef?.id}</span>
+                  {:else}
+                    <span>CHRONOMETER_LATTICE // 8-AXIS DIAL</span>
+                  {/if}
+                </span>
+                <span class="flex items-center gap-1 font-bold" style="color: {activeSectorDef?.colorHex || '#52565E'};">
+                  {#if activeSectorDef}
+                    <span class="w-1.5 h-1.5 rounded-full {hoveredSectorId ? 'animate-bounce' : 'animate-ping'}" style="background-color: {activeSectorDef.colorHex};"></span>
+                    <span>{activeSectorDef.id}_{hoveredSectorId ? 'PREVIEW' : 'LOCK'}</span>
+                  {:else}
+                    <span class="w-1.5 h-1.5 rounded-full bg-ink-dim animate-pulse"></span>
+                    <span class="text-ink-dim">STANDBY</span>
+                  {/if}
+                </span>
+              </div>
+
+              <!-- 大尺寸手錶風格錶盤本體 (Watch Dial Canvas) -->
+              <div class="flex flex-col items-center justify-center py-2 bg-void border border-wire/60 relative overflow-hidden">
+                <div class="w-64 h-64 sm:w-72 sm:h-72 relative flex items-center justify-center">
+                  <svg viewBox="0 0 280 280" class="w-full h-full select-none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- 錶殼外圓圈與細金屬邊環 (Watch Bezel) -->
+                    <circle cx="140" cy="140" r="136" fill="#07080A" stroke="#252A33" stroke-width="1.2" />
+                    <circle cx="140" cy="140" r="134" fill="none" stroke="#1F2228" stroke-width="0.6" />
+
+                    <!-- 內圈八邊形蜂巢幾何底紋 (Architectural Octagonal Web) -->
+                    <polygon
+                      points="140,80 182.4,97.6 200,140 182.4,182.4 140,200 97.6,182.4 80,140 97.6,97.6"
+                      fill="none"
+                      stroke="#181B22"
+                      stroke-width="0.8"
+                    />
+                    <polygon
+                      points="140,98 169.7,110.3 182,140 169.7,169.7 140,182 110.3,169.7 98,140 110.3,110.3"
+                      fill="none"
+                      stroke="#14161C"
+                      stroke-width="0.6"
+                      stroke-dasharray="2 3"
+                    />
+
+                    <!-- 同心輔助刻度環 (Chapter Rings) -->
+                    <circle cx="140" cy="140" r="126" fill="none" stroke="#252A33" stroke-width="0.5" />
+                    <circle cx="140" cy="140" r="60" fill="none" stroke="#181B22" stroke-width="0.5" stroke-dasharray="1 2" />
+
+                    <!-- 極簡 24 根腕錶刻度線 (Watch Dial Tick Marks) -->
+                    {#each DIAL_TICKS as tick}
+                      {@const isCurrentTarget = activeSectorDef?.angleDeg === tick.deg}
+                      <line
+                        x1={tick.x1}
+                        y1={tick.y1}
+                        x2={tick.x2}
+                        y2={tick.y2}
+                        stroke={isCurrentTarget ? (activeSectorDef?.colorHex || '#FEC486') : tick.isMajor ? '#3B404D' : '#1F2228'}
+                        stroke-width={tick.isMajor ? (isCurrentTarget ? 2 : 1.2) : 0.8}
+                        stroke-linecap="round"
+                        class="transition-colors duration-200"
+                      />
+                    {/each}
+
+                    <!-- 8 個方位主流派標籤文字與放大感應熱區 (Interactive Hour Marker Hits) -->
+                    {#each DIAL_SECTORS as sector}
+                      {@const isCurrentArtistSector = selectedArtist.analysis?.sector === sector.id}
+                      {@const isHovered = hoveredSectorId === sector.id}
+                      {@const isHighlighted = isHovered || (!hoveredSectorId && isCurrentArtistSector)}
+                      {@const color = ACOUSTIC_SECTORS[sector.id]?.colorHex || '#52565E'}
+                      
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <g
+                        class="cursor-pointer group select-none"
+                        onmouseenter={() => setHoveredSectorDebounced(sector.id)}
+                        onmouseleave={() => setHoveredSectorDebounced(null)}
+                        onclick={() => toggleHoverImmediate(sector.id)}
+                      >
+                        <!-- 擴大感應熱區 (Hitbox) -->
+                        <circle cx={sector.x} cy={sector.y} r="20" fill="transparent" />
+
+                        <!-- 懸停時底層光環 -->
+                        {#if isHighlighted}
+                          <circle
+                            cx={sector.x}
+                            cy={sector.y}
+                            r="15"
+                            fill={color}
+                            opacity={isHovered ? "0.22" : "0.12"}
+                            class="transition-opacity duration-200"
+                          />
+                        {/if}
+
+                        <!-- 主標籤文字 (Hover 時變大加粗) -->
+                        <text
+                          x={sector.x}
+                          y={sector.y}
+                          text-anchor="middle"
+                          dominant-baseline="central"
+                          font-family="monospace"
+                          font-size={isHighlighted ? '9.5' : '8'}
+                          font-weight={isHighlighted ? 'bold' : 'normal'}
+                          letter-spacing="0.08em"
+                          fill={isHighlighted ? color : '#52565E'}
+                          class="transition-all duration-150"
+                        >
+                          {sector.label}
+                        </text>
+                      </g>
+                    {/each}
+
+                    <!-- 12 點鐘方向銘刻極簡文字 (Watch Dial Minimalist Lettering) -->
+                    <text
+                      x="140"
+                      y="78"
+                      text-anchor="middle"
+                      font-family="monospace"
+                      font-size="7"
+                      letter-spacing="0.22em"
+                      fill="#8E9298"
+                      font-weight="bold"
+                    >
+                      ACOUSTIC AZIMUTH
+                    </text>
+                    <text
+                      x="140"
+                      y="87"
+                      text-anchor="middle"
+                      font-family="monospace"
+                      font-size="5.5"
+                      letter-spacing="0.16em"
+                      fill="#404552"
+                    >
+                      CHRONOMETER // 8-AXIS
+                    </text>
+
+                    <!-- 6 點鐘方向極簡度數副錶盤 (Sub-dial) -->
+                    <g>
+                      <circle cx="140" cy="178" r="16" fill="#0A0B0E" stroke="#1F2228" stroke-width="0.8" />
+                      <circle cx="140" cy="178" r="13" fill="none" stroke="#181B22" stroke-width="0.5" stroke-dasharray="1 2" />
+                      <text
+                        x="140"
+                        y="176"
+                        text-anchor="middle"
+                        dominant-baseline="central"
+                        font-family="monospace"
+                        font-size="8.5"
+                        font-weight="bold"
+                        fill={activeSectorDef ? (activeSectorDef.colorHex || '#FEC486') : '#52565E'}
+                      >
+                        {activeSectorDef ? `${activeSectorDef.angleDeg}°` : '---'}
+                      </text>
+                      <text
+                        x="140"
+                        y="186"
+                        text-anchor="middle"
+                        dominant-baseline="central"
+                        font-family="monospace"
+                        font-size="5"
+                        fill="#52565E"
+                        letter-spacing="0.1em"
+                      >
+                        {hoveredSectorId ? 'PREVIEW' : 'BEARING'}
+                      </text>
+                    </g>
+
+                    <!-- 極簡指針 (Precision Watch Needle) -->
+                    <g style="transform: rotate({needleBearing}deg); transform-origin: 140px 140px; transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);">
+                      <!-- 針身本體 (纖細俐落) -->
+                      <line
+                        x1="140"
+                        y1="140"
+                        x2="140"
+                        y2="28"
+                        stroke={activeSectorDef ? (activeSectorDef.colorHex || '#FEC486') : '#52565E'}
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                      />
+                      <!-- 針尖光芒端點 -->
+                      <line
+                        x1="140"
+                        y1="34"
+                        x2="140"
+                        y2="24"
+                        stroke={activeSectorDef ? (activeSectorDef.colorHex || '#FEC486') : '#8E9298'}
+                        stroke-width="2.6"
+                        stroke-linecap="round"
+                      />
+                      {#if activeSectorDef}
+                        <circle
+                          cx="140"
+                          cy="23"
+                          r="4"
+                          fill={activeSectorDef.colorHex}
+                          opacity={hoveredSectorId ? "0.6" : "0.3"}
+                          class={hoveredSectorId ? "animate-pulse" : ""}
+                        />
+                      {/if}
+
+                      <!-- 針尾經典鏤空圓形配重塊 (Watch Counterweight) -->
+                      <line
+                        x1="140"
+                        y1="140"
+                        x2="140"
+                        y2="158"
+                        stroke="#3A3E4A"
+                        stroke-width="1.4"
+                      />
+                      <circle
+                        cx="140"
+                        cy="158"
+                        r="3.5"
+                        fill="none"
+                        stroke="#52565E"
+                        stroke-width="1.2"
+                      />
+                    </g>
+
+                    <!-- 中心雙層金屬軸承扣 (Watch Pivot Core) -->
+                    <circle cx="140" cy="140" r="5.5" fill="#121419" stroke="#3A3E4A" stroke-width="1.2" />
+                    <circle cx="140" cy="140" r="2.2" fill={activeSectorDef?.colorHex || '#FEC486'} />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- 8 軸快速檢索膠囊列 (Quick Sector Nav Bar) -->
+              <div class="flex items-center justify-between gap-1 py-1 px-1 bg-void border border-wire font-mono overflow-x-auto select-none">
+                {#each DIAL_SECTORS as sector}
+                  {@const isCurrent = selectedArtist.analysis?.sector === sector.id}
+                  {@const isHov = hoveredSectorId === sector.id}
+                  {@const color = ACOUSTIC_SECTORS[sector.id]?.colorHex || '#52565E'}
+                  <button
+                    type="button"
+                    onmouseenter={() => setHoveredSectorDebounced(sector.id)}
+                    onmouseleave={() => setHoveredSectorDebounced(null)}
+                    onclick={() => toggleHoverImmediate(sector.id)}
+                    class="px-1.5 py-0.5 text-[8px] transition-all cursor-pointer whitespace-nowrap rounded-[2px] {isHov ? 'bg-ink text-void font-bold shadow-sm' : isCurrent ? 'text-ink font-bold border border-wire' : 'text-ink-dim hover:text-ink hover:bg-panel'}"
+                    style={isHov ? `border-color: ${color}; color: ${color}; background-color: #12141A;` : isCurrent ? `color: ${color};` : ''}
+                    title={`${sector.label} (${sector.deg}°)`}
+                  >
+                    {sector.label}
+                  </button>
+                {/each}
+              </div>
+
+              <!-- 深度聲學檔案詳情面板 (High-Readability Sector Dossier Card) -->
+              <div class="bg-void p-3.5 border border-wire font-mono flex flex-col gap-2.5 transition-all">
+                <!-- 標題與方位角 -->
+                <div class="flex items-start justify-between gap-2 border-b border-wire pb-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      class="w-3 h-3 shrink-0 rounded-none inline-block shadow-sm"
+                      style="background-color: {activeSectorDef?.colorHex || '#52565E'};"
+                    ></span>
+                    <div>
+                      <div class="text-sm font-bold text-ink leading-tight flex items-center gap-2">
+                        <span>{activeSectorDef?.nameTw || '等待星系掃描'}</span>
+                        <span class="text-[10px] text-ink-dim font-normal">({activeSectorDef?.id || 'STANDBY'})</span>
+                      </div>
+                      <span class="text-[10px] text-ink-muted block mt-0.5">
+                        {activeSectorDef?.name || 'Awaiting Acoustic Analysis'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col items-end shrink-0">
+                    <span class="text-[9px] text-ink-dim">AZIMUTH</span>
+                    <span class="text-xs font-bold text-signal">
+                      {activeSectorDef ? `${activeSectorDef.angleDeg}°` : '---'}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 完整聲學特徵描述 (清晰大字體不截斷) -->
+                <div>
+                  <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1">ACOUSTIC_PROFILE // 聲學特質</span>
+                  <p class="text-xs text-ink-muted leading-relaxed font-sans">
+                    {activeSectorDef?.description || '尚未鎖定此藝人的聲學蜂巢坐標，點擊下方「AI 深度音樂學解剖」即可啟動全景分析。'}
+                  </p>
+                </div>
+
+                <!-- 代表子風格標籤群 (Sub-genre Pillars) -->
+                {#if activeSectorDef?.subGenreExamples && activeSectorDef.subGenreExamples.length > 0}
+                  <div class="pt-2 border-t border-wire border-dashed">
+                    <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1.5">PILLAR_SUBGENRES // 代表子流派</span>
+                    <div class="flex flex-wrap gap-1">
+                      {#each activeSectorDef.subGenreExamples as subG}
+                        <span class="text-[9px] px-2 py-0.5 bg-chassis border border-wire text-ink hover:border-signal hover:text-signal transition-colors">
+                          #{subG}
+                        </span>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                <!-- 當前狀態指示條 (Status Footer) -->
+                <div class="pt-1 text-[9px] flex items-center justify-between text-ink-dim border-t border-wire/40">
+                  {#if hoveredSectorId}
+                    <span class="text-amber-400 flex items-center gap-1">
+                      <span>● 預覽模式</span>
+                      <span class="text-ink-dim">(滑鼠移開後自動返回本藝人坐標)</span>
+                    </span>
+                  {:else if selectedArtist.analysis?.sector}
+                    <span class="text-emerald-400 flex items-center gap-1">
+                      <span>✓ 當前藝人所在星系板塊</span>
+                      {#if selectedArtist.analysis.subGenre}
+                        <span class="text-ink-muted">({selectedArtist.analysis.subGenre})</span>
+                      {/if}
+                    </span>
+                  {:else}
+                    <span class="text-ink-dim">● 等待聲學掃描</span>
+                  {/if}
+                </div>
               </div>
             </div>
           </div>

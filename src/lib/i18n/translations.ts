@@ -10,7 +10,7 @@ export const translations = {
     // 拾音與快速輸入
     pickup_placeholder: '拾取音樂人、樂團或貼入 Apple Music 連結...',
     pickup_button: '知悉',
-    pickup_shortcut_hint: '按 Enter 立即存入本地機架',
+    pickup_shortcut_hint: '按 Enter 立即登上本地舞台',
     pickup_success_toast: '已存入本地 IndexedDB，等待背景同步',
     pickup_empty_warn: '請輸入音樂人名稱或連結',
     
@@ -32,7 +32,7 @@ export const translations = {
     action_open_apple_music: '在 Apple Music 開啟',
     action_analyze_ai: 'AI 深度解剖',
     action_analyzing: '聲學解剖中...',
-    action_delete: '移出機架',
+    action_delete: '離開舞台',
     action_settings: '系統設定',
     action_sync: '雲端同步',
     
@@ -65,7 +65,7 @@ export const translations = {
     
     pickup_placeholder: 'Pick up artist, band name, or paste Apple Music link...',
     pickup_button: 'Pick Up',
-    pickup_shortcut_hint: 'Press Enter to commit to local chassis',
+    pickup_shortcut_hint: 'Press Enter to bring onto local stage',
     pickup_success_toast: 'Saved to local IndexedDB, queued for sync',
     pickup_empty_warn: 'Please enter an artist name or link',
     
@@ -84,7 +84,7 @@ export const translations = {
     action_open_apple_music: 'Open in Apple Music',
     action_analyze_ai: 'AI Sonic Analysis',
     action_analyzing: 'Dissecting...',
-    action_delete: 'Eject Entry',
+    action_delete: 'Leave Stage',
     action_settings: 'Settings',
     action_sync: 'Sync Vault',
     
@@ -114,7 +114,7 @@ export const translations = {
     
     pickup_placeholder: 'アーティスト名、バンド名、またはApple Musicリンク...',
     pickup_button: '拾音',
-    pickup_shortcut_hint: 'Enterでローカルラックに保存',
+    pickup_shortcut_hint: 'Enterでローカルステージに登場',
     pickup_success_toast: 'IndexedDBに保存完了、同期待ち',
     pickup_empty_warn: 'アーティスト名またはリンクを入力してください',
     
@@ -133,7 +133,7 @@ export const translations = {
     action_open_apple_music: 'Apple Musicで開く',
     action_analyze_ai: 'AI音響解析',
     action_analyzing: '音響解析中...',
-    action_delete: 'ラックから除外',
+    action_delete: 'ステージから退場',
     action_settings: '環境設定',
     action_sync: 'クラウド同期',
     

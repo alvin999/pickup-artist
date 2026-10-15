@@ -105,7 +105,7 @@
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[16px] {activeView === 'hardware-racks' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">settings_input_component</span>
-            <span>04_硬體機架</span>
+            <span>04_硬體舞台</span>
           </div>
           <span class="text-[9px] {activeView === 'hardware-racks' ? 'text-void font-bold' : 'text-ink-dim'}">RCK</span>
         </button>

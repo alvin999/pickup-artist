@@ -106,9 +106,12 @@
         dynamicRange: result.suggestedDynamicRange || 14,
         clusterSector: result.sector,
         clusterCategory: result.sector,
+        entityType: result.entityType,
+        lineage: result.lineage,
         analysis: {
           sector: result.sector,
           subGenre: result.subGenre,
+          artistRole: result.artistRole,
           aestheticTags: result.aestheticTags || [],
           genres: result.genres,
           summary: result.summary,
@@ -212,7 +215,7 @@
     onunlocked={handleUnlocked}
   />
 
-  <!-- 電腦版 Studio 左側固定機架導航欄 (Studio Left Sidebar) -->
+  <!-- 電腦版 Studio 左側固定舞台導航欄 (Studio Left Sidebar) -->
   <div class="hidden lg:block">
     <StudioSidebar
       activeView={activeStudioView}
@@ -253,13 +256,13 @@
           onanalyzeArtist={handleAnalyze}
         />
       {:else}
-        <!-- 其他 Studio 機架視圖占位 -->
+        <!-- 其他 Studio 舞台視圖占位 -->
         <div class="py-24 text-center font-mono text-xs text-[#8E9298] bg-[#0D0E11] rounded-[4px] border border-[#1F2228] p-8">
           <span class="material-symbols-outlined text-[36px] text-[#FEC486] mb-2">settings_input_component</span>
           <div class="text-sm font-bold text-[#EEF0F2] mb-1">
             {activeStudioView.toUpperCase()} // STUDIO MODULE STANDBY
           </div>
-          <p class="text-[#52565E]">此硬體機架模組已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
+          <p class="text-[#52565E]">此硬體舞台模組已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
         </div>
       {/if}
     </main>

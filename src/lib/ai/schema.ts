@@ -32,9 +32,11 @@ export const ArtistAnalysisResponseSchema = z.object({
     'AMBIENT',
     'ELECTRONIC',
     'GROOVE',
-    'POP'
+    'WORLD'
   ]),
   subGenre: z.string().min(1, '子流派不可為空'),
+  // 藝人核心角色與專精（例如 Bassist / Vocalist、Piano Trio、Producer）
+  artistRole: z.string().optional(),
   aestheticTags: z.array(z.string()).default([]),
   genres: z.array(z.string()).default([]),
   

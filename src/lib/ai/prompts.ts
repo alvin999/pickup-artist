@@ -63,7 +63,7 @@ ${languageInstruction}
 - AMBIENT: Ambient, Drone, Modern Classical, Soundscapes, Field Recordings.
 - ELECTRONIC: IDM, Glitch, Ambient Techno, Modular Synth, Downtempo.
 - GROOVE: Funk, Soul, Neo-Soul, Contemporary R&B, Hip-Hop (Boom Bap, Jazz Rap).
-- POP: Art Pop, City Pop, Dream Pop, Baroque Pop, Acoustic Folk, Singer-Songwriter.
+- WORLD: World Music, World Fusion, Afrobeat, Traditional Folk, Ethno-Ambient, Flamenco, Latin Roots.
 
 ### Output Constraints:
 Output MUST be a single, strictly valid JSON object matching the requested schema. Do NOT include markdown code fences, trailing commas, comments, or ellipsis "...".`;
@@ -82,7 +82,8 @@ Output MUST be a single, strictly valid JSON object matching the requested schem
   "aliases": ["常見別名或日文片假名"],
   "sector": "ROCK",
   "subGenre": "代表性子風格（例如 Math Rock / Neo-Soul / Post-Rock）",
-  "aestheticTags": ["indie", "tube-warmth", "analog-master", "hi-res"],
+  "artistRole": "藝人核心角色與專精，簡短 2-4 個英文單字（例如 Bassist / Vocalist、Piano Trio、Producer / Beatmaker、Cellist）",
+  "aestheticTags": ["4-6 個能讓人快速認識此藝人的英文小寫連字號標籤，涵蓋演奏特色、創作態度與聲響質地（例如 modal-bass, intimate-vocals, genre-fluid, analog-warmth）"],
   "genres": ["主要風格標籤 1", "主要風格標籤 2", "主要風格標籤 3"],
   "entityType": "band",
   "lineage": {

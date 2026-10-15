@@ -20,12 +20,13 @@ export type AcousticSector =
   | 'AMBIENT'     // 180°: 氛圍與實驗 (Drone, Modern Classical, Soundscape)
   | 'ELECTRONIC'  // 225°: 電子前衛 (IDM, Ambient Techno, Synthwave, Glitch)
   | 'GROOVE'      // 270°: 律動黑樂 (Funk, Soul, Neo-Soul, R&B, Hip-Hop)
-  | 'POP';        // 315°: 流行與根源 (Art Pop, City Pop, Dream Pop, Acoustic Folk)
+  | 'WORLD';      // 315°: 世界音樂與民族根源 (World Fusion, Afrobeat, Traditional Folk, Ethno-Ambient)
 
 export interface ArtistAnalysis {
   // 三層分類體系
   sector: AcousticSector;        // Level 1: 蜂巢 8 軸固定大板塊
   subGenre: string;              // Level 2: AI 決定的代表子流派 (例如 Neo-Soul, Baroque Cello, Math Rock)
+  artistRole?: string;           // 藝人核心角色與專精 (例如 Bassist / Vocalist, Piano Trio, Producer)
   aestheticTags?: string[];      // Level 3: 美學與態度標籤 (例如 indie, analog-warmth, lo-fi, progressive)
   
   genres: string[];              // 相關音樂標籤

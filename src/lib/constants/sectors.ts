@@ -82,14 +82,14 @@ export const ACOUSTIC_SECTORS: Record<AcousticSector, SectorDefinition> = {
     description: '黑人根源律動：放克、靈魂樂、新靈魂、當代節奏藍調與意識嘻哈',
     subGenreExamples: ['Funk', 'Soul', 'Neo-Soul', 'Contemporary R&B', 'Boom Bap Hip-Hop', 'Jazz Rap', 'Lo-Fi Hip-Hop']
   },
-  POP: {
-    id: 'POP',
-    name: 'Pop & Roots',
-    nameTw: '流行美學與根源',
+  WORLD: {
+    id: 'WORLD',
+    name: 'World & Roots',
+    nameTw: '世界音樂與民族根源',
     angleDeg: 315,
     colorHex: '#8b5cf6', // Violet
-    description: '非免洗的高度製作美學：藝術流行、城市流行、夢幻流行、原聲民謠',
-    subGenreExamples: ['Art Pop', 'City Pop', 'Dream Pop', 'Indie Pop', 'Chamber Pop', 'Contemporary Folk']
+    description: '跨文化世界音樂、民族傳統器樂、非洲律動、南美探戈與跨界根源聲響',
+    subGenreExamples: ['World Fusion', 'Afrobeat', 'Traditional Folk', 'Ethno-Ambient', 'Flamenco', 'Latin Roots']
   }
 };
 
