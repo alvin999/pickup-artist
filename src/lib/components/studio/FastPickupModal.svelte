@@ -144,17 +144,17 @@
 
         <!-- 動作列 -->
         <div class="flex items-center justify-between gap-3 pt-2">
-          <!-- 輕量手機聽音/快捷收錄折疊按鈕 -->
+          <!-- 輕量手機聽音/快捷收錄折疊按鈕（僅行動裝置/小螢幕顯示，電腦版完全隱藏） -->
           <button
             type="button"
             onclick={() => (showMobileGuide = !showMobileGuide)}
-            class="flex items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
+            class="flex sm:hidden items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
           >
             <Smartphone class="w-3.5 h-3.5 text-signal" />
             <span>{showMobileGuide ? '收起手機串接' : '手機聽音收錄'}</span>
           </button>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 sm:ml-auto">
             <button
               type="button"
               onclick={handleClose}
@@ -179,9 +179,9 @@
           </div>
         </div>
 
-        <!-- 手機聽音收錄極簡引導面板（展開時顯示） -->
+        <!-- 手機聽音收錄極簡引導面板（展開時僅在行動端顯示） -->
         {#if showMobileGuide}
-          <div class="p-3 bg-[#121318] border border-[#262832] rounded-[2px] text-xs font-mono space-y-2.5 animate-in fade-in duration-150">
+          <div class="sm:hidden p-3 bg-[#121318] border border-[#262832] rounded-[2px] text-xs font-mono space-y-2.5 animate-in fade-in duration-150">
             <div class="flex items-center justify-between">
               <span class="text-[#8e929d] text-[11px]">動態接收端點 (不寫死網域)：</span>
               <button
