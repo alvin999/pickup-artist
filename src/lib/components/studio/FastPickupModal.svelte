@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
-  import { X, Radio, ArrowLeft, Disc3, Check, Loader2 } from 'lucide-svelte';
+  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck } from 'lucide-svelte';
   import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
 
   interface Props {
@@ -19,12 +19,32 @@
   let isSearching = $state(false);
   let candidates = $state<ArtistCandidate[]>([]);
   let step = $state<'input' | 'disambiguation'>('input');
+  let showMobileGuide = $state(false);
+  let copiedUrl = $state(false);
 
   function resetState() {
     pickupInput = '';
     isSearching = false;
     candidates = [];
     step = 'input';
+    showMobileGuide = false;
+    copiedUrl = false;
+  }
+
+  function getDynamicEndpoint() {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/?quickAdd=`;
+  }
+
+  async function copyEndpoint() {
+    const url = getDynamicEndpoint();
+    if (url && navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      copiedUrl = true;
+      setTimeout(() => {
+        copiedUrl = false;
+      }, 2000);
+    }
   }
 
   function handleClose() {
@@ -123,29 +143,77 @@
         </div>
 
         <!-- 動作列 -->
-        <div class="flex items-center justify-end gap-3 pt-2">
+        <div class="flex items-center justify-between gap-3 pt-2">
+          <!-- 輕量手機聽音/快捷收錄折疊按鈕 -->
           <button
             type="button"
-            onclick={handleClose}
-            class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
+            onclick={() => (showMobileGuide = !showMobileGuide)}
+            class="flex items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
           >
-            [ESC] 取消
+            <Smartphone class="w-3.5 h-3.5 text-signal" />
+            <span>{showMobileGuide ? '收起手機串接' : '手機聽音收錄'}</span>
           </button>
-          <button
-            type="button"
-            onclick={handleSubmit}
-            disabled={isSearching || !pickupInput.trim()}
-            class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {#if isSearching}
-              <Loader2 class="w-3.5 h-3.5 animate-spin" />
-              <span>比對脈絡中...</span>
-            {:else}
-              <Radio class="w-3.5 h-3.5" />
-              <span>立即知悉入庫</span>
-            {/if}
-          </button>
+
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              onclick={handleClose}
+              class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
+            >
+              [ESC] 取消
+            </button>
+            <button
+              type="button"
+              onclick={handleSubmit}
+              disabled={isSearching || !pickupInput.trim()}
+              class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {#if isSearching}
+                <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                <span>比對脈絡中...</span>
+              {:else}
+                <Radio class="w-3.5 h-3.5" />
+                <span>立即知悉入庫</span>
+              {/if}
+            </button>
+          </div>
         </div>
+
+        <!-- 手機聽音收錄極簡引導面板（展開時顯示） -->
+        {#if showMobileGuide}
+          <div class="p-3 bg-[#121318] border border-[#262832] rounded-[2px] text-xs font-mono space-y-2.5 animate-in fade-in duration-150">
+            <div class="flex items-center justify-between">
+              <span class="text-[#8e929d] text-[11px]">動態接收端點 (不寫死網域)：</span>
+              <button
+                type="button"
+                onclick={copyEndpoint}
+                class="flex items-center gap-1 text-[11px] text-signal hover:underline cursor-pointer"
+              >
+                {#if copiedUrl}
+                  <CheckCheck class="w-3 h-3 text-emerald-400" />
+                  <span class="text-emerald-400">已複製</span>
+                {:else}
+                  <Copy class="w-3 h-3" />
+                  <span>複製 URL</span>
+                {/if}
+              </button>
+            </div>
+            <div class="p-1.5 bg-[#08090b] text-[10px] text-[#b4b7c2] truncate select-all border border-[#1b1d24]">
+              {getDynamicEndpoint()}
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-1 text-[10px] text-[#8e929d]">
+              <div class="p-2 bg-[#181920] border border-[#262832] rounded-[2px] space-y-1">
+                <div class="text-[#f4f4f6] font-bold">🍎 iOS 捷徑</div>
+                <div>1. 辨識歌曲 (Shazam)</div>
+                <div>2. 打開 URL：<span class="text-signal">[端點][演出者]</span></div>
+              </div>
+              <div class="p-2 bg-[#181920] border border-[#262832] rounded-[2px] space-y-1">
+                <div class="text-[#f4f4f6] font-bold">🤖 Android 分享</div>
+                <div>瀏覽器點選「加入主畫面」後，任何 App 點系統分享即可見 PUA！</div>
+              </div>
+            </div>
+          </div>
+        {/if}
 
       {:else}
         <!-- 第二階段：同名候選人選取矩陣 (Disambiguation Matrix) -->

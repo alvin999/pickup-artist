@@ -56,6 +56,21 @@
       selectedArtistId = artists[0].id;
     }
 
+    // 方案 A：支援透過 URL Query 參數（如 iOS 捷徑、Shazam 自動化）快速收錄藝人
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const quickAddParam = urlParams.get('quickAdd') || urlParams.get('artist');
+      if (quickAddParam && quickAddParam.trim()) {
+        const targetArtist = quickAddParam.trim();
+        // 清理網址參數，避免重新整理時重複收錄
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', cleanUrl || '/');
+
+        await handlePickup(targetArtist);
+        showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+      }
+    }
+
     // 自動背景修復無效或缺失的封面，無感更新
     const hasUpdated = await autoHealArtistCovers();
     if (hasUpdated) {
