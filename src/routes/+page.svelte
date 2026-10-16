@@ -22,6 +22,7 @@
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
   import { loadSecureAISettings } from '$lib/ai/vault';
+  import { fetchMoreSimilarArtists } from '$lib/ai/client';
   import {
     getActiveAccount,
     subscribeSyncState,
@@ -45,6 +46,7 @@
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
+  let isRecommendingMore = $state(false);
   let queueState = $state<QueueState>(analysisQueue.getState());
 
   async function refreshTelemetryStatus() {
@@ -244,6 +246,75 @@
     showToast('已知悉');
   }
 
+  // 一鍵請 AI 推薦更多相似藝人（方案 A：累加擴展池 ＋ 避開排除清單）
+  async function handleRecommendMoreSimilar(artist: ArtistEntry) {
+    if (isRecommendingMore) return;
+
+    try {
+      const secureLoaded = await loadSecureAISettings();
+      if (secureLoaded.isLocked) {
+        pendingArtistToAnalyze = artist;
+        isUnlockModalOpen = true;
+        showToast('請先解鎖主密碼保管庫以調用 AI');
+        return;
+      }
+
+      const { settings } = secureLoaded;
+      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
+      if (!hasKey) {
+        isAISettingsOpen = true;
+        showToast('請先設定 AI 金鑰');
+        return;
+      }
+
+      isRecommendingMore = true;
+
+      // 收集排除名單：庫存所有藝人名稱、別名，加上當前藝人已推薦之相似名單
+      const excludeSet = new Set<string>();
+      artists.forEach((a) => {
+        excludeSet.add(a.name.trim());
+        a.aliases?.forEach((al) => excludeSet.add(al.trim()));
+      });
+      artist.analysis?.similarArtists?.forEach((sim) => excludeSet.add(sim.trim()));
+      excludeSet.add(artist.name.trim());
+
+      const excludeList = Array.from(excludeSet);
+
+      const newSims = await fetchMoreSimilarArtists(
+        artist.name,
+        artist.analysis?.sector,
+        artist.analysis?.subGenre,
+        excludeList,
+        i18n.locale,
+        settings
+      );
+
+      if (!newSims || newSims.length === 0) {
+        showToast('AI 未探索到更多新相似音樂人，目前星系網絡已相當豐富');
+        return;
+      }
+
+      // 合併去重並更新回資料庫（累加擴展池）
+      const currentSimilar = artist.analysis?.similarArtists || [];
+      const mergedSimilar = Array.from(new Set([...currentSimilar, ...newSims]));
+
+      const cleanAnalysis = JSON.parse(JSON.stringify(artist.analysis || {}));
+      cleanAnalysis.similarArtists = mergedSimilar;
+
+      await updateArtist(artist.id, {
+        analysis: cleanAnalysis
+      });
+
+      await reloadArtists();
+      showToast(`已成功為「${artist.name}」探索並擴充 ${newSims.length} 位相似音樂人！`);
+    } catch (err: any) {
+      console.error('[Recommend More Similar Error]:', err);
+      showToast(err?.message || '探索推薦失敗');
+    } finally {
+      isRecommendingMore = false;
+    }
+  }
+
   // 調整藝人聲學引力權重 (Weight: 1 ~ 100)
   async function handleUpdateWeight(id: string, weight: number) {
     await updateArtist(id, { weight });
@@ -361,7 +432,9 @@
           ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
           onpickupSimilar={handlePickupSimilar}
+          onrecommendMoreSimilar={handleRecommendMoreSimilar}
           {isAnalyzing}
+          {isRecommendingMore}
         />
       {:else if activeStudioView === 'honeycomb-cluster'}
         <!-- 視圖 2: 藝人星系蜂巢矩陣視圖 (Artist Constellation View) -->

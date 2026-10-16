@@ -51,7 +51,9 @@
     ondeleteArtist: (id: string) => void;
     onanalyzeArtist: (artist: ArtistEntry) => void;
     onpickupSimilar: (name: string) => void;
+    onrecommendMoreSimilar?: (artist: ArtistEntry) => Promise<void> | void;
     isAnalyzing?: boolean;
+    isRecommendingMore?: boolean;
   }
 
   let {
@@ -61,7 +63,9 @@
     ondeleteArtist,
     onanalyzeArtist,
     onpickupSimilar,
-    isAnalyzing = false
+    onrecommendMoreSimilar,
+    isAnalyzing = false,
+    isRecommendingMore = false
   }: Props = $props();
 
   // 篩選與排序狀態
@@ -109,6 +113,77 @@
   const selectedArtist = $derived(
     artists.find((a) => a.id === selectedArtistId) || artists[0] || null
   );
+
+  // 相似藝人輪播偏移量（當未收錄藝人超過 3 位時支援純前端翻頁）
+  let similarOffset = $state(0);
+
+  $effect(() => {
+    if (selectedArtistId) {
+      similarOffset = 0;
+    }
+  });
+
+  // 本地已收錄藝人字典（比對 name 與 aliases，全轉小寫以避免大小寫重複誤判）
+  const collectedNamesMap = $derived.by(() => {
+    const map = new Map<string, ArtistEntry>();
+    for (const a of artists) {
+      map.set(a.name.toLowerCase().trim(), a);
+      a.aliases?.forEach((al) => map.set(al.toLowerCase().trim(), a));
+    }
+    return map;
+  });
+
+  // 原始推薦清單去重
+  const rawSimilarList = $derived(
+    Array.from(new Set(selectedArtist?.analysis?.similarArtists || []))
+  );
+
+  // 拆分為「未在庫 (uncollected)」與「已在庫 (collected)」
+  const uncollectedSimilar = $derived(
+    rawSimilarList.filter((name) => !collectedNamesMap.has(name.toLowerCase().trim()))
+  );
+
+  const collectedSimilar = $derived(
+    rawSimilarList.filter((name) => collectedNamesMap.has(name.toLowerCase().trim()))
+  );
+
+  // 本地換一批輪播切換（純前端分頁，不耗費 AI API Token）
+  function handleNextSimilarBatch() {
+    if (uncollectedSimilar.length <= 3) return;
+    similarOffset = (similarOffset + 3) % uncollectedSimilar.length;
+  }
+
+  // 計算最終要呈現在 3 個 Slot 的推薦卡片（優先以未收錄填滿，不足 3 個才由已收錄遞補）
+  const displaySimilarSlots = $derived.by(() => {
+    const slots: { name: string; isCollected: boolean; existingArtist?: ArtistEntry }[] = [];
+
+    // 若未收錄藝人有資料，以輪播 offset 開始取最多 3 位
+    if (uncollectedSimilar.length > 0) {
+      for (let i = 0; i < Math.min(3, uncollectedSimilar.length); i++) {
+        const idx = (similarOffset + i) % uncollectedSimilar.length;
+        slots.push({
+          name: uncollectedSimilar[idx],
+          isCollected: false
+        });
+      }
+    }
+
+    // 若未收錄不足 3 位，由已收錄清單遞補
+    if (slots.length < 3) {
+      for (const sim of collectedSimilar) {
+        if (slots.length >= 3) break;
+        if (!slots.some((s) => s.name.toLowerCase().trim() === sim.toLowerCase().trim())) {
+          slots.push({
+            name: sim,
+            isCollected: true,
+            existingArtist: collectedNamesMap.get(sim.toLowerCase().trim())
+          });
+        }
+      }
+    }
+
+    return slots;
+  });
 
   // 藝人角色標籤：優先使用 AI 精析的 artistRole，舊資料則退回 entityType
   const roleLabel = $derived(
@@ -984,27 +1059,87 @@
               </div>
             {/if}
 
-            <!-- 脈絡相似推薦 (Interactive Network Matrix) -->
-            {#if selectedArtist.analysis.similarArtists && selectedArtist.analysis.similarArtists.length > 0}
+            <!-- 脈絡相似推薦 (Interactive Network Matrix - 智慧去重與 AI 深度探索) -->
+            {#if selectedArtist.analysis}
               <div class="font-mono flex flex-col gap-2">
-                <span class="text-[10px] text-ink-muted uppercase tracking-widest">// ACOUSTIC_AFFINITY [相似頻率推薦]</span>
-                <div class="grid grid-cols-3 gap-1.5">
-                  {#each selectedArtist.analysis.similarArtists.slice(0, 3) as sim, idx}
-                    <div class="border border-wire bg-void p-2 flex flex-col justify-between gap-2 hover:border-ink transition-colors">
-                      <div>
-                        <div class="text-xs text-ink font-bold truncate">{sim}</div>
-                        <div class="text-[9px] text-signal mt-0.5">SYNC: {92 - idx * 4}%</div>
-                      </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] text-ink-muted uppercase tracking-widest">// ACOUSTIC_AFFINITY [相似頻率推薦]</span>
+                  <div class="flex items-center gap-1.5">
+                    {#if uncollectedSimilar.length > 3}
                       <button
                         type="button"
-                        onclick={() => onpickupSimilar(sim)}
-                        class="w-full py-0.5 bg-panel hover:bg-signal text-ink hover:text-white text-[9px] border border-wire transition-colors cursor-pointer"
+                        onclick={handleNextSimilarBatch}
+                        class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                        title="在本地累積未收錄名單中輪播換一批"
                       >
-                        + 拾取
+                        <span class="material-symbols-outlined text-[11px]">sync</span>
+                        <span>換一批 ({Math.floor(similarOffset / 3) + 1}/{Math.ceil(uncollectedSimilar.length / 3)})</span>
                       </button>
-                    </div>
-                  {/each}
+                    {/if}
+                    <button
+                      type="button"
+                      onclick={() => onrecommendMoreSimilar?.(selectedArtist)}
+                      disabled={isRecommendingMore}
+                      class="text-[9px] px-1.5 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="請 AI 深入聲學網絡探索更多未被發掘的相似音樂人"
+                    >
+                      {#if isRecommendingMore}
+                        <span class="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
+                        <span>探勘中...</span>
+                      {:else}
+                        <span class="material-symbols-outlined text-[11px]">auto_awesome</span>
+                        <span>AI 推薦更多</span>
+                      {/if}
+                    </button>
+                  </div>
                 </div>
+
+                {#if displaySimilarSlots.length > 0}
+                  <div class="grid grid-cols-3 gap-1.5">
+                    {#each displaySimilarSlots as slot, idx}
+                      <div class="border border-wire bg-void p-2 flex flex-col justify-between gap-2 hover:border-ink transition-colors {slot.isCollected ? 'opacity-75 bg-[#0e1015]' : ''}">
+                        <div>
+                          <div class="text-xs text-ink font-bold truncate flex items-center gap-1" title={slot.name}>
+                            <span class="truncate">{slot.name}</span>
+                            {#if slot.isCollected}
+                              <span class="text-[9px] text-[#63C78B] font-mono shrink-0" title="已收錄於收藏庫">✓</span>
+                            {/if}
+                          </div>
+                          <div class="text-[9px] text-signal mt-0.5 flex items-center justify-between">
+                            <span>SYNC: {92 - idx * 4}%</span>
+                            {#if slot.isCollected}
+                              <span class="text-[8px] text-ink-muted uppercase">已收錄</span>
+                            {/if}
+                          </div>
+                        </div>
+
+                        {#if slot.isCollected && slot.existingArtist}
+                          <button
+                            type="button"
+                            onclick={() => onselectArtist(slot.existingArtist!.id)}
+                            class="w-full py-0.5 bg-panel hover:bg-chassis text-ink-muted hover:text-ink text-[9px] border border-wire transition-colors cursor-pointer flex items-center justify-center gap-1"
+                            title="跳轉並檢視此已收錄藝人"
+                          >
+                            <span class="material-symbols-outlined text-[11px]">explore</span>
+                            <span>跳轉定位</span>
+                          </button>
+                        {:else}
+                          <button
+                            type="button"
+                            onclick={() => onpickupSimilar(slot.name)}
+                            class="w-full py-0.5 bg-panel hover:bg-signal text-ink hover:text-white text-[9px] border border-wire transition-colors cursor-pointer"
+                          >
+                            + 拾取
+                          </button>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="border border-wire border-dashed p-3 text-center text-xs text-ink-muted font-mono bg-void/50">
+                    尚無相似音樂人推薦，點擊上方「AI 推薦更多」啟動探勘
+                  </div>
+                {/if}
               </div>
             {/if}
           {/if}

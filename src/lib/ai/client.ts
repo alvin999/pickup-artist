@@ -1,5 +1,5 @@
 import { ArtistAnalysisResponseSchema, sanitizeAnalysisPayload, type ValidatedArtistAnalysisResponse } from './schema';
-import { buildArtistAnalysisPrompt, type DisambiguationContext } from './prompts';
+import { buildArtistAnalysisPrompt, buildMoreSimilarArtistsPrompt, type DisambiguationContext } from './prompts';
 import type { SupportedLocale } from '$lib/i18n';
 import { loadSecureAISettings } from './vault';
 
@@ -515,4 +515,181 @@ export async function analyzeArtistWithAI(
   }
 
   return validationResult.data;
+}
+
+/**
+ * 請 AI 探索推薦更多相似藝人（極度精簡，極低 Token 消耗）
+ * 
+ * 設計意圖與架構決策 (Why & Design Trade-offs)：
+ * 1. 注入在庫藝人與當前已推薦名單作為排除名單（Exclude List），確保 AI 探索全新的音樂面貌。
+ * 2. 支援 Groq (Llama 3.3) 與 Gemini 2.0 Flash 雙引擎，具備 429 RateLimit 與自動修復解析能力。
+ * 3. 僅解析 similarArtists 字串陣列，過濾空值與排除名單，回傳乾淨的推薦陣列。
+ */
+export async function fetchMoreSimilarArtists(
+  artistName: string,
+  sector?: string,
+  subGenre?: string,
+  excludeList: string[] = [],
+  locale: SupportedLocale = 'zh-TW',
+  customSettings?: AISettings
+): Promise<string[]> {
+  let settings: AISettings;
+
+  if (customSettings) {
+    settings = customSettings;
+  } else {
+    const secureLoaded = await loadSecureAISettings();
+    settings = secureLoaded.settings;
+  }
+
+  const { systemPrompt, userPrompt } = buildMoreSimilarArtistsPrompt(
+    artistName,
+    sector,
+    subGenre,
+    excludeList,
+    locale
+  );
+
+  let rawJsonText = '';
+
+  if (settings.provider === 'groq') {
+    if (!settings.groqKey.trim()) {
+      throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.groqKey.trim()}`
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    // 若伺服器端 JSON 約束未通過（400 Failed to validate JSON），自動降級為標準對話模式重試
+    if (res.status === 400) {
+      const errText = await res.text();
+      const isJsonValidationError =
+        errText.toLowerCase().includes('failed to validate json') ||
+        errText.toLowerCase().includes('response_format') ||
+        errText.toLowerCase().includes('json_object');
+
+      if (isJsonValidationError) {
+        console.warn('[Groq] 相似藝人 JSON 約束未通過，自動降級為標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
+      } else {
+        throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      }
+    } else if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
+    } else {
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      rawJsonText =
+        choice?.message?.content ||
+        choice?.text ||
+        choice?.message?.reasoning ||
+        (choice?.message as any)?.reasoning_content ||
+        '';
+
+      if (!rawJsonText.trim()) {
+        console.warn('[Groq] 相似藝人回傳空字串，以標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
+      }
+    }
+  } else {
+    if (!settings.geminiKey.trim()) {
+      throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${
+      settings.geminiModel || DEFAULT_GEMINI_MODEL
+    }:generateContent?key=${settings.geminiKey.trim()}`;
+
+    let res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+
+    if (res.status === 429) {
+      const retryErrText = await res.text();
+      const retrySec = extractRetrySeconds(res, retryErrText);
+      throw new RateLimitError(
+        `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (errText.toLowerCase().includes('response_mime_type') || errText.toLowerCase().includes('application/json')) {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+            generationConfig: { temperature: 0.3 }
+          })
+        });
+      } else {
+        throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      }
+    }
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, err)}`);
+    }
+
+    const data = await res.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    rawJsonText = parts.map((p: any) => p.text).filter(Boolean).join('\n');
+  }
+
+  const parsedJson = extractAndParseJson(rawJsonText) as any;
+  const list = Array.isArray(parsedJson?.similarArtists)
+    ? parsedJson.similarArtists
+    : Array.isArray(parsedJson)
+    ? parsedJson
+    : [];
+
+  const excludeSet = new Set(excludeList.map((n) => n.trim().toLowerCase()));
+  return list
+    .filter((name: any) => typeof name === 'string' && name.trim())
+    .map((name: string) => name.trim())
+    .filter((name: string) => !excludeSet.has(name.toLowerCase()));
 }

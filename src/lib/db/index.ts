@@ -200,8 +200,11 @@ export async function updateArtist(id: string, updates: Partial<ArtistEntry>): P
     updatedAt: now
   };
 
-  await db.artists.put(updatedEntry);
-  notifyDatabaseChange({ type: 'upsert', artist: updatedEntry });
+  // 剝離 Svelte 5 Reactive Proxy，防止 IndexedDB put 觸發 DataCloneError
+  const cloneableEntry = JSON.parse(JSON.stringify(updatedEntry));
+
+  await db.artists.put(cloneableEntry);
+  notifyDatabaseChange({ type: 'upsert', artist: cloneableEntry });
 }
 
 // 刪除藝人（記錄墓碑）

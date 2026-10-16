@@ -105,3 +105,55 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 
   return { systemPrompt, userPrompt };
 }
+
+/**
+ * 推薦更多相似藝人專用 Prompt（極度精簡，極低 Token 消耗）
+ * 
+ * 設計意圖與架構決策 (Why & Design Trade-offs)：
+ * 1. 注入排除名單（Exclude List）：包含使用者檔案庫既有藝人與當前已推薦名單，要求 AI 絕不重複推薦。
+ * 2. 精準鎖定音樂人聲學特質與子流派（Sector / SubGenre），推薦 4~5 位未被主流演算法淹沒的相似音樂人。
+ * 3. 輸出極簡 JSON，僅包含 `similarArtists: string[]`，單次 Prompt + Completion 不超過 150 Tokens，徹底杜絕 429 TPM 限制。
+ */
+export function buildMoreSimilarArtistsPrompt(
+  artistName: string,
+  sector?: string,
+  subGenre?: string,
+  excludeList: string[] = [],
+  locale: SupportedLocale = 'zh-TW'
+): {
+  systemPrompt: string;
+  userPrompt: string;
+} {
+  const languageRules =
+    locale === 'zh-TW'
+      ? `請以繁體中文或該音樂人的通用官方藝名輸出。`
+      : locale === 'ja'
+      ? `日本の音楽メディアでの標準的な表記または公式アーティスト名で出力してください。`
+      : `Output using official artist names in English or their primary regional name.`;
+
+  const systemPrompt = `You are an elite music curator and acoustic soundscape researcher for "Pickup Artist".
+Your task is to recommend 4 to 5 strictly distinct musical artists who share high acoustic affinity, artistic ethos, or sonic texture with the target artist.
+
+【規範與限制】
+1. ${languageRules}
+2. 絕對禁止推薦「已排除名單」中的任何音樂人。
+3. 優先挖掘深具藝術價值、冷門優質或在相同樂派/子流派（如 Post-Rock, Math Rock, Modal Jazz, Neo-Soul）中有高度美學共鳴的音樂人。
+4. The output must strictly be a single valid JSON object containing only the "similarArtists" array key. Do not output any preamble, commentary, or markdown text.`;
+
+  const contextHints = [
+    sector ? `核心領域：${sector}` : '',
+    subGenre ? `代表子流派：${subGenre}` : ''
+  ].filter(Boolean).join('、');
+
+  // 取最多 40 個已存在名字做為排除名單，節省 Prompt Token
+  const cleanExclude = Array.from(new Set(excludeList.map((n) => n.trim()).filter(Boolean))).slice(0, 40);
+  const excludeText = cleanExclude.length > 0 ? `\n【已收錄或已推薦排除名單（嚴禁重複推薦）】：\n${cleanExclude.join('、')}\n` : '';
+
+  const userPrompt = `Provide 4 to 5 acoustic and stylistic kindred artists for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+Respond in valid JSON format:
+{
+  "similarArtists": ["Artist 1", "Artist 2", "Artist 3", "Artist 4"]
+}`;
+
+  return { systemPrompt, userPrompt };
+}
