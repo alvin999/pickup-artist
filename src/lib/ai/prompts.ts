@@ -1,114 +1,101 @@
 import type { SupportedLocale } from '$lib/i18n';
 
+export interface DisambiguationContext {
+  albumTitle?: string;
+  releaseYear?: string;
+  genre?: string;
+  description?: string;
+}
+
 /**
- * 聲學發燒友音樂學家 Prompt 架構
- * 核心聚焦：
- * 1. 音樂人/藝人深度介紹與美學脈絡 (Artist Profile & Aesthetic Philosophy)
- * 2. 聆聽重點與發燒聲學特質 (Listening Guide & Audiophile Acoustic Highlights)
- * 3. 推薦經典代表專輯 (Recommended Album / Milestone)
- * 4. 深埋寶藏挖掘 (Hidden Treasure / Audiophile Deep Cut)
+ * 聲學發燒友音樂學家 Prompt 架構（精簡去重版）
+ * 
+ * 設計意圖與架構決策 (Why & Design Trade-offs)：
+ * 1. 嚴控 Token 預扣以根絕 Groq / OpenAI 的 429 TPM（Tokens Per Minute）限額報錯：
+ *    原先 Prompt 中英雙語繁複贅述，使單次 Requested Tokens 飆破 6,200（直逼 8,000 TPM 限額）。
+ *    此版本將重複規則合而為一，消除三度重複的欄位說明，將輸入 Context 壓降至 ~600 Tokens。
+ * 2. 注入「同名藝人消歧義錨點 (Disambiguation Context)」：
+ *    讓 AI 精確鎖定特定世代、領域或代表作的藝人，徹底解決同名盲猜誤判問題。
+ * 3. 完整保留星系二級晶片所依賴之 'sector' 與 'subGenre'，確保蜂巢星系圖拓撲聚類不受影響。
+ * 4. 移除由前端自行生成即可之 'appleMusicSearchUrl'，避免消耗生成 Token。
  */
-export function buildArtistAnalysisPrompt(artistName: string, locale: SupportedLocale = 'zh-TW'): {
+export function buildArtistAnalysisPrompt(
+  artistName: string,
+  locale: SupportedLocale = 'zh-TW',
+  context?: DisambiguationContext
+): {
   systemPrompt: string;
   userPrompt: string;
 } {
-  const languageInstruction =
+  const languageRules =
     locale === 'zh-TW'
-      ? `【語言與名詞規範】
-- 必須全程使用「繁體中文」（台灣標準繁體）。
-- 嚴格採用台灣發燒音響與專業錄音室術語（例如：母帶、動態範圍、音場、空間感、殘響、分離度、瞬態反應、真空管、類比盤帶、推力、結像定位）。
-- 稱呼以「音樂人/藝人」為主（個人創作者、歌手或樂團皆適用，避免使用中國大陸用語「樂隊」、「數字」、「信息」、「質量」）。`
+      ? `必須使用繁體中文（台灣標準繁體）與專業發燒音響術語（母帶、動態範圍、音場、空間感、殘響、分離度、瞬態反應、真空管、類比盤帶、推力、結像定位）。稱呼以「音樂人/藝人」為主。`
       : locale === 'ja'
-      ? `すべてのテキストフィールドを日本語で記述し、ハイエンド・オーディオファイル用語（音場、トランジェント、ダイナミックレンジ、真空管、マスターテープ、定位）を用いてください。アーティスト/ミュージシャンとしての本質を掘り下げてください。`
-      : `Write all text fields in English using professional audiophile and musicological terminology (dynamic range, soundstage depth, harmonic richness, analog tape saturation, transient speed, stereo imaging). Focus on the artist/musician's creative essence.`;
+      ? `すべてのテキストを日本語で記述し、ハイエンド・オーディオファイル用語（音場、トランジェント、ダイナミックレンジ、真空管、マスターテープ、定位）を用いてください。`
+      : `Write all text fields in English using professional audiophile terminology (dynamic range, soundstage depth, harmonic richness, transient speed, stereo imaging).`;
 
-  const systemPrompt = `You are a world-class musicologist, veteran mastering engineer, and obsessive soundstage curator for "大音悉聲 · Pickup Artist (PUA)".
-Your mission is to perform an uncompromising, deep acoustic dissection and biographical curation of musical artists, building an authoritative dossier for audiophiles and serious music explorers.
+  const systemPrompt = `You are a world-class musicologist and veteran mastering engineer for "Pickup Artist".
+Dissect the musical artist into an authoritative JSON dossier for audiophiles and music explorers.
 
-You MUST prioritize four core pillars with profound depth and precision:
+【語言規範】
+${languageRules}
 
-1. 藝人深度介紹 (Artist Profile & Aesthetic Philosophy) [summary]:
-   - Applies to solo artists, singer-songwriters, producers, and bands alike.
-   - Do NOT provide a dry, Wikipedia-like chronological CV, award tally, or commercial sales summary.
-   - Dissect their foundational artistic ethos, personal creative voice, and sonic chemistry (e.g., vocal delivery, unique instrumental technique, rhythm section interplay).
-   - Trace their stylistic evolution and contextualize their irreplaceable artistic weight within their genre's history (e.g., Post-Rock, Math Rock, Neo-Soul, Modal Jazz).
-   - Write with rich cultural insight and literary gravitas (around 200-350 words).
+【8 軸大板塊 (sector - 必選其一)】
+ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 
-2. 聆聽重點與聲學質地 (Listening Guide & Audiophile Acoustic Highlights) [instrumentationNotes]:
-   - Listen like an audiophile and mastering engineer:
-     * Arrangement & Interplay: Complex polyrhythms, metric modulation, subtle counter-melodies, and instrument separation.
-     * Soundstage & Imaging: Room ambiance, stereo width, front-to-back depth, and instrument placement across the stereo field.
-     * Dynamic Contrast (DR): Natural uncompressed peaks, delicate micro-dynamics versus explosive transient attacks (avoiding "loudness war" brickwalling).
-     * Sonic Textures & Gear Synergy: Analog warmth, tape saturation, tube microphone textures, and playback recommendations (e.g., high-resolution planar magnetic headphones, tube amplification, or wide-dispersion speakers).
+【核心要求】
+1. subGenre: 唯一代表性二級子流派（如 Math Rock, Post-Rock, Neo-Soul, Modal Jazz, Ambient Folk，用以聚類星系）。
+2. summary: 個人創作靈魂、聲音系譜、演化脈絡與無可取代性（約 150-250 字）。
+3. instrumentationNotes: 編曲層次、立體聲音場結像、動態對比（DR）、類比錄音質地與推薦耳機/音響回放系統。
+4. notableAlbums: 推薦 2 張專輯：
+   - tier "milestone": 生涯藝術顛峰代表作。
+   - tier "hidden-treasure": 冷門高音質神盤（嚴禁大熱門，須含 rarityReason 挖寶理由、audiophileHighlight 聲學亮點、dynamicRangeScore 12-16）。
+5. Output MUST be a single strictly valid JSON object matching the requested keys without markdown fences.`;
 
-3. 推薦代表專輯 (Recommended Milestone Album) [notableAlbums -> tier: "milestone"]:
-   - Highlight 1 definitive landmark album that represents their artistic pinnacle or quintessential sonic breakthrough.
-   - Explain why this work is the definitive gateway for discerning listeners to grasp their core musical language.
+  // 構造同名消歧義錨點提示
+  let disambiguationNotice = '';
+  if (context && (context.albumTitle || context.releaseYear || context.genre)) {
+    const details = [
+      context.albumTitle ? `代表作/專輯：《${context.albumTitle}》` : '',
+      context.releaseYear ? `活躍/發行年代：${context.releaseYear}` : '',
+      context.genre ? `主要領域/曲風：${context.genre}` : ''
+    ].filter(Boolean).join('、');
+    
+    disambiguationNotice = `\n【同名排歧脈絡錨點（極重要）】：\n目標藝人帶有以下背景特徵：${details}。\n請嚴格鎖定此特定音樂人進行分析，切勿混淆為其他同名藝人！\n`;
+  }
 
-4. 深埋寶藏挖掘 (Hidden Treasure / Audiophile Deep Cut) [notableAlbums -> tier: "hidden-treasure"] - MANDATORY:
-   - STRICT RULE: Do NOT select any mainstream commercial hit or the artist's most streamed top-3 albums.
-   - Dig deep into their catalog for a hidden gem: a rare direct-to-disc recording, an intimate uncompressed studio session, an exploratory analog EP, a forgotten concept work, or an audiophile-grade B-side treasure.
-   - MUST provide:
-     * 'rarityReason': Why mainstream streaming algorithms overlook it, and why crate diggers treasure it.
-     * 'audiophileHighlight': Specific sonic ecstasy (e.g., breath-taking room reverberation, dry punchy kick drum transient, ultra-low noise floor, lush tube harmonics).
-     * 'dynamicRangeScore': Estimated audiophile DR score (typically DR12-DR16).
-
-${languageInstruction}
-
-### 8-Axis Compass Taxonomy (Choose exactly one for 'sector'):
-- ROCK: Instrumental Rock, Math Rock, Post-Rock, Prog Rock, Indie Rock, Shoegaze.
-- METAL: Prog Metal, Post-Metal, Metalcore, Sludge, Doom, Extreme Heavy.
-- CLASSICAL: Classical, Baroque, Romantic, Modern Orchestral, Chamber.
-- JAZZ: Modern Jazz, Bebop, Hard Bop, Cool Jazz, Contemporary Piano Trio, Fusion.
-- AMBIENT: Ambient, Drone, Modern Classical, Soundscapes, Field Recordings.
-- ELECTRONIC: IDM, Glitch, Ambient Techno, Modular Synth, Downtempo.
-- GROOVE: Funk, Soul, Neo-Soul, Contemporary R&B, Hip-Hop (Boom Bap, Jazz Rap).
-- WORLD: World Music, World Fusion, Afrobeat, Traditional Folk, Ethno-Ambient, Flamenco, Latin Roots.
-
-### Output Constraints:
-Output MUST be a single, strictly valid JSON object matching the requested schema. Do NOT include markdown code fences, trailing commas, comments, or ellipsis "...".`;
-
-  const userPrompt = `請以發燒錄音工程師與資深音樂學家視角，深度解剖音樂人/藝人：「${artistName}」。
-
-請嚴格鎖定四大核心重點：
-1. 音樂人/藝人深度介紹 (summary)：個人創作靈魂、核心美學與聲音系譜（深入解析器樂特色、演化脈絡與流派地位，約 200-350 字）。
-2. 發燒聆聽重點 (instrumentationNotes)：編曲層次、音場結像、動態起伏（DR）、類比質地與推薦耳機/音響回放系統。
-3. 推薦代表專輯 (notableAlbums 中 tier 為 "milestone")：生涯最具藝術代表性的顛峰之作。
-4. 深埋發燒寶藏 (notableAlbums 中 tier 為 "hidden-treasure")：嚴禁選大熱門！挖掘冷門高音質神盤，務必包含 [挖寶理由 rarityReason] 與 [發燒聲學亮點 audiophileHighlight]。
-
-請嚴格輸出符合下列結構的單一合法 JSON（嚴禁輸出任何省略號 "..."、註解或額外說明文字）：
+  const userPrompt = `請深度解剖音樂人：「${artistName}」${disambiguationNotice}
+嚴格輸出符合下列結構的單一 JSON：
 {
   "name": "${artistName}",
-  "aliases": ["常見別名或日文片假名"],
+  "aliases": [],
   "sector": "ROCK",
-  "subGenre": "唯一代表性二級子流派（例如 Math Rock / Post-Rock / Neo-Soul / Modal Jazz / Ambient Folk，嚴格鎖定單一代表子流派）",
-  "artistRole": "藝人核心角色與專精，簡短 2-4 個英文單字（例如 Bassist / Vocalist、Piano Trio、Producer / Beatmaker、Cellist）",
-  "aestheticTags": ["4-6 個能讓人快速認識此藝人的英文小寫連字號標籤，涵蓋演奏特色、創作態度與聲響質地（例如 modal-bass, intimate-vocals, genre-fluid, analog-warmth）"],
-  "genres": ["主要風格標籤 1", "主要風格標籤 2", "主要風格標籤 3"],
+  "subGenre": "代表性二級子流派",
+  "artistRole": "核心角色與專精（如 Bassist / Vocalist、Piano Trio、Producer）",
+  "aestheticTags": ["4-6 個英文小寫連字號美學標籤，如 analog-warmth, lo-fi, math-groove"],
+  "genres": ["主要風格標籤 1", "風格標籤 2", "風格標籤 3"],
   "entityType": "band",
   "lineage": {
-    "primaryArtistName": "母團或核心主腦（若為個人/側企劃）",
-    "memberRoster": ["核心成員與器樂擔當 1", "核心成員與器樂擔當 2"]
+    "primaryArtistName": "核心主腦或母團（選填）",
+    "memberRoster": ["主要成員與擔當器樂"]
   },
-  "summary": "【音樂人/藝人深度介紹】深入剖析成團或創作脈絡、藝術哲學、聲線特色與在音樂系譜中的無可取代性。",
-  "instrumentationNotes": "【聆聽重點與發燒特性】解析錄音空間殘響、立體聲音場結像定位、動態對比與瞬態反應，並給出理想發燒回放系統搭配。",
-  "similarArtists": ["相似風格音樂人 1", "相似風格音樂人 2", "相似風格音樂人 3", "相似風格音樂人 4"],
+  "summary": "【深度介紹】創作靈魂、聲線與器樂特質、系譜演進（150-250 字）。",
+  "instrumentationNotes": "【聆聽重點】音場深度、結像定位、動態對比（DR）與推薦音響設備搭配。",
+  "similarArtists": ["相似風格音樂人 1", "相似音樂人 2", "相似音樂人 3", "相似音樂人 4"],
   "notableAlbums": [
     {
-      "title": "生涯經典代表作專輯名稱",
-      "year": "2015",
+      "title": "里程碑經典專輯名",
+      "year": "年份",
       "tier": "milestone",
-      "description": "【核心推薦專輯】為何此作是理解其音樂哲學與完整藝術格局的必聽基石。",
-      "appleMusicSearchUrl": "https://music.apple.com/search?term=${encodeURIComponent(artistName)}"
+      "description": "為何此作是理解其音樂哲學的必聽基石。"
     },
     {
-      "title": "深埋發燒寶藏專輯名稱",
-      "year": "2012",
+      "title": "深埋發燒寶藏專輯名",
+      "year": "年份",
       "tier": "hidden-treasure",
-      "description": "【深埋發燒寶藏】避開商業排行的冷門神盤，錄音純度或藝術野心極高的珍品。",
-      "appleMusicSearchUrl": "https://music.apple.com/search?term=${encodeURIComponent(artistName)}",
-      "rarityReason": "為何主流大眾或串流演算法容易忽視此作（例如：限量獨立發行、深藏不露之概念純類比現場錄音）。",
-      "audiophileHighlight": "具體發燒聲學亮點（例如：直熱三極管般的泛音延伸、完全無動態壓縮之鼓點瞬態響應、立體深邃之音場）。",
+      "description": "避開商業排行的冷門神盤解析。",
+      "rarityReason": "為何主流演算法忽視（如獨立限量盤、概念現場錄音）。",
+      "audiophileHighlight": "具體聲學亮點（如無壓縮自然動態、原木共振、真空管泛音）。",
       "dynamicRangeScore": 14
     }
   ],

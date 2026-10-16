@@ -1,26 +1,39 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
-  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck } from 'lucide-svelte';
+  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck, AlertTriangle } from 'lucide-svelte';
   import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
+  import type { ArtistEntry } from '$lib/types/artist';
+  import { checkDuplicateArtist } from '$lib/db';
 
   interface Props {
     open: boolean;
     onclose: () => void;
     onpickup: (nameOrUrl: string, candidate?: ArtistCandidate) => void;
+    existingArtists?: ArtistEntry[];
+    onselectExisting?: (artist: ArtistEntry) => void;
   }
 
   let {
     open = false,
     onclose,
-    onpickup
+    onpickup,
+    existingArtists = [],
+    onselectExisting
   }: Props = $props();
 
   let pickupInput = $state('');
   let isSearching = $state(false);
   let candidates = $state<ArtistCandidate[]>([]);
-  let step = $state<'input' | 'disambiguation'>('input');
+  let step = $state<'input' | 'disambiguation' | 'duplicate_alert'>('input');
   let showMobileGuide = $state(false);
   let copiedUrl = $state(false);
+
+  let duplicateMatch = $state<{
+    existing: ArtistEntry;
+    pendingName: string;
+    pendingCandidate?: ArtistCandidate;
+    isExactUrl: boolean;
+  } | null>(null);
 
   function resetState() {
     pickupInput = '';
@@ -29,6 +42,7 @@
     step = 'input';
     showMobileGuide = false;
     copiedUrl = false;
+    duplicateMatch = null;
   }
 
   function getDynamicEndpoint() {
@@ -81,9 +95,45 @@
     }
   }
 
-  function commitPickup(name: string, candidate?: ArtistCandidate) {
+  function commitPickup(name: string, candidate?: ArtistCandidate, force = false) {
+    if (!force && existingArtists.length > 0) {
+      const targetUrl = candidate?.appleMusicUrl || (name.startsWith('http://') || name.startsWith('https://') ? name : undefined);
+      const match = checkDuplicateArtist(existingArtists, name, targetUrl);
+
+      if (match && (match.exactUrlMatch || match.nameMatch)) {
+        const existing = match.exactUrlMatch || match.nameMatch!;
+        duplicateMatch = {
+          existing,
+          pendingName: name,
+          pendingCandidate: candidate,
+          isExactUrl: !!match.exactUrlMatch
+        };
+        step = 'duplicate_alert';
+        return;
+      }
+    }
+
     onpickup(name, candidate);
     handleClose();
+  }
+
+  function handleSelectExisting() {
+    if (duplicateMatch?.existing && onselectExisting) {
+      onselectExisting(duplicateMatch.existing);
+    }
+    handleClose();
+  }
+
+  function handleForcePickup() {
+    if (duplicateMatch) {
+      const { pendingName, pendingCandidate } = duplicateMatch;
+      commitPickup(pendingName, pendingCandidate, true);
+    }
+  }
+
+  function handleBackFromAlert() {
+    step = candidates.length > 1 ? 'disambiguation' : 'input';
+    duplicateMatch = null;
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -215,7 +265,7 @@
           </div>
         {/if}
 
-      {:else}
+      {:else if step === 'disambiguation'}
         <!-- 第二階段：同名候選人選取矩陣 (Disambiguation Matrix) -->
         <div class="flex items-center justify-between border-b border-[#21232d] pb-2.5">
           <div class="flex items-center gap-2">
@@ -295,6 +345,97 @@
           >
             皆不符合？直接以此自訂名稱知悉
           </button>
+        </div>
+
+      {:else if step === 'duplicate_alert'}
+        <!-- 第三階段：重複與同名警示矩陣 (Duplicate / Homonym Alert) -->
+        <div class="flex items-center justify-between border-b border-[#21232d] pb-2.5">
+          <div class="flex items-center gap-2">
+            <AlertTriangle class="w-4 h-4 text-signal animate-pulse" />
+            <span class="font-dot text-xs text-signal tracking-widest uppercase">
+              {duplicateMatch?.isExactUrl ? 'DUPLICATE // 來源完全重複' : 'HOMONYM // 偵測到同名藝人'}
+            </span>
+          </div>
+          <span class="font-mono text-[10px] text-[#8e929d]">
+            {duplicateMatch?.isExactUrl ? '已存在相同 Apple Music 來源' : '本地收藏庫已存在同名檔案'}
+          </span>
+        </div>
+
+        <p class="font-sans text-xs text-[#b4b7c2] leading-relaxed">
+          {#if duplicateMatch?.isExactUrl}
+            資料庫中已有一筆來源完全相同的藝人，建議直接定位查看以避免冗餘重複：
+          {:else}
+            本地庫已收錄名為「<strong class="text-signal">{duplicateMatch?.pendingName}</strong>」的藝人。若為同一人可直接定位；若為不同世代或領域的同名藝人，亦可另立新檔收錄：
+          {/if}
+        </p>
+
+        <!-- 既有藝人資料卡片 -->
+        {#if duplicateMatch?.existing}
+          {@const ex = duplicateMatch.existing}
+          <div class="p-3 bg-[#14151b] border border-signal/40 rounded-[2px] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              {#if ex.coverImage}
+                <img
+                  src={ex.coverImage}
+                  alt={ex.name}
+                  class="w-12 h-12 object-cover rounded-[2px] border border-[#303340] shrink-0"
+                />
+              {:else}
+                <div class="w-12 h-12 bg-[#1a1b22] border border-[#303340] flex items-center justify-center shrink-0">
+                  <Disc3 class="w-6 h-6 text-ink-muted" />
+                </div>
+              {/if}
+              <div class="min-w-0 flex flex-col">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-sm text-[#f4f4f6] truncate">{ex.name}</span>
+                  <span class="px-1.5 py-0.5 text-[9px] font-mono uppercase bg-signal/20 text-signal border border-signal/30 rounded-[1px]">
+                    {ex.status.toUpperCase()}
+                  </span>
+                </div>
+                <span class="font-mono text-[10px] text-[#8e929d] truncate mt-0.5">
+                  {ex.formatSpec || 'Lossless Hi-Res'}
+                </span>
+                {#if ex.addedAt}
+                  <span class="font-mono text-[9px] text-[#636775]">
+                    收錄於 {new Date(ex.addedAt).toLocaleDateString()}
+                  </span>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- 動作決策按鈕列 -->
+        <div class="pt-2 border-t border-[#21232d] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 font-mono text-xs">
+          <button
+            type="button"
+            onclick={handleBackFromAlert}
+            class="flex items-center justify-center gap-1 text-[#8e929d] hover:text-[#f4f4f6] cursor-pointer transition-colors py-1.5"
+          >
+            <ArrowLeft class="w-3.5 h-3.5" />
+            <span>返回修改</span>
+          </button>
+
+          <div class="flex items-center gap-2 sm:ml-auto">
+            {#if !duplicateMatch?.isExactUrl}
+              <button
+                type="button"
+                onclick={handleForcePickup}
+                class="px-3 py-1.5 border border-[#303340] hover:border-[#8e929d] text-[#b4b7c2] hover:text-white rounded-[2px] transition-colors cursor-pointer text-xs"
+                title="收錄為另一位同名音樂人"
+              >
+                仍作為新藝人收錄
+              </button>
+            {/if}
+            <button
+              type="button"
+              onclick={handleSelectExisting}
+              class="corner-cut-sm flex items-center justify-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
+            >
+              <Check class="w-3.5 h-3.5" />
+              <span>定位至既有藝人</span>
+            </button>
+          </div>
         </div>
       {/if}
     </div>

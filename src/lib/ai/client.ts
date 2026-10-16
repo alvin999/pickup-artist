@@ -1,5 +1,5 @@
-import { ArtistAnalysisResponseSchema, type ValidatedArtistAnalysisResponse } from './schema';
-import { buildArtistAnalysisPrompt } from './prompts';
+import { ArtistAnalysisResponseSchema, sanitizeAnalysisPayload, type ValidatedArtistAnalysisResponse } from './schema';
+import { buildArtistAnalysisPrompt, type DisambiguationContext } from './prompts';
 import type { SupportedLocale } from '$lib/i18n';
 import { loadSecureAISettings } from './vault';
 
@@ -9,6 +9,41 @@ export interface AISettings {
   geminiKey: string;
   groqModel: string;
   geminiModel: string;
+}
+
+/**
+ * 自訂 429 Rate Limit 錯誤型別
+ * 攜帶 API 指定之冷卻秒數 (Retry-After)，供背景批次佇列無感排程與自動重試
+ */
+export class RateLimitError extends Error {
+  retryAfterSeconds: number;
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
+ * 從 HTTP 回應標頭或錯誤內容中擷取 429 冷卻重試秒數
+ */
+function extractRetrySeconds(res: Response, rawText: string): number {
+  const headerVal = res.headers.get('retry-after');
+  if (headerVal) {
+    const sec = parseInt(headerVal, 10);
+    if (!isNaN(sec) && sec > 0) return sec + 1;
+  }
+
+  // 嘗試從文字中解析，例如 "Please try again in 36.637s"
+  const match = rawText.match(/try again in ([\d.]+)s/i);
+  if (match) {
+    const parsed = parseFloat(match[1]);
+    if (!isNaN(parsed) && parsed > 0) {
+      return Math.ceil(parsed) + 1; // 預留 1 秒緩衝保護
+    }
+  }
+
+  return 35; // 預設 35 秒安全冷卻期
 }
 
 const STORAGE_KEYS = {
@@ -111,6 +146,71 @@ function parseApiError(status: number, rawText: string): string {
 }
 
 /**
+ * 健壯型 JSON 提取與截斷修復器
+ * 1. 支援標準 JSON 直接解析
+ * 2. 支援去除 ```json 或 ``` 代碼區塊（即使結尾被截斷未閉合也能提取）
+ * 3. 支援首尾雜質剝離（以首個 '{' 與最後一個 '}' 為有效邊界）
+ * 4. 具備截斷自動閉合修復（Auto-closing Repair）：若末尾因 token 上限缺少閉合引號或括號，自動補齊以保證可解析性
+ */
+function extractAndParseJson(rawText: string): unknown {
+  const trimmed = rawText.trim();
+  if (!trimmed) {
+    throw new Error('AI 返回內容為空');
+  }
+
+  // 1. 嘗試直接解析
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  // 2. 嘗試剝離 Markdown 代碼塊（支援 ```json, ```JSON, 或單純 ```，且允許末尾無閉合反引號的容錯）
+  const codeBlockMatch = trimmed.match(/```(?:json|JSON)?\s*([\s\S]*?)(?:```|$)/);
+  if (codeBlockMatch && codeBlockMatch[1].trim()) {
+    const candidate = codeBlockMatch[1].trim();
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  // 3. 嘗試以首個 '{' 與最後一個 '}' 提取有效 JSON 子字串
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = trimmed.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  // 4. 自動補全修復（處理末尾被截斷的狀況）
+  if (firstBrace !== -1) {
+    let candidate = trimmed.substring(firstBrace);
+    // 檢查引號是否成對，若不成對補上結束引號
+    const quoteCount = (candidate.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      candidate += '"';
+    }
+    // 檢查方括號與大括號未閉合數量並補全
+    const openBrackets = (candidate.match(/\[/g) || []).length;
+    const closeBrackets = (candidate.match(/\]/g) || []).length;
+    for (let i = 0; i < (openBrackets - closeBrackets); i++) {
+      candidate += ']';
+    }
+    const openBraces = (candidate.match(/\{/g) || []).length;
+    const closeBraces = (candidate.match(/\}/g) || []).length;
+    for (let i = 0; i < (openBraces - closeBraces); i++) {
+      candidate += '}';
+    }
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  console.error('[AI Output Parse Error] 完整原始輸出:', rawText);
+  throw new Error(`AI 未返回有效的 JSON 格式：${rawText.slice(0, 200)}...`);
+}
+
+/**
  * 快速測試 API Key 是否有效
  */
 export async function testAIConnection(
@@ -167,12 +267,65 @@ export async function testAIConnection(
 }
 
 /**
+ * Groq 標準對話降級呼叫（不含 response_format json_object 約束）
+ * 解決部分模型在強制 json_object 時回傳空字串或報 400 validation error
+ */
+async function callGroqStandardFallback(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 2400
+    })
+  });
+
+  if (res.status === 429) {
+    const errText = await res.text();
+    const retrySec = extractRetrySeconds(res, errText);
+    throw new RateLimitError(
+      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+      retrySec
+    );
+  }
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Groq 降級呼叫失敗: ${parseApiError(res.status, err)}`);
+  }
+
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  return (
+    choice?.message?.content ||
+    choice?.text ||
+    choice?.message?.reasoning ||
+    (choice?.message as any)?.reasoning_content ||
+    ''
+  );
+}
+
+/**
  * 執行音樂學分析（BYOK Client-Side 推論）
  */
 export async function analyzeArtistWithAI(
   artistName: string,
   locale: SupportedLocale = 'zh-TW',
-  customSettings?: Partial<AISettings>
+  customSettings?: Partial<AISettings>,
+  context?: DisambiguationContext
 ): Promise<ValidatedArtistAnalysisResponse> {
   const secureLoaded = await loadSecureAISettings();
   if (secureLoaded.isLocked) {
@@ -180,7 +333,7 @@ export async function analyzeArtistWithAI(
   }
 
   const settings = { ...secureLoaded.settings, ...customSettings };
-  const { systemPrompt, userPrompt } = buildArtistAnalysisPrompt(artistName, locale);
+  const { systemPrompt, userPrompt } = buildArtistAnalysisPrompt(artistName, locale, context);
 
   let rawJsonText = '';
 
@@ -191,7 +344,7 @@ export async function analyzeArtistWithAI(
 
     const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
 
-    // 優先以 response_format: { type: 'json_object' } 請求，並給足 4096 tokens 避免中途截斷
+    // 將 max_tokens 設為 2400：既能充分容納繁體中文長評述，又將預扣限制在 ~3,000 Tokens（遠低於 8,000 TPM 限額）
     let res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -206,11 +359,21 @@ export async function analyzeArtistWithAI(
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.2,
-        max_tokens: 4096
+        max_tokens: 2400
       })
     });
 
-    // 若因特定模型不支援 json_object 或伺服器端驗證器失敗 (Failed to validate JSON)，自動降級為標準文字模式重試
+    // 攔截 429 Rate Limit：提取冷卻時間供呼叫端無感自動排程重試
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+        retrySec
+      );
+    }
+
+    // 若因特定模型不支援 json_object 或伺服器端驗證器失敗，降級為標準對話模式重試
     if (res.status === 400) {
       const errText = await res.text();
       const isJsonValidationError =
@@ -219,35 +382,30 @@ export async function analyzeArtistWithAI(
         errText.toLowerCase().includes('json_object');
 
       if (isJsonValidationError) {
-        console.warn('[Groq] 伺服器端 JSON 驗證未通過，自動降級為標準對話模式重試');
-        res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${settings.groqKey.trim()}`
-          },
-          body: JSON.stringify({
-            model: groqModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.2,
-            max_tokens: 4096
-          })
-        });
+        console.warn('[Groq] 伺服器端 JSON 約束未通過，自動降級為標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
       } else {
         throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
       }
-    }
-
-    if (!res.ok) {
+    } else if (!res.ok) {
       const err = await res.text();
       throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
-    }
+    } else {
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      rawJsonText =
+        choice?.message?.content ||
+        choice?.text ||
+        choice?.message?.reasoning ||
+        (choice?.message as any)?.reasoning_content ||
+        '';
 
-    const data = await res.json();
-    rawJsonText = data.choices?.[0]?.message?.content || '';
+      // 若 json_object 約束模式回傳空字串（常見於特定模型在約束文法下的行為），以標準對話模式重試
+      if (!rawJsonText.trim()) {
+        console.warn('[Groq] json_object 約束模式回傳空字串，自動以標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
+      }
+    }
   } else {
     // Gemini
     if (!settings.geminiKey.trim()) {
@@ -258,7 +416,7 @@ export async function analyzeArtistWithAI(
     const cleanModel = rawModel.replace(/^models\//, '');
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${settings.geminiKey.trim()}`;
 
-    // 優先以 responseMimeType: 'application/json' 請求
+    // 優先以 responseMimeType: 'application/json' 請求，maxOutputTokens 調整為 2400
     let res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -273,12 +431,21 @@ export async function analyzeArtistWithAI(
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.2,
-          maxOutputTokens: 4096
+          maxOutputTokens: 2400
         }
       })
     });
 
-    // 若因特定舊模型不支援 responseMimeType 導致 400，自動降級重試
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+        retrySec
+      );
+    }
+
+    // 若因特定舊模型不支援 responseMimeType 導致 400，降級重試
     if (res.status === 400) {
       const errText = await res.text();
       if (errText.toLowerCase().includes('response_mime_type') || errText.toLowerCase().includes('application/json')) {
@@ -296,10 +463,19 @@ export async function analyzeArtistWithAI(
             ],
             generationConfig: {
               temperature: 0.2,
-              maxOutputTokens: 4096
+              maxOutputTokens: 2400
             }
           })
         });
+
+        if (res.status === 429) {
+          const retryErrText = await res.text();
+          const retrySec = extractRetrySeconds(res, retryErrText);
+          throw new RateLimitError(
+            `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+            retrySec
+          );
+        }
       } else {
         throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
       }
@@ -311,28 +487,31 @@ export async function analyzeArtistWithAI(
     }
 
     const data = await res.json();
-    rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    rawJsonText = parts.map((p: any) => p.text).filter(Boolean).join('\n');
   }
 
-  // 嘗試解析 JSON
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawJsonText);
-  } catch (e) {
-    // 若模型包含 markdown 包裹，先剔除 ```json ... ```
-    const match = rawJsonText.match(/```json\s*([\s\S]*?)\s*```/);
-    if (match) {
-      parsedJson = JSON.parse(match[1]);
-    } else {
-      throw new Error(`AI 未返回有效的 JSON 格式：${rawJsonText.slice(0, 200)}...`);
-    }
-  }
+  // 使用堅固型提取器進行容錯解析（支援代碼塊剝離、頭尾邊界截取與截斷補齊修復）
+  const parsedJson = extractAndParseJson(rawJsonText);
 
-  // 使用 Zod 進行嚴格 Schema 檢驗與補齊
-  const validationResult = ArtistAnalysisResponseSchema.safeParse(parsedJson);
+  // 先進行資料預清洗（去除 null 污染、補齊預設鍵名別名如 sub_genre/albums）
+  const sanitized = sanitizeAnalysisPayload(parsedJson, artistName);
+
+  // 使用寬容 Zod 進行 Schema 檢驗與補齊
+  const validationResult = ArtistAnalysisResponseSchema.safeParse(sanitized);
   if (!validationResult.success) {
     console.error('Schema 驗證錯誤:', validationResult.error.format());
     throw new Error(`AI 資料結構不符合發燒友標準規範: ${validationResult.error.issues.map(i => i.message).join(', ')}`);
+  }
+
+  // 自動補齊推薦專輯的 Apple Music 搜尋 URL（前端自動合成，不浪費 LLM 生成 Token）
+  if (validationResult.data.notableAlbums) {
+    validationResult.data.notableAlbums = validationResult.data.notableAlbums.map((alb) => ({
+      ...alb,
+      appleMusicSearchUrl:
+        alb.appleMusicSearchUrl ||
+        `https://music.apple.com/search?term=${encodeURIComponent(artistName + ' ' + alb.title)}`
+    }));
   }
 
   return validationResult.data;

@@ -76,6 +76,47 @@ export function generateId(name: string): string {
   return `${slug || 'artist'}-${Date.now().toString(36)}`;
 }
 
+/**
+ * 比對本地既有藝人是否有重複或同名
+ * 優先判定 Apple Music 來源一致（代表同一位藝人），次之判定名稱相符（潛在同名藝人）
+ */
+export function checkDuplicateArtist(
+  existingArtists: ArtistEntry[],
+  name: string,
+  appleMusicUrl?: string
+): { exactUrlMatch?: ArtistEntry; nameMatch?: ArtistEntry } | null {
+  const cleanName = name.trim().toLowerCase();
+  if (!cleanName && !appleMusicUrl) return null;
+
+  let exactUrlMatch: ArtistEntry | undefined;
+  if (appleMusicUrl) {
+    const cleanUrl = appleMusicUrl.trim().toLowerCase();
+    exactUrlMatch = existingArtists.find(
+      (a) => a.appleMusicUrl && a.appleMusicUrl.trim().toLowerCase() === cleanUrl
+    );
+  }
+
+  const nameMatch = existingArtists.find(
+    (a) => a.name.trim().toLowerCase() === cleanName
+  );
+
+  if (exactUrlMatch || nameMatch) {
+    return { exactUrlMatch, nameMatch };
+  }
+  return null;
+}
+
+/**
+ * 非同步直接查閱 IndexedDB 資料庫比對重複或同名藝人
+ */
+export async function findDuplicateArtist(
+  name: string,
+  appleMusicUrl?: string
+): Promise<{ exactUrlMatch?: ArtistEntry; nameMatch?: ArtistEntry } | null> {
+  const all = await db.artists.toArray();
+  return checkDuplicateArtist(all, name, appleMusicUrl);
+}
+
 // 快速拾音（支援自動查詢 Apple Music 高清封面，或直接套用使用者選定之候選藝人）
 export async function quickPickupArtist(rawInput: string, candidate?: ArtistCandidate): Promise<ArtistEntry> {
   assertOnline();

@@ -7,7 +7,8 @@
     deleteArtist,
     updateArtist,
     seedInitialSampleIfEmpty,
-    autoHealArtistCovers
+    autoHealArtistCovers,
+    onDatabaseChange
   } from '$lib/db';
   import type { ArtistEntry } from '$lib/types/artist';
   import type { ArtistCandidate } from '$lib/utils/appleMusic';
@@ -19,7 +20,7 @@
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
-  import { analyzeArtistWithAI } from '$lib/ai/client';
+  import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
   import { loadSecureAISettings } from '$lib/ai/vault';
   import {
     getActiveAccount,
@@ -44,6 +45,7 @@
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
+  let queueState = $state<QueueState>(analysisQueue.getState());
 
   async function refreshTelemetryStatus() {
     try {
@@ -84,6 +86,22 @@
       cloudSyncState = st;
     });
 
+    // 訂閱 AI 背景批次分析佇列
+    const unsubQueue = analysisQueue.subscribe(async (st) => {
+      queueState = st;
+      isAnalyzing = st.status === 'processing';
+      if (st.lastMessage && st.status !== 'cooling_down') {
+        showToast(st.lastMessage);
+      }
+    });
+
+    // 監聽本機資料庫變更事件，無感即時刷新畫面
+    const unsubDb = onDatabaseChange(async (e) => {
+      if (e?.type === 'upsert' || e?.type === 'batch') {
+        await reloadArtists();
+      }
+    });
+
     (async () => {
       await refreshTelemetryStatus();
 
@@ -110,8 +128,17 @@
           const cleanUrl = window.location.pathname + window.location.hash;
           window.history.replaceState({}, '', cleanUrl || '/');
 
-          await handlePickup(targetArtist);
-          showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+          // 防重檢查：若本機已存在該藝人，直接選取並定位，避免捷徑重複建立
+          const existing = artists.find(
+            (a) => a.name.trim().toLowerCase() === targetArtist.toLowerCase()
+          );
+          if (existing) {
+            selectedArtistId = existing.id;
+            showToast(`藝人已在收藏庫中：${existing.name}`);
+          } else {
+            await handlePickup(targetArtist);
+            showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+          }
         }
       }
 
@@ -124,6 +151,8 @@
 
     return () => {
       unsubSync();
+      unsubQueue();
+      unsubDb();
     };
   });
 
@@ -164,70 +193,30 @@
     }
   }
 
-  // AI 深度聲學解剖 (使用 BYOK AI 引擎與安全保管庫)
+  // AI 深度聲學解剖 (透過背景批次佇列與 429 智能重試排程)
   async function handleAnalyze(artist: ArtistEntry) {
-    if (isAnalyzing) return;
-    isAnalyzing = true;
-    showToast(`啟動 AI 聲學解剖: ${artist.name}...`);
-
     try {
-      const result = await analyzeArtistWithAI(artist.name, i18n.locale);
-
-      await updateArtist(artist.id, {
-        status: 'analyzed',
-        audiophileGrade: result.suggestedAudiophileGrade || 'Reference',
-        dynamicRange: result.suggestedDynamicRange || 14,
-        clusterSector: result.sector,
-        clusterCategory: result.sector,
-        entityType: result.entityType,
-        lineage: result.lineage,
-        analysis: {
-          sector: result.sector,
-          subGenre: result.subGenre,
-          artistRole: result.artistRole,
-          aestheticTags: result.aestheticTags || [],
-          genres: result.genres,
-          summary: result.summary,
-          instrumentationNotes: result.instrumentationNotes || '',
-          similarArtists: result.similarArtists || [],
-          notableAlbums: result.notableAlbums.map((alb) => ({
-            title: alb.title,
-            year: alb.year,
-            tier: alb.tier,
-            trackType: alb.tier,
-            losslessSpec: alb.tier === 'hidden-treasure' ? 'Rare Vault Pressing' : 'Lossless Master',
-            dynamicRangeScore: alb.dynamicRangeScore,
-            description: alb.description,
-            rarityReason: alb.rarityReason,
-            audiophileHighlight: alb.audiophileHighlight,
-            appleMusicSearchUrl:
-              alb.appleMusicSearchUrl ||
-              `https://music.apple.com/search?term=${encodeURIComponent(artist.name + ' ' + alb.title)}`
-          }))
-        }
-      });
-      await reloadArtists();
-      showToast(`已完成「${artist.name}」聲學解剖！`);
-    } catch (err: any) {
-      console.error('[AI Analyze Error]:', err);
-      const msg = err?.message || String(err);
-      if (msg.includes('MASTER_PASSWORD_LOCKED')) {
+      const secureLoaded = await loadSecureAISettings();
+      if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
         showToast('請先解鎖主密碼保管庫');
-      } else if (
-        msg.includes('未設定') ||
-        msg.includes('API Key 為空') ||
-        msg.includes('未設定 Groq') ||
-        msg.includes('未設定 Gemini')
-      ) {
+        return;
+      }
+
+      const { settings } = secureLoaded;
+      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
+      if (!hasKey) {
         isAISettingsOpen = true;
         showToast('請先設定 AI 金鑰');
-      } else {
-        showToast(`解剖失敗: ${msg}`);
+        return;
       }
-    } finally {
-      isAnalyzing = false;
+
+      // 排入背景佇列依序執行，徹底解決 TPM 429 併發擊穿問題
+      analysisQueue.enqueue(artist, i18n.locale);
+    } catch (err: any) {
+      console.error('[AI Analyze Enqueue Error]:', err);
+      showToast(err?.message || '排入佇列失敗');
     }
   }
 
@@ -240,8 +229,15 @@
     }
   }
 
-  // 相似藝人一鍵知悉
+  // 相似藝人一鍵知悉（支援重複檢查：若已在收藏庫中則直接定位）
   async function handlePickupSimilar(name: string) {
+    const cleanName = name.trim().toLowerCase();
+    const existing = artists.find((a) => a.name.trim().toLowerCase() === cleanName);
+    if (existing) {
+      selectedArtistId = existing.id;
+      showToast(`「${existing.name}」已在收藏庫中，已為您定位`);
+      return;
+    }
     const newEntry = await quickPickupArtist(name);
     await reloadArtists();
     selectedArtistId = newEntry.id;
@@ -280,8 +276,15 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 <div class="min-h-screen bg-void text-ink flex flex-col font-sans bg-dot-matrix selection:bg-signal selection:text-white">
-  <!-- Toast 通知 -->
-  {#if toastMessage}
+  <!-- 429 冷卻倒數提示條 (Rate Limit Cooldown Banner) -->
+  {#if queueState.status === 'cooling_down'}
+    <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-[#17110e] border border-amber-500 text-amber-200 rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(245,158,11,0.35)] flex items-center gap-2.5 animate-in fade-in">
+      <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
+      <span class="break-words leading-relaxed">
+        ⏳ API 頻率保護中：將於 <strong>{queueState.cooldownRemainingSeconds}</strong> 秒後自動重試「{queueState.currentArtist?.name}」...
+      </span>
+    </div>
+  {:else if toastMessage}
     <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-chassis border border-signal text-ink rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(255,42,60,0.4)] flex items-center gap-2.5">
       <span class="w-2 h-2 rounded-full bg-signal shrink-0"></span>
       <span class="break-words leading-relaxed">{toastMessage}</span>
@@ -291,8 +294,13 @@
   <!-- 拾音彈窗 (Fast Pickup Modal) -->
   <FastPickupModal
     open={isPickupModalOpen}
+    existingArtists={artists}
     onclose={() => (isPickupModalOpen = false)}
     onpickup={handlePickup}
+    onselectExisting={(artist) => {
+      selectedArtistId = artist.id;
+      showToast(`已為您定位至既有藝人：${artist.name}`);
+    }}
   />
 
   <!-- AI 設定與金鑰保管庫 Modal -->
