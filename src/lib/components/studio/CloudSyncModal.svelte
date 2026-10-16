@@ -210,6 +210,13 @@
       {#if account}
         <div class="border border-wire border-dashed p-3 bg-panel/30 text-xs flex flex-col gap-1.5">
           <div class="flex justify-between text-ink-muted">
+            <span>同步模式：</span>
+            <span class="text-emerald-400 font-bold flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              即時自動同步 (Auto-Sync)
+            </span>
+          </div>
+          <div class="flex justify-between text-ink-muted">
             <span>遠端目錄：</span>
             <span class="text-ink font-bold">OneDrive/Apps/Pickup Artist/</span>
           </div>

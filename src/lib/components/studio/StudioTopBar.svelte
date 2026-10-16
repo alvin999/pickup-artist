@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
   import LanguageToggle from '$lib/components/LanguageToggle.svelte';
+  import type { SyncStatus } from '$lib/services/onedrive';
 
   interface Props {
     onopenPickupModal: () => void;
@@ -10,6 +11,8 @@
     onsearchChange: (q: string) => void;
     isOneDriveConnected?: boolean;
     isAiConfigured?: boolean;
+    syncStatus?: SyncStatus;
+    lastSyncedAt?: number | null;
   }
 
   let {
@@ -19,8 +22,18 @@
     searchQuery = $bindable(''),
     onsearchChange,
     isOneDriveConnected = false,
-    isAiConfigured = false
+    isAiConfigured = false,
+    syncStatus = 'idle',
+    lastSyncedAt = null
   }: Props = $props();
+
+  const syncLabel = $derived.by(() => {
+    if (!isOneDriveConnected) return t('status_sync_not_synced');
+    if (syncStatus === 'syncing') return t('status_sync_syncing');
+    if (syncStatus === 'offline') return '離線待命';
+    if (syncStatus === 'error') return '同步失敗';
+    return t('status_sync_connected');
+  });
 </script>
 
 <header class="fixed top-0 left-0 lg:left-60 right-0 h-16 z-30 bg-void/90 backdrop-blur-md border-b border-wire flex items-center justify-between px-4 sm:px-6">
@@ -68,11 +81,21 @@
     <button
       type="button"
       onclick={onopenCloudSync}
-      title="點擊設定 OneDrive 雲端備份與還原"
-      class="group hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-signal text-[10px] text-ink-muted hover:text-ink transition-all cursor-pointer"
+      title={isOneDriveConnected ? (syncStatus === 'syncing' ? '正在即時同步資料至雲端...' : '雲端即時同步已啟動，點擊管理') : '點擊設定 OneDrive 雲端即時同步'}
+      class="group hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border {syncStatus === 'error' ? 'border-red-500/70 text-red-400' : syncStatus === 'syncing' ? 'border-amber-400/70 text-amber-300' : isOneDriveConnected ? 'border-[#2d3a33] text-emerald-400/90 hover:border-emerald-500' : 'border-wire hover:border-signal text-ink-muted hover:text-ink'} text-[10px] transition-all cursor-pointer"
     >
-      <span class="material-symbols-outlined text-[13px] {isOneDriveConnected ? 'text-signal' : 'text-ink-dim group-hover:text-signal transition-colors'}">cloud_sync</span>
-      <span>{isOneDriveConnected ? t('status_sync_connected') : t('status_sync_not_synced')}</span>
+      {#if !isOneDriveConnected}
+        <span class="material-symbols-outlined text-[13px] text-ink-dim group-hover:text-signal transition-colors">cloud_off</span>
+      {:else if syncStatus === 'syncing'}
+        <span class="material-symbols-outlined text-[13px] text-amber-400 animate-spin">sync</span>
+      {:else if syncStatus === 'error'}
+        <span class="material-symbols-outlined text-[13px] text-red-400">cloud_alert</span>
+      {:else if syncStatus === 'offline'}
+        <span class="material-symbols-outlined text-[13px] text-neutral-400">wifi_off</span>
+      {:else}
+        <span class="material-symbols-outlined text-[13px] text-emerald-400">cloud_done</span>
+      {/if}
+      <span>{syncLabel}</span>
     </button>
 
     <button

@@ -21,7 +21,12 @@
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
   import { analyzeArtistWithAI } from '$lib/ai/client';
   import { loadSecureAISettings } from '$lib/ai/vault';
-  import { getActiveAccount } from '$lib/services/onedrive';
+  import {
+    getActiveAccount,
+    subscribeSyncState,
+    syncFromCloudOnStartup,
+    type CloudSyncState
+  } from '$lib/services/onedrive';
   import { CheckCircle2 } from 'lucide-svelte';
 
   // 狀態管理 (Svelte 5 Runes)
@@ -35,6 +40,7 @@
   let isCloudSyncOpen = $state(false);
   let isOneDriveConnected = $state(false);
   let isAiConfigured = $state(false);
+  let cloudSyncState = $state<CloudSyncState>({ status: 'idle', lastSyncedAt: null });
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
@@ -72,34 +78,53 @@
     })
   );
 
-  onMount(async () => {
-    await seedInitialSampleIfEmpty();
-    await reloadArtists();
-    await refreshTelemetryStatus();
-    if (artists.length > 0 && !selectedArtistId) {
-      selectedArtistId = artists[0].id;
-    }
+  onMount(() => {
+    // 訂閱雲端即時同步狀態
+    const unsubSync = subscribeSyncState((st) => {
+      cloudSyncState = st;
+    });
 
-    // 方案 A：支援透過 URL Query 參數（如 iOS 捷徑、Shazam 自動化）快速收錄藝人
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const quickAddParam = urlParams.get('quickAdd') || urlParams.get('artist');
-      if (quickAddParam && quickAddParam.trim()) {
-        const targetArtist = quickAddParam.trim();
-        // 清理網址參數，避免重新整理時重複收錄
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, '', cleanUrl || '/');
+    (async () => {
+      await refreshTelemetryStatus();
 
-        await handlePickup(targetArtist);
-        showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+      // 若已連結 OneDrive，啟動時優先自雲端載入最新資料庫（雲端為單一真實來源）
+      const didRestoreFromCloud = await syncFromCloudOnStartup();
+      if (didRestoreFromCloud) {
+        await reloadArtists();
+      } else {
+        await seedInitialSampleIfEmpty();
+        await reloadArtists();
       }
-    }
 
-    // 自動背景修復無效或缺失的封面，無感更新
-    const hasUpdated = await autoHealArtistCovers();
-    if (hasUpdated) {
-      await reloadArtists();
-    }
+      if (artists.length > 0 && !selectedArtistId) {
+        selectedArtistId = artists[0].id;
+      }
+
+      // 方案 A：支援透過 URL Query 參數（如 iOS 捷徑、Shazam 自動化）快速收錄藝人
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const quickAddParam = urlParams.get('quickAdd') || urlParams.get('artist');
+        if (quickAddParam && quickAddParam.trim()) {
+          const targetArtist = quickAddParam.trim();
+          // 清理網址參數，避免重新整理時重複收錄
+          const cleanUrl = window.location.pathname + window.location.hash;
+          window.history.replaceState({}, '', cleanUrl || '/');
+
+          await handlePickup(targetArtist);
+          showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+        }
+      }
+
+      // 自動背景修復無效或缺失的封面，無感更新
+      const hasUpdated = await autoHealArtistCovers();
+      if (hasUpdated) {
+        await reloadArtists();
+      }
+    })();
+
+    return () => {
+      unsubSync();
+    };
   });
 
   async function reloadArtists() {
@@ -115,18 +140,27 @@
 
   // 執行知悉
   async function handlePickup(input: string, candidate?: ArtistCandidate) {
-    const newEntry = await quickPickupArtist(input, candidate);
-    await reloadArtists();
-    selectedArtistId = newEntry.id;
-    showToast('已知悉');
+    try {
+      const newEntry = await quickPickupArtist(input, candidate);
+      await reloadArtists();
+      selectedArtistId = newEntry.id;
+      showToast('已知悉');
+    } catch (err: any) {
+      showToast(err?.message || '知悉失敗');
+    }
   }
 
   // 刪除藝人
   async function handleDelete(id: string) {
-    await deleteArtist(id);
-    await reloadArtists();
-    if (selectedArtistId === id) {
-      selectedArtistId = artists[0]?.id || null;
+    try {
+      await deleteArtist(id);
+      await reloadArtists();
+      if (selectedArtistId === id) {
+        selectedArtistId = artists[0]?.id || null;
+      }
+      showToast('已自檔案庫刪除');
+    } catch (err: any) {
+      showToast(err?.message || '刪除失敗');
     }
   }
 
@@ -303,6 +337,8 @@
     onsearchChange={(q) => (searchQuery = q)}
     {isOneDriveConnected}
     {isAiConfigured}
+    syncStatus={cloudSyncState.status}
+    lastSyncedAt={cloudSyncState.lastSyncedAt}
   />
 
   <!-- Studio 主畫布內容區 (帶左側 60 欄位位移與頂部 16 欄位位移) -->

@@ -28,6 +28,43 @@ export class PuaDatabase extends Dexie {
 
 export const db = new PuaDatabase();
 
+// ----------------------------------------------------
+// 資料庫變更監聽機制（供自動雲端同步等服務解耦訂閱）
+// ----------------------------------------------------
+export type DbChangeEvent =
+  | { type: 'upsert'; artist: ArtistEntry }
+  | { type: 'delete'; id: string }
+  | { type: 'batch'; count?: number };
+
+type DbChangeListener = (event?: DbChangeEvent) => void;
+const changeListeners = new Set<DbChangeListener>();
+
+export function onDatabaseChange(listener: DbChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
+export function notifyDatabaseChange(event?: DbChangeEvent): void {
+  changeListeners.forEach((listener) => {
+    try {
+      listener(event);
+    } catch (err) {
+      console.warn('[DB] Change listener error:', err);
+    }
+  });
+}
+
+/**
+ * 離線防護檢查：若當前斷網，禁止修改本地資料庫以避免雲端狀態脫節
+ */
+export function assertOnline(): void {
+  if (typeof window !== 'undefined' && !navigator.onLine) {
+    throw new Error('目前處於離線狀態，無法即時同步至雲端，請檢查網路連線後再試。');
+  }
+}
+
 // 產生安全 ID
 export function generateId(name: string): string {
   const slug = name
@@ -41,6 +78,7 @@ export function generateId(name: string): string {
 
 // 快速拾音（支援自動查詢 Apple Music 高清封面，或直接套用使用者選定之候選藝人）
 export async function quickPickupArtist(rawInput: string, candidate?: ArtistCandidate): Promise<ArtistEntry> {
+  assertOnline();
   const now = Date.now();
 
   if (candidate) {
@@ -60,6 +98,7 @@ export async function quickPickupArtist(rawInput: string, candidate?: ArtistCand
     };
 
     await db.artists.put(entry);
+    notifyDatabaseChange({ type: 'upsert', artist: entry });
     return entry;
   }
 
@@ -98,6 +137,7 @@ export async function quickPickupArtist(rawInput: string, candidate?: ArtistCand
   };
 
   await db.artists.put(entry);
+  notifyDatabaseChange({ type: 'upsert', artist: entry });
   return entry;
 }
 
@@ -108,23 +148,30 @@ export async function getArtists(): Promise<ArtistEntry[]> {
 
 // 更新藝人
 export async function updateArtist(id: string, updates: Partial<ArtistEntry>): Promise<void> {
+  assertOnline();
   const existing = await db.artists.get(id);
   if (!existing) return;
 
   const now = Date.now();
-  await db.artists.update(id, {
+  const updatedEntry: ArtistEntry = {
+    ...existing,
     ...updates,
     updatedAt: now
-  });
+  };
+
+  await db.artists.put(updatedEntry);
+  notifyDatabaseChange({ type: 'upsert', artist: updatedEntry });
 }
 
 // 刪除藝人（記錄墓碑）
 export async function deleteArtist(id: string): Promise<void> {
+  assertOnline();
   const now = Date.now();
   await db.transaction('rw', db.artists, db.tombstones, async () => {
     await db.artists.delete(id);
     await db.tombstones.put({ id, deletedAt: now });
   });
+  notifyDatabaseChange({ type: 'delete', id });
 }
 
 // 取得所有墓碑 ID
@@ -158,6 +205,9 @@ export async function autoHealArtistCovers(): Promise<boolean> {
     }
   }
 
+  if (updatedAny) {
+    notifyDatabaseChange();
+  }
   return updatedAny;
 }
 

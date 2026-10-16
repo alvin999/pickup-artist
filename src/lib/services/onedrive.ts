@@ -1,5 +1,5 @@
 import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
-import { db } from '$lib/db';
+import { db, onDatabaseChange } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
 import type { Tombstone } from '$lib/db';
 
@@ -148,7 +148,7 @@ export async function getAccessToken(): Promise<string> {
 
 export interface BackupDataStructure {
   schema: 'pickup-artist-vault';
-  version: 1;
+  version: 1 | 2;
   timestamp: number;
   exportedAt: string;
   artistsCount: number;
@@ -164,22 +164,96 @@ export interface CloudMetadata {
 }
 
 const BACKUP_FILE_NAME = 'pickup_artist_vault.json';
+const SNAPSHOT_GZ_NAME = 'vault_snapshot.json.gz';
+const CHANGES_DIR = 'changes';
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
 
 /**
- * 上傳備份資料到 OneDrive
- * 優先使用 special/approot 專屬資料夾，若不支援則寫入根目錄 PickupArtist/ 資料夾
+ * 瀏覽器原生 Gzip 壓縮（大幅縮減 80%~90% JSON 體積）
+ */
+export async function gzipCompress(text: string): Promise<Blob> {
+  const stream = new Blob([text], { type: 'application/json' }).stream();
+  const compressed = stream.pipeThrough(new CompressionStream('gzip'));
+  return await new Response(compressed).blob();
+}
+
+/**
+ * 瀏覽器原生 Gzip 解壓縮
+ */
+export async function gzipDecompress(blob: Blob): Promise<string> {
+  const stream = blob.stream();
+  const decompressed = stream.pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(decompressed).text();
+}
+
+/**
+ * 通用 OneDrive 檔案上傳工具（優先 special/approot，自動回退 root:/PickupArtist）
+ */
+async function uploadToDrive(path: string, body: Blob | string, contentType = 'application/json'): Promise<{ size: number }> {
+  const token = await getAccessToken();
+  const blob = typeof body === 'string' ? new Blob([body], { type: contentType }) : body;
+
+  let uploadUrl = `${GRAPH_API_BASE}/me/drive/special/approot:/${path}:/content`;
+  let response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': contentType,
+    },
+    body: blob,
+  });
+
+  if (!response.ok) {
+    uploadUrl = `${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${path}:/content`;
+    response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': contentType,
+      },
+      body: blob,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OneDrive 上傳 [${path}] 失敗 (${response.status}): ${errText}`);
+    }
+  }
+
+  const result = await response.json();
+  return { size: result.size || blob.size };
+}
+
+/**
+ * 通用 OneDrive 檔案下載工具
+ */
+async function downloadFromDrive(path: string): Promise<Response | null> {
+  const token = await getAccessToken();
+  let downloadUrl = `${GRAPH_API_BASE}/me/drive/special/approot:/${path}:/content`;
+  let response = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    downloadUrl = `${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${path}:/content`;
+    response = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  return response.ok ? response : null;
+}
+
+/**
+ * 產生並上傳全量壓縮快照 (Snapshot Compaction)
  */
 export async function uploadBackupToOneDrive(): Promise<{ timestamp: number; size: number }> {
-  const token = await getAccessToken();
-
-  // 1. 讀取本機 Dexie 資料庫
   const artists = await db.artists.toArray();
   const tombstones = await db.tombstones.toArray();
 
   const backupData: BackupDataStructure = {
     schema: 'pickup-artist-vault',
-    version: 1,
+    version: 2,
     timestamp: Date.now(),
     exportedAt: new Date().toISOString(),
     artistsCount: artists.length,
@@ -187,47 +261,26 @@ export async function uploadBackupToOneDrive(): Promise<{ timestamp: number; siz
     tombstones,
   };
 
-  const jsonContent = JSON.stringify(backupData, null, 2);
-  const blob = new Blob([jsonContent], { type: 'application/json' });
+  const jsonContent = JSON.stringify(backupData);
+  // 使用 Gzip 壓縮快照
+  const compressedGzipBlob = await gzipCompress(jsonContent);
 
-  // 2. 上傳至 Graph API
-  // 嘗試使用 special/approot，若失敗則回退至根目錄 PickupArtist
-  let uploadUrl = `${GRAPH_API_BASE}/me/drive/special/approot:/${BACKUP_FILE_NAME}:/content`;
+  // 1. 上傳高效壓縮快照（數千位藝人僅數百 KB）
+  const result = await uploadToDrive(SNAPSHOT_GZ_NAME, compressedGzipBlob, 'application/gzip');
 
-  let response = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: blob,
-  });
-
-  if (!response.ok) {
-    // 降級回退到一般目錄
-    uploadUrl = `${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${BACKUP_FILE_NAME}:/content`;
-    response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: blob,
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OneDrive 上傳失敗 (${response.status}): ${errText}`);
-    }
+  // 2. 備份純 JSON 相容檔（供手動匯出或舊系統讀取）
+  try {
+    await uploadToDrive(BACKUP_FILE_NAME, jsonContent, 'application/json');
+  } catch (e) {
+    console.warn('[OneDrive] 相容 JSON 備份跳過:', e);
   }
 
-  const result = await response.json();
   const now = Date.now();
   localStorage.setItem('pua_onedrive_last_sync', now.toString());
 
   return {
     timestamp: now,
-    size: result.size || blob.size,
+    size: result.size,
   };
 }
 
@@ -241,16 +294,27 @@ export async function getCloudBackupMetadata(): Promise<CloudMetadata | null> {
   try {
     const token = await getAccessToken();
 
-    // 先查 approot
-    let res = await fetch(`${GRAPH_API_BASE}/me/drive/special/approot:/${BACKUP_FILE_NAME}`, {
+    // 優先查壓縮快照
+    let res = await fetch(`${GRAPH_API_BASE}/me/drive/special/approot:/${SNAPSHOT_GZ_NAME}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!res.ok) {
-      // 查根目錄
-      res = await fetch(`${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${BACKUP_FILE_NAME}`, {
+      res = await fetch(`${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${SNAPSHOT_GZ_NAME}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+    }
+
+    // 若無快照則查詢舊版 JSON
+    if (!res.ok) {
+      res = await fetch(`${GRAPH_API_BASE}/me/drive/special/approot:/${BACKUP_FILE_NAME}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        res = await fetch(`${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${BACKUP_FILE_NAME}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
     }
 
     if (!res.ok) {
@@ -270,51 +334,267 @@ export async function getCloudBackupMetadata(): Promise<CloudMetadata | null> {
   }
 }
 
+let isRestoring = false;
+
 /**
- * 從 OneDrive 下載並還原資料庫
+ * 從 OneDrive 下載並還原資料庫（優先採用 1 次請求的 Gzip 壓縮快照）
  */
 export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: number; timestamp: number }> {
-  const token = await getAccessToken();
+  isRestoring = true;
+  try {
+    let backupData: BackupDataStructure | null = null;
 
-  let downloadUrl = `${GRAPH_API_BASE}/me/drive/special/approot:/${BACKUP_FILE_NAME}:/content`;
+    // 1. 優先嘗試下載 Gzip 壓縮快照（僅 1 個 HTTP 請求，數千位藝人幾百 KB）
+    const gzResponse = await downloadFromDrive(SNAPSHOT_GZ_NAME);
+    if (gzResponse) {
+      const gzBlob = await gzResponse.blob();
+      const rawJson = await gzipDecompress(gzBlob);
+      backupData = JSON.parse(rawJson);
+    }
 
-  let response = await fetch(downloadUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+    // 2. 若無壓縮快照，回退讀取傳統未壓縮 JSON
+    if (!backupData) {
+      const jsonResponse = await downloadFromDrive(BACKUP_FILE_NAME);
+      if (jsonResponse) {
+        backupData = await jsonResponse.json();
+      }
+    }
 
-  if (!response.ok) {
-    downloadUrl = `${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${BACKUP_FILE_NAME}:/content`;
-    response = await fetch(downloadUrl, {
-      headers: { Authorization: `Bearer ${token}` },
+    if (!backupData || !Array.isArray(backupData.artists)) {
+      throw new Error('未在 OneDrive 找到有效備份檔案');
+    }
+
+    // 寫入本機 Dexie 資料庫（使用交易保障安全性）
+    await db.transaction('rw', db.artists, db.tombstones, async () => {
+      await db.artists.clear();
+      await db.tombstones.clear();
+
+      if (backupData.artists.length > 0) {
+        await db.artists.bulkPut(backupData.artists);
+      }
+      if (backupData.tombstones && backupData.tombstones.length > 0) {
+        await db.tombstones.bulkPut(backupData.tombstones);
+      }
     });
 
-    if (!response.ok) {
-      throw new Error('未在 OneDrive 找到任何備份檔案');
-    }
+    return {
+      restoredCount: backupData.artists.length,
+      timestamp: backupData.timestamp,
+    };
+  } finally {
+    isRestoring = false;
   }
+}
 
-  const backupData: BackupDataStructure = await response.json();
+// ----------------------------------------------------
+// 即時雲端同步管理器 (Auto-Sync Manager - 雙軌增量與快照整併)
+// ----------------------------------------------------
 
-  if (backupData.schema !== 'pickup-artist-vault' || !Array.isArray(backupData.artists)) {
-    throw new Error('備份檔案格式不正確或已毀損');
-  }
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
 
-  // 寫入本機 Dexie 資料庫（使用交易保障安全性）
-  await db.transaction('rw', db.artists, db.tombstones, async () => {
-    // 清除現有資料後覆蓋，或進行合併
-    await db.artists.clear();
-    await db.tombstones.clear();
+export interface CloudSyncState {
+  status: SyncStatus;
+  lastSyncedAt: number | null;
+  errorMessage?: string;
+}
 
-    if (backupData.artists.length > 0) {
-      await db.artists.bulkPut(backupData.artists);
-    }
-    if (backupData.tombstones && backupData.tombstones.length > 0) {
-      await db.tombstones.bulkPut(backupData.tombstones);
+type StatusListener = (state: CloudSyncState) => void;
+const listeners = new Set<StatusListener>();
+
+let currentSyncState: CloudSyncState = {
+  status: 'idle',
+  lastSyncedAt: typeof localStorage !== 'undefined' ? Number(localStorage.getItem('pua_onedrive_last_sync')) || null : null,
+};
+
+export function getSyncState(): CloudSyncState {
+  return currentSyncState;
+}
+
+export function subscribeSyncState(listener: StatusListener): () => void {
+  listeners.add(listener);
+  listener(currentSyncState);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function updateSyncState(patch: Partial<CloudSyncState>) {
+  currentSyncState = { ...currentSyncState, ...patch };
+  listeners.forEach((l) => {
+    try {
+      l(currentSyncState);
+    } catch (e) {
+      console.warn('[OneDrive AutoSync] Listener error:', e);
     }
   });
+}
 
-  return {
-    restoredCount: backupData.artists.length,
-    timestamp: backupData.timestamp,
-  };
+// 增量變更緩衝隊列
+const pendingChanges = new Map<string, { type: 'upsert' | 'delete'; artist?: ArtistEntry; id: string }>();
+let needsFullCompaction = false;
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let isSyncInProgress = false;
+let pendingSyncAfterCurrent = false;
+
+/**
+ * 觸發即時雲端同步（內建 1.5 秒防抖排程與雙軌處理）
+ */
+export function triggerAutoCloudSync(delayMs = 1500): void {
+  if (typeof window === 'undefined' || isRestoring) return;
+
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+
+  // 離線防呆檢查
+  if (!navigator.onLine) {
+    updateSyncState({ status: 'offline', errorMessage: '網路已斷線，無法同步至雲端' });
+    return;
+  }
+
+  debounceTimer = setTimeout(async () => {
+    debounceTimer = null;
+    await executeCloudSync();
+  }, delayMs);
+}
+
+/**
+ * 執行上傳同步任務（增量優先，累積滿 10 筆或批次異動時自動整併為 Gzip 快照）
+ */
+async function executeCloudSync(): Promise<void> {
+  const account = await getActiveAccount();
+  if (!account) {
+    return;
+  }
+
+  if (isSyncInProgress) {
+    pendingSyncAfterCurrent = true;
+    return;
+  }
+
+  isSyncInProgress = true;
+  updateSyncState({ status: 'syncing', errorMessage: undefined });
+
+  try {
+    const queue = Array.from(pendingChanges.values());
+
+    // 若無變更且不需要壓實快照，則直接標記為已同步
+    if (queue.length === 0 && !needsFullCompaction) {
+      updateSyncState({ status: 'synced' });
+      return;
+    }
+
+    // 情況 A：異動超過 10 筆，或是批次異動，或是尚未建立全量快照 ➔ 執行 Gzip 快照整併 (Compaction)
+    if (needsFullCompaction || queue.length >= 10) {
+      const res = await uploadBackupToOneDrive();
+      pendingChanges.clear();
+      needsFullCompaction = false;
+      updateSyncState({
+        status: 'synced',
+        lastSyncedAt: res.timestamp,
+        errorMessage: undefined,
+      });
+    } else {
+      // 情況 B：微量異動（1~9 筆） ➔ 單筆增量部分更新（每筆僅 2 KB）
+      for (const item of queue) {
+        if (item.type === 'upsert' && item.artist) {
+          const itemJson = JSON.stringify(item.artist);
+          await uploadToDrive(`${CHANGES_DIR}/${item.artist.id}.json`, itemJson);
+        } else if (item.type === 'delete') {
+          // 寫入墓碑標記
+          const tombstoneJson = JSON.stringify({ id: item.id, deletedAt: Date.now() });
+          await uploadToDrive(`${CHANGES_DIR}/tombstone_${item.id}.json`, tombstoneJson);
+        }
+      }
+
+      pendingChanges.clear();
+      const now = Date.now();
+      localStorage.setItem('pua_onedrive_last_sync', now.toString());
+      updateSyncState({
+        status: 'synced',
+        lastSyncedAt: now,
+        errorMessage: undefined,
+      });
+    }
+  } catch (err: any) {
+    console.error('[OneDrive AutoSync] 同步上傳失敗:', err);
+    updateSyncState({
+      status: 'error',
+      errorMessage: err?.message || '即時同步至雲端失敗',
+    });
+  } finally {
+    isSyncInProgress = false;
+    if (pendingSyncAfterCurrent) {
+      pendingSyncAfterCurrent = false;
+      executeCloudSync();
+    }
+  }
+}
+
+/**
+ * 系統啟動時若已登入微軟帳號，自動自雲端快照拉取資料（僅 1 次 HTTP 請求，數千筆瞬間載入）
+ */
+export async function syncFromCloudOnStartup(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (!navigator.onLine) {
+    updateSyncState({ status: 'offline', errorMessage: '離線狀態，無法載入雲端資料' });
+    return false;
+  }
+
+  const account = await getActiveAccount();
+  if (!account) return false;
+
+  const meta = await getCloudBackupMetadata();
+  if (!meta) {
+    updateSyncState({ status: 'idle' });
+    return false;
+  }
+
+  updateSyncState({ status: 'syncing', errorMessage: undefined });
+  try {
+    const result = await restoreBackupFromOneDrive();
+    const now = Date.now();
+    localStorage.setItem('pua_onedrive_last_sync', now.toString());
+    updateSyncState({
+      status: 'synced',
+      lastSyncedAt: now,
+      errorMessage: undefined,
+    });
+    return true;
+  } catch (err: any) {
+    console.warn('[OneDrive AutoSync] 啟動自動下載失敗:', err);
+    updateSyncState({
+      status: 'error',
+      errorMessage: err?.message || '從雲端載入最新資料失敗',
+    });
+    return false;
+  }
+}
+
+// ----------------------------------------------------
+// 全域監聽：接收資料庫細緻變更事件並自動觸發同步
+// ----------------------------------------------------
+if (typeof window !== 'undefined') {
+  onDatabaseChange((event) => {
+    if (!event) {
+      needsFullCompaction = true;
+    } else if (event.type === 'upsert') {
+      pendingChanges.set(event.artist.id, { type: 'upsert', artist: event.artist, id: event.artist.id });
+    } else if (event.type === 'delete') {
+      pendingChanges.set(event.id, { type: 'delete', id: event.id });
+    } else if (event.type === 'batch') {
+      needsFullCompaction = true;
+    }
+    triggerAutoCloudSync();
+  });
+
+  window.addEventListener('online', () => {
+    updateSyncState({ status: 'idle', errorMessage: undefined });
+    triggerAutoCloudSync(500);
+  });
+
+  window.addEventListener('offline', () => {
+    updateSyncState({ status: 'offline', errorMessage: '網路已斷線，無法同步至雲端' });
+  });
 }
