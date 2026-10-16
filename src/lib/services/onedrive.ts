@@ -244,6 +244,269 @@ async function downloadFromDrive(path: string): Promise<Response | null> {
   return response.ok ? response : null;
 }
 
+interface DriveChildItem {
+  id: string;
+  name: string;
+  size?: number;
+  downloadUrl?: string;
+}
+
+/**
+ * 取得 OneDrive 特定資料夾下的子項目清單
+ */
+async function getChildrenFromDrive(folderPath: string): Promise<DriveChildItem[]> {
+  try {
+    const token = await getAccessToken();
+    let url = `${GRAPH_API_BASE}/me/drive/special/approot:/${folderPath}:/children`;
+    let response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      url = `${GRAPH_API_BASE}/me/drive/root:/PickupArtist/${folderPath}:/children`;
+      response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = await response.json();
+    if (!data || !Array.isArray(data.value)) {
+      return [];
+    }
+
+    return data.value.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      size: item.size,
+      downloadUrl: item['@microsoft.graph.downloadUrl'],
+    }));
+  } catch (err) {
+    console.warn(`[OneDrive] 取得目錄 [${folderPath}] 清單失敗:`, err);
+    return [];
+  }
+}
+
+/**
+ * 刪除指定的 OneDrive 檔案項目
+ */
+async function deleteDriveItem(itemId: string): Promise<void> {
+  try {
+    const token = await getAccessToken();
+    await fetch(`${GRAPH_API_BASE}/me/drive/items/${itemId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (err) {
+    console.warn(`[OneDrive] 刪除項目 [${itemId}] 失敗:`, err);
+  }
+}
+
+type CloudChangeEntry =
+  | {
+      itemId: string;
+      type: 'upsert';
+      artistId: string;
+      artist: ArtistEntry;
+    }
+  | {
+      itemId: string;
+      type: 'delete';
+      artistId: string;
+      deletedAt: number;
+    };
+
+/**
+ * 獲取並解析 changes/ 目錄中的所有增量變更記錄
+ */
+async function fetchCloudChanges(): Promise<CloudChangeEntry[]> {
+  const children = await getChildrenFromDrive(CHANGES_DIR);
+  if (children.length === 0) return [];
+
+  const changePromises: Promise<CloudChangeEntry | null>[] = children.map(async (child): Promise<CloudChangeEntry | null> => {
+    try {
+      let text = '';
+      if (child.downloadUrl) {
+        const res = await fetch(child.downloadUrl);
+        if (res.ok) text = await res.text();
+      }
+      if (!text) {
+        const res = await downloadFromDrive(`${CHANGES_DIR}/${child.name}`);
+        if (res && res.ok) text = await res.text();
+      }
+      if (!text) return null;
+
+      const json = JSON.parse(text);
+      if (child.name.startsWith('tombstone_') && child.name.endsWith('.json')) {
+        const artistId = child.name.replace(/^tombstone_/, '').replace(/\.json$/, '');
+        return {
+          itemId: child.id,
+          type: 'delete' as const,
+          artistId,
+          deletedAt: json.deletedAt || Date.now(),
+        };
+      } else if (child.name.endsWith('.json')) {
+        return {
+          itemId: child.id,
+          type: 'upsert' as const,
+          artistId: json.id,
+          artist: json as ArtistEntry,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.warn(`[OneDrive] 解析增量檔案 [${child.name}] 失敗:`, err);
+      return null;
+    }
+  });
+
+  const results = await Promise.all(changePromises);
+  return results.filter((r): r is CloudChangeEntry => r !== null);
+}
+
+/**
+ * 背景清理 changes/ 資料夾中的過期檔案
+ */
+async function clearCloudChangesInBackground(): Promise<void> {
+  try {
+    const children = await getChildrenFromDrive(CHANGES_DIR);
+    for (const child of children) {
+      await deleteDriveItem(child.id);
+    }
+  } catch (err) {
+    console.warn('[OneDrive] 背景清理 changes 資料夾失敗:', err);
+  }
+}
+
+export interface CombinedCloudData {
+  artists: ArtistEntry[];
+  tombstones: Tombstone[];
+  timestamp: number;
+  changesCount: number;
+  unchanged?: boolean;
+}
+
+export const SNAPSHOT_MTIME_KEY = 'pua_onedrive_snapshot_mtime';
+
+/**
+ * 載入雲端最新完整狀態（基底快照 + 疊加 changes/ 最新增量）
+ * 支援「快照未變更時跳過下載」的極致流量優化
+ */
+async function loadCombinedCloudData(options?: { forceFullSnapshot?: boolean }): Promise<CombinedCloudData | null> {
+  const forceFull = options?.forceFullSnapshot ?? false;
+
+  // 1. 查詢雲端快照的元數據（Metadata，僅消耗幾百 bytes）
+  const meta = await getCloudBackupMetadata();
+  const cachedMtime = typeof localStorage !== 'undefined' ? localStorage.getItem(SNAPSHOT_MTIME_KEY) : null;
+  const localArtistsCount = await db.artists.count();
+
+  // 判斷是否可跳過全量快照下載：
+  // 條件：非強制還原 + 本機已有資料 + 雲端快照修改時間與上次記錄一致
+  const canSkipSnapshot =
+    !forceFull &&
+    localArtistsCount > 0 &&
+    Boolean(meta && cachedMtime && meta.lastModifiedDateTime === cachedMtime);
+
+  let backupData: BackupDataStructure | null = null;
+
+  if (!canSkipSnapshot) {
+    // 1-A. 優先嘗試下載 Gzip 壓縮快照
+    const gzResponse = await downloadFromDrive(SNAPSHOT_GZ_NAME);
+    if (gzResponse) {
+      try {
+        const gzBlob = await gzResponse.blob();
+        const rawJson = await gzipDecompress(gzBlob);
+        backupData = JSON.parse(rawJson);
+      } catch (e) {
+        console.warn('[OneDrive] 快照解壓縮 JSON 解析失敗:', e);
+      }
+    }
+
+    // 1-B. 若無壓縮快照，回退讀取傳統未壓縮 JSON
+    if (!backupData) {
+      const jsonResponse = await downloadFromDrive(BACKUP_FILE_NAME);
+      if (jsonResponse) {
+        try {
+          backupData = await jsonResponse.json();
+        } catch (e) {
+          console.warn('[OneDrive] 傳統備份 JSON 解析失敗:', e);
+        }
+      }
+    }
+
+    // 下載成功後，更新本地快照修改時間快取
+    if (meta?.lastModifiedDateTime && typeof localStorage !== 'undefined') {
+      localStorage.setItem(SNAPSHOT_MTIME_KEY, meta.lastModifiedDateTime);
+    }
+  }
+
+  // 2. 抓取 changes/ 增量檔案
+  const changes = await fetchCloudChanges();
+
+  // 若快照跳過了，且雲端 changes/ 也完全沒有檔案 ➔ 代表兩端完全同步，零下載
+  if (canSkipSnapshot && changes.length === 0) {
+    const localArtists = await db.artists.toArray();
+    const localTombstones = await db.tombstones.toArray();
+    return {
+      artists: localArtists,
+      tombstones: localTombstones,
+      timestamp: Date.now(),
+      changesCount: 0,
+      unchanged: true,
+    };
+  }
+
+  // 若快照未跳過，但既無快照也無增量 ➔ 雲端完全無備份
+  if (!canSkipSnapshot && !backupData && changes.length === 0) {
+    return null;
+  }
+
+  const artistsMap = new Map<string, ArtistEntry>();
+  const tombstonesMap = new Map<string, Tombstone>();
+
+  if (canSkipSnapshot) {
+    // 快照跳過時，基底直接採用本機現有資料庫
+    const localArtists = await db.artists.toArray();
+    const localTombstones = await db.tombstones.toArray();
+    for (const a of localArtists) artistsMap.set(a.id, a);
+    for (const t of localTombstones) tombstonesMap.set(t.id, t);
+  } else {
+    // 採用剛下載的雲端快照作為基底
+    if (backupData?.artists) {
+      for (const a of backupData.artists) {
+        artistsMap.set(a.id, a);
+      }
+    }
+    if (backupData?.tombstones) {
+      for (const t of backupData.tombstones) {
+        tombstonesMap.set(t.id, t);
+      }
+    }
+  }
+
+  // 疊加 changes/ 最新增量
+  for (const change of changes) {
+    if (change.type === 'upsert' && change.artist) {
+      artistsMap.set(change.artist.id, change.artist);
+      tombstonesMap.delete(change.artist.id);
+    } else if (change.type === 'delete') {
+      artistsMap.delete(change.artistId);
+      tombstonesMap.set(change.artistId, { id: change.artistId, deletedAt: change.deletedAt || Date.now() });
+    }
+  }
+
+  return {
+    artists: Array.from(artistsMap.values()),
+    tombstones: Array.from(tombstonesMap.values()),
+    timestamp: backupData?.timestamp || Date.now(),
+    changesCount: changes.length,
+    unchanged: false,
+  };
+}
+
 /**
  * 產生並上傳全量壓縮快照 (Snapshot Compaction)
  */
@@ -277,6 +540,14 @@ export async function uploadBackupToOneDrive(): Promise<{ timestamp: number; siz
 
   const now = Date.now();
   localStorage.setItem('pua_onedrive_last_sync', now.toString());
+  // 異步更新本地快照修改時間戳，避免下一次同步把自己剛上傳的快照重複下載
+  getCloudBackupMetadata()
+    .then((m) => {
+      if (m?.lastModifiedDateTime && typeof localStorage !== 'undefined') {
+        localStorage.setItem(SNAPSHOT_MTIME_KEY, m.lastModifiedDateTime);
+      }
+    })
+    .catch(() => {});
 
   return {
     timestamp: now,
@@ -337,31 +608,14 @@ export async function getCloudBackupMetadata(): Promise<CloudMetadata | null> {
 let isRestoring = false;
 
 /**
- * 從 OneDrive 下載並還原資料庫（優先採用 1 次請求的 Gzip 壓縮快照）
+ * 從 OneDrive 下載並還原資料庫（結合 Gzip 壓縮快照與 changes/ 增量）
  */
 export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: number; timestamp: number }> {
   isRestoring = true;
   try {
-    let backupData: BackupDataStructure | null = null;
-
-    // 1. 優先嘗試下載 Gzip 壓縮快照（僅 1 個 HTTP 請求，數千位藝人幾百 KB）
-    const gzResponse = await downloadFromDrive(SNAPSHOT_GZ_NAME);
-    if (gzResponse) {
-      const gzBlob = await gzResponse.blob();
-      const rawJson = await gzipDecompress(gzBlob);
-      backupData = JSON.parse(rawJson);
-    }
-
-    // 2. 若無壓縮快照，回退讀取傳統未壓縮 JSON
-    if (!backupData) {
-      const jsonResponse = await downloadFromDrive(BACKUP_FILE_NAME);
-      if (jsonResponse) {
-        backupData = await jsonResponse.json();
-      }
-    }
-
-    if (!backupData || !Array.isArray(backupData.artists)) {
-      throw new Error('未在 OneDrive 找到有效備份檔案');
+    const cloudData = await loadCombinedCloudData({ forceFullSnapshot: true });
+    if (!cloudData) {
+      throw new Error('未在 OneDrive 找到有效備份檔案或增量紀錄');
     }
 
     // 寫入本機 Dexie 資料庫（使用交易保障安全性）
@@ -369,17 +623,17 @@ export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: numb
       await db.artists.clear();
       await db.tombstones.clear();
 
-      if (backupData.artists.length > 0) {
-        await db.artists.bulkPut(backupData.artists);
+      if (cloudData.artists.length > 0) {
+        await db.artists.bulkPut(cloudData.artists);
       }
-      if (backupData.tombstones && backupData.tombstones.length > 0) {
-        await db.tombstones.bulkPut(backupData.tombstones);
+      if (cloudData.tombstones.length > 0) {
+        await db.tombstones.bulkPut(cloudData.tombstones);
       }
     });
 
     return {
-      restoredCount: backupData.artists.length,
-      timestamp: backupData.timestamp,
+      restoredCount: cloudData.artists.length,
+      timestamp: cloudData.timestamp,
     };
   } finally {
     isRestoring = false;
@@ -495,6 +749,8 @@ async function executeCloudSync(): Promise<void> {
         lastSyncedAt: res.timestamp,
         errorMessage: undefined,
       });
+      // 整併後非同步清理 changes/ 零散檔案
+      clearCloudChangesInBackground();
     } else {
       // 情況 B：微量異動（1~9 筆） ➔ 單筆增量部分更新（每筆僅 2 KB）
       for (const item of queue) {
@@ -533,7 +789,8 @@ async function executeCloudSync(): Promise<void> {
 }
 
 /**
- * 系統啟動時若已登入微軟帳號，自動自雲端快照拉取資料（僅 1 次 HTTP 請求，數千筆瞬間載入）
+ * 系統啟動時若已登入微軟帳號，自雲端載入快照與增量並與本機資料庫進行雙向時間戳合併 (LWW)
+ * 確保本機剛新增的資料絕對不被抹殺，並同步雲端最新狀態
  */
 export async function syncFromCloudOnStartup(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
@@ -545,15 +802,100 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
   const account = await getActiveAccount();
   if (!account) return false;
 
-  const meta = await getCloudBackupMetadata();
-  if (!meta) {
-    updateSyncState({ status: 'idle' });
-    return false;
-  }
-
   updateSyncState({ status: 'syncing', errorMessage: undefined });
+  isRestoring = true;
+
   try {
-    const result = await restoreBackupFromOneDrive();
+    const cloudData = await loadCombinedCloudData();
+    if (!cloudData) {
+      // 雲端尚無備份檔案，若本機已有資料，自動建立初始快照備份
+      const localCount = await db.artists.count();
+      if (localCount > 0) {
+        await uploadBackupToOneDrive();
+      }
+      updateSyncState({ status: 'idle' });
+      return false;
+    }
+
+    // 若雲端快照未變更且無新增量，本機已是最新狀態，達成 0 KB 傳輸與 0 毫秒資料庫重寫
+    if (cloudData.unchanged) {
+      const now = Date.now();
+      localStorage.setItem('pua_onedrive_last_sync', now.toString());
+      updateSyncState({
+        status: 'synced',
+        lastSyncedAt: now,
+        errorMessage: undefined,
+      });
+      return false;
+    }
+
+    const localArtists = await db.artists.toArray();
+    const localTombstones = await db.tombstones.toArray();
+
+    const localArtistsMap = new Map(localArtists.map((a) => [a.id, a]));
+    const localTombstonesMap = new Map(localTombstones.map((t) => [t.id, t]));
+
+    const cloudArtistsMap = new Map(cloudData.artists.map((a) => [a.id, a]));
+    const cloudTombstonesMap = new Map(cloudData.tombstones.map((t) => [t.id, t]));
+
+    // 1. 合併墓碑（取較新的刪除時間戳）
+    const mergedTombstonesMap = new Map<string, Tombstone>();
+    for (const [id, t] of localTombstonesMap) mergedTombstonesMap.set(id, t);
+    for (const [id, t] of cloudTombstonesMap) {
+      const existing = mergedTombstonesMap.get(id);
+      if (!existing || t.deletedAt > existing.deletedAt) {
+        mergedTombstonesMap.set(id, t);
+      }
+    }
+
+    // 2. 雙向合併藝人（Last-Write-Wins 時間戳競態解決）
+    const allIds = new Set([...localArtistsMap.keys(), ...cloudArtistsMap.keys()]);
+    const finalArtists: ArtistEntry[] = [];
+    let localHasNewerData = false;
+
+    for (const id of allIds) {
+      const local = localArtistsMap.get(id);
+      const cloud = cloudArtistsMap.get(id);
+      const tombstone = mergedTombstonesMap.get(id);
+
+      // 若有墓碑且刪除時間晚於最後更新時間，予以過濾排除
+      const latestUpdate = Math.max(local?.updatedAt || 0, cloud?.updatedAt || 0);
+      if (tombstone && tombstone.deletedAt >= latestUpdate) {
+        continue;
+      }
+
+      if (local && cloud) {
+        if (local.updatedAt >= cloud.updatedAt) {
+          finalArtists.push(local);
+          if (local.updatedAt > cloud.updatedAt) localHasNewerData = true;
+        } else {
+          finalArtists.push(cloud);
+        }
+      } else if (local && !cloud) {
+        // 本機新增的藝人：完好保留，不被雲端抹殺！
+        finalArtists.push(local);
+        localHasNewerData = true;
+      } else if (cloud && !local) {
+        // 雲端新增的藝人：收錄進本機
+        finalArtists.push(cloud);
+      }
+    }
+
+    const finalTombstones = Array.from(mergedTombstonesMap.values());
+
+    // 寫入本機 Dexie 資料庫
+    await db.transaction('rw', db.artists, db.tombstones, async () => {
+      await db.artists.clear();
+      await db.tombstones.clear();
+
+      if (finalArtists.length > 0) {
+        await db.artists.bulkPut(finalArtists);
+      }
+      if (finalTombstones.length > 0) {
+        await db.tombstones.bulkPut(finalTombstones);
+      }
+    });
+
     const now = Date.now();
     localStorage.setItem('pua_onedrive_last_sync', now.toString());
     updateSyncState({
@@ -561,14 +903,29 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
       lastSyncedAt: now,
       errorMessage: undefined,
     });
+
+    // 若本機有較新的未上傳資料，或雲端累積增量超過 10 筆，背景觸發快照整併
+    if (localHasNewerData || cloudData.changesCount >= 10) {
+      setTimeout(async () => {
+        try {
+          await uploadBackupToOneDrive();
+          await clearCloudChangesInBackground();
+        } catch (e) {
+          console.warn('[OneDrive AutoSync] 背景整併快照失敗:', e);
+        }
+      }, 1000);
+    }
+
     return true;
   } catch (err: any) {
-    console.warn('[OneDrive AutoSync] 啟動自動下載失敗:', err);
+    console.warn('[OneDrive AutoSync] 啟動自動同步失敗:', err);
     updateSyncState({
       status: 'error',
       errorMessage: err?.message || '從雲端載入最新資料失敗',
     });
     return false;
+  } finally {
+    isRestoring = false;
   }
 }
 
