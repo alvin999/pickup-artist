@@ -75,11 +75,11 @@ export const ACOUSTIC_SECTORS: Record<AcousticSector, SectorDefinition> = {
   },
   GROOVE: {
     id: 'GROOVE',
-    name: 'Groove & Urban',
-    nameTw: '律動黑樂與嘻哈',
+    name: 'Groove & Soul',
+    nameTw: '律動與靈魂樂',
     angleDeg: 270,
     colorHex: '#ec4899', // Pink / Rose
-    description: '黑人根源律動：放克、靈魂樂、新靈魂、當代節奏藍調與意識嘻哈',
+    description: '根源律動：放克、靈魂樂、新靈魂、當代節奏藍調與意識嘻哈',
     subGenreExamples: ['Funk', 'Soul', 'Neo-Soul', 'Contemporary R&B', 'Boom Bap Hip-Hop', 'Jazz Rap', 'Lo-Fi Hip-Hop']
   },
   WORLD: {

@@ -19,7 +19,7 @@ export type AcousticSector =
   | 'JAZZ'        // 135°: 爵士 (Modern Jazz, Fusion, Bebop, Hard Bop)
   | 'AMBIENT'     // 180°: 氛圍與實驗 (Drone, Modern Classical, Soundscape)
   | 'ELECTRONIC'  // 225°: 電子前衛 (IDM, Ambient Techno, Synthwave, Glitch)
-  | 'GROOVE'      // 270°: 律動黑樂 (Funk, Soul, Neo-Soul, R&B, Hip-Hop)
+  | 'GROOVE'      // 270°: 律動與靈魂 (Funk, Soul, Neo-Soul, R&B, Hip-Hop)
   | 'WORLD';      // 315°: 世界音樂與民族根源 (World Fusion, Afrobeat, Traditional Folk, Ethno-Ambient)
 
 export interface ArtistAnalysis {

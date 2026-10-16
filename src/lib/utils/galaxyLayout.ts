@@ -9,7 +9,9 @@ export const GALAXY_CENTER = { x: 1300, y: 1300 };
 export interface SectorConfig {
   key: AcousticSector;
   name: string;
+  shortName: string;
   nameEn: string;
+  icon: string;           // 專屬天體流派圖示 (Guitar, Flame, Landmark, Disc3, Waves, Cpu, Activity, Globe)
   angleDeg: number;       // 0° ~ 360°
   color: string;          // 太陽日冕主色
   secondaryColor: string; // 漸層次色
@@ -19,17 +21,21 @@ export interface SectorConfig {
 export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'ROCK',
-    name: '器樂與前衛搖滾',
-    nameEn: 'Math / Post / Prog Rock',
+    name: '搖滾與後搖',
+    shortName: '搖滾',
+    nameEn: 'Rock & Post-Rock',
+    icon: 'Guitar',
     angleDeg: 0,
     color: '#FEC486',
     secondaryColor: '#E0A96D',
-    description: '細密多節奏、點弦對位與純淨類比吉他管機質地'
+    description: '器樂搖滾、數學搖滾、前衛搖滾、獨立搖滾與瞪鞋派系'
   },
   {
     key: 'METAL',
     name: '重型與前衛金屬',
+    shortName: '金屬',
     nameEn: 'Metalcore / Sludge / Extreme',
+    icon: 'Flame',
     angleDeg: 45,
     color: '#FA383E',
     secondaryColor: '#9E0A12',
@@ -38,7 +44,9 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'CLASSICAL',
     name: '古典版本學與詮釋',
+    shortName: '古典',
     nameEn: 'Classical / Chamber / Baroque',
+    icon: 'Landmark',
     angleDeg: 90,
     color: '#A0B4D8',
     secondaryColor: '#5C749E',
@@ -47,7 +55,9 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'JAZZ',
     name: '當代爵士與融合',
+    shortName: '爵士',
     nameEn: 'Modern Jazz / Modal / Trio',
+    icon: 'Disc3',
     angleDeg: 135,
     color: '#E8B06C',
     secondaryColor: '#B07530',
@@ -56,7 +66,9 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'AMBIENT',
     name: '氛圍音景與新古典',
+    shortName: '氛圍',
     nameEn: 'Ambient / Soundscape / Neo-Classical',
+    icon: 'Waves',
     angleDeg: 180,
     color: '#84D2C5',
     secondaryColor: '#3E9687',
@@ -65,7 +77,9 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'ELECTRONIC',
     name: '前衛電子與合成',
+    shortName: '電子',
     nameEn: 'IDM / Glitch / Synthwave',
+    icon: 'Cpu',
     angleDeg: 225,
     color: '#BD88EE',
     secondaryColor: '#7A48B2',
@@ -73,17 +87,21 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   },
   {
     key: 'GROOVE',
-    name: '律動黑樂與靈魂',
-    nameEn: 'Neo-Soul / Funk / Jazz Rap',
+    name: '律動與靈魂樂',
+    shortName: '律動靈魂',
+    nameEn: 'Groove & Soul',
+    icon: 'Activity',
     angleDeg: 270,
     color: '#FFA552',
     secondaryColor: '#C46A14',
-    description: '有機搖擺 Groove、溫潤貝斯線條與人聲喉部共鳴'
+    description: '有機搖擺 Groove、放克、新靈魂、當代節奏藍調與溫潤貝斯線條'
   },
   {
     key: 'WORLD',
     name: '世界民族與根源',
+    shortName: '世界根源',
     nameEn: 'World Fusion / Ethno Folk',
+    icon: 'Globe',
     angleDeg: 315,
     color: '#D4B886',
     secondaryColor: '#967A48',
@@ -94,7 +112,9 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
 export interface SectorSun {
   key: AcousticSector;
   name: string;
+  shortName: string;
   nameEn: string;
+  icon: string;
   x: number;
   y: number;
   size: number;
@@ -267,10 +287,12 @@ export function calculateHierarchicalGalaxy(
     suns.push({
       key: conf.key,
       name: conf.name,
+      shortName: conf.shortName,
       nameEn: conf.nameEn,
+      icon: conf.icon,
       x: sunX,
       y: sunY,
-      size: 92,
+      size: 120,
       color: conf.color,
       secondaryColor: conf.secondaryColor,
       artistCount: sectorArtists.length
