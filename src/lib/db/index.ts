@@ -151,16 +151,18 @@ export async function quickPickupArtist(rawInput: string, candidate?: ArtistCand
   let coverImage: string | undefined = undefined;
   let formatSpec = 'Lossless Hi-Res';
 
-  // 方案 A：以藝人肖像優先，自動抓取官方宣傳照/舞台肖像照；若無則由 Apple Music 中繼獲取
+  // 視覺配置原則：優先採用 Apple Music 官方代表作母帶封面（800x800），若無封面才以代表作品交叉驗證 Wiki 肖像
   try {
-    const portrait = await fetchArtistPortrait(finalName);
-    if (portrait) coverImage = portrait;
-
     const meta = await fetchAppleMusicMetadata(finalName);
     if (meta) {
-      if (!coverImage && meta.coverImage) coverImage = meta.coverImage;
+      if (meta.coverImage) coverImage = meta.coverImage;
       if (meta.appleMusicUrl && !isUrl) appleMusicUrl = meta.appleMusicUrl;
       if (meta.releaseYear) formatSpec = `${meta.releaseYear} // Lossless Master`;
+    }
+
+    if (!coverImage) {
+      const portrait = await fetchArtistPortrait(finalName, meta?.albumTitle);
+      if (portrait) coverImage = portrait;
     }
   } catch (err) {
     console.warn('[PickupArtist] 查詢藝人肖像與 Apple Music 異常:', err);

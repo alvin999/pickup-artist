@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
-  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck, AlertTriangle } from 'lucide-svelte';
-  import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
+  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck, AlertTriangle, ExternalLink } from 'lucide-svelte';
+  import { searchAppleMusicCandidates, buildAppleMusicSearchUrl, type ArtistCandidate } from '$lib/utils/appleMusic';
   import type { ArtistEntry } from '$lib/types/artist';
   import { checkDuplicateArtist } from '$lib/db';
 
@@ -24,6 +24,7 @@
   let pickupInput = $state('');
   let isSearching = $state(false);
   let candidates = $state<ArtistCandidate[]>([]);
+  let selectedGenreFilter = $state<string>('all');
   let step = $state<'input' | 'disambiguation' | 'duplicate_alert'>('input');
   let showMobileGuide = $state(false);
   let copiedUrl = $state(false);
@@ -35,10 +36,26 @@
     isExactUrl: boolean;
   } | null>(null);
 
+  // 取得候選清單中包含的所有曲風標籤
+  let availableGenres = $derived.by(() => {
+    const set = new Set<string>();
+    for (const c of candidates) {
+      if (c.primaryGenre) set.add(c.primaryGenre);
+    }
+    return Array.from(set).sort();
+  });
+
+  // 依曲風過濾後的候選人列表
+  let filteredCandidates = $derived.by(() => {
+    if (selectedGenreFilter === 'all') return candidates;
+    return candidates.filter((c) => c.primaryGenre === selectedGenreFilter);
+  });
+
   function resetState() {
     pickupInput = '';
     isSearching = false;
     candidates = [];
+    selectedGenreFilter = 'all';
     step = 'input';
     showMobileGuide = false;
     copiedUrl = false;
@@ -272,16 +289,50 @@
             <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
             <span class="font-dot text-xs text-signal tracking-widest uppercase">DISAMBIGUATION // 重名排歧</span>
           </div>
-          <span class="font-mono text-[10px] text-[#8e929d]">發現 {candidates.length} 筆同名/相似結果</span>
+          <span class="font-mono text-[10px] text-[#8e929d]">
+            發現 {candidates.length} 筆候選結果{#if selectedGenreFilter !== 'all'}（篩選：{filteredCandidates.length} 筆）{/if}
+          </span>
         </div>
 
         <p class="font-sans text-xs text-[#b4b7c2]">
-          資料庫偵測到多位同名藝人，請點選您想收錄的目標：
+          資料庫偵測到多位同名或關聯藝人，請點選您想收錄的目標：
         </p>
 
+        <!-- 曲風標籤快速過濾條 (Genre Quick Filter) -->
+        {#if availableGenres.length > 1}
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 font-mono text-[10px] scrollbar-none">
+            <button
+              type="button"
+              onclick={() => (selectedGenreFilter = 'all')}
+              class="px-2 py-0.5 rounded-[2px] transition-colors shrink-0 cursor-pointer {selectedGenreFilter === 'all'
+                ? 'bg-signal text-black font-bold'
+                : 'bg-[#181920] text-[#8e929d] hover:text-[#f4f4f6] border border-[#262832]'}"
+            >
+              全部 ({candidates.length})
+            </button>
+            {#each availableGenres as genre}
+              {@const count = candidates.filter((c) => c.primaryGenre === genre).length}
+              <button
+                type="button"
+                onclick={() => (selectedGenreFilter = genre)}
+                class="px-2 py-0.5 rounded-[2px] transition-colors shrink-0 cursor-pointer {selectedGenreFilter === genre
+                  ? 'bg-signal text-black font-bold'
+                  : 'bg-[#181920] text-[#8e929d] hover:text-[#f4f4f6] border border-[#262832]'}"
+              >
+                {genre} ({count})
+              </button>
+            {/each}
+          </div>
+        {/if}
+
         <!-- 候選卡片格架 -->
-        <div class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
-          {#each candidates as c}
+        <div class="flex flex-col gap-2 max-h-72 sm:max-h-80 overflow-y-auto pr-1">
+          {#if filteredCandidates.length === 0}
+            <div class="p-6 text-center text-xs text-[#8e929d] bg-[#121318] border border-[#21232d] rounded-[2px]">
+              此風格分類下無候選結果，請切換至「全部」或其他風格標籤。
+            </div>
+          {/if}
+          {#each filteredCandidates as c}
             <button
               type="button"
               onclick={() => commitPickup(c.name, c)}
@@ -300,35 +351,53 @@
                   </div>
                 {/if}
                 <div class="min-w-0 flex flex-col">
-                  <span class="font-bold text-xs text-[#f4f4f6] group-hover:text-signal transition-colors truncate">
-                    {c.name}
-                  </span>
-                  <span class="font-sans text-[11px] text-[#8e929d] truncate">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-xs text-[#f4f4f6] group-hover:text-signal transition-colors truncate">
+                      {c.name}
+                    </span>
+                    {#if c.primaryGenre}
+                      <span class="font-mono text-[9px] px-1.5 py-0.2 bg-[#21232d] text-[#b4b7c2] rounded-[2px] uppercase">
+                        {c.primaryGenre}
+                      </span>
+                    {/if}
+                  </div>
+                  <span class="font-sans text-[11px] text-[#8e929d] truncate mt-0.5">
                     {#if c.albumTitle}
                       代表作：《{c.albumTitle}》
+                    {:else}
+                      （查無代表專輯）
                     {/if}
                     {#if c.releaseYear}
                       ({c.releaseYear})
                     {/if}
                   </span>
-                  {#if c.primaryGenre}
-                    <span class="font-mono text-[9px] text-[#a4a8b5] tracking-wider mt-0.5">
-                      GENRE // {c.primaryGenre.toUpperCase()}
-                    </span>
-                  {/if}
                 </div>
               </div>
 
-              <div class="shrink-0 ml-3 flex items-center gap-1 text-[11px] font-mono text-ink-dim group-hover:text-signal transition-colors">
-                <span class="hidden sm:inline">鎖定</span>
-                <Check class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div class="shrink-0 ml-3 flex items-center gap-2">
+                {#if c.appleMusicUrl}
+                  <a
+                    href={c.appleMusicUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onclick={(e) => e.stopPropagation()}
+                    class="p-1.5 text-[#8e929d] hover:text-signal hover:bg-[#252834] rounded transition-colors"
+                    title="在 Apple Music 中開啓預覽確認"
+                  >
+                    <ExternalLink class="w-3.5 h-3.5" />
+                  </a>
+                {/if}
+                <div class="flex items-center gap-1 text-[11px] font-mono text-ink-dim group-hover:text-signal transition-colors">
+                  <span class="hidden sm:inline">鎖定</span>
+                  <Check class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
             </button>
           {/each}
         </div>
 
-        <!-- 底部退回或自訂 -->
-        <div class="pt-2 border-t border-[#21232d] flex items-center justify-between font-mono text-xs">
+        <!-- 底部退回或自訂與 Apple Music 外連 -->
+        <div class="pt-2 border-t border-[#21232d] flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
           <button
             type="button"
             onclick={() => (step = 'input')}
@@ -338,13 +407,26 @@
             <span>重新輸入</span>
           </button>
 
-          <button
-            type="button"
-            onclick={() => commitPickup(pickupInput.trim())}
-            class="text-[11px] text-[#8e929d] hover:text-signal underline underline-offset-4 cursor-pointer transition-colors"
-          >
-            皆不符合？直接以此自訂名稱知悉
-          </button>
+          <div class="flex items-center gap-3">
+            <a
+              href={buildAppleMusicSearchUrl(pickupInput.trim())}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-[11px] text-[#8e929d] hover:text-signal flex items-center gap-1 transition-colors"
+              title="在 Apple Music 官方搜尋頁尋找後複製連結貼回"
+            >
+              <span>在 Apple Music 搜尋</span>
+              <ExternalLink class="w-3 h-3" />
+            </a>
+
+            <button
+              type="button"
+              onclick={() => commitPickup(pickupInput.trim())}
+              class="text-[11px] text-[#8e929d] hover:text-signal underline underline-offset-4 cursor-pointer transition-colors"
+            >
+              皆不符合？直接以此自訂名稱知悉
+            </button>
+          </div>
         </div>
 
       {:else if step === 'duplicate_alert'}

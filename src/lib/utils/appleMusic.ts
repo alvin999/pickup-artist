@@ -57,64 +57,49 @@ export interface AppleMusicMetadata {
 }
 
 /**
- * 方案 A：以「藝人肖像優先」為原則，自動獲取官方藝人照片；若查無藝人照則降級由 Apple Music / iTunes 取得高解析度代表專輯封面
+ * Apple Music 官方專輯封面優先原則：
+ * 優先獲取 Apple Music / iTunes 高解析度（800x800）代表作品母帶封面，確保視覺 100% 精確且官方授權；
+ * 僅在 Apple Music 官方查無封面時，才啟用具備專輯交叉配對 (Album Cross-validation) 的 Wiki 肖像作為備援。
  */
 export async function fetchAppleMusicMetadata(query: string): Promise<AppleMusicMetadata | null> {
   const clean = query.trim();
   if (!clean) return null;
 
-  // 1. 優先嘗試獲取藝人本人舞台/宣傳肖像 (Artist Photo First)
-  let artistPortrait: string | null = null;
-  try {
-    artistPortrait = await fetchArtistPortrait(clean);
-  } catch (err) {
-    console.warn('[AppleMusic Bridge] 藝人肖像搜尋略過:', err);
-  }
-
   try {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=album&limit=1`;
     const res = await fetch(url);
-    if (!res.ok) {
-      if (artistPortrait) {
-        return {
-          coverImage: artistPortrait,
-          artistName: clean
-        };
-      }
-      return null;
-    }
+    if (!res.ok) return null;
 
     const data = await res.json();
     if (data.resultCount > 0 && data.results[0]) {
       const item = data.results[0];
       const rawArtwork = (item.artworkUrl100 || item.artworkUrl60) as string | undefined;
-      // 若查無藝人專屬照片，才使用專輯封面做為 fallback
       const albumCover = rawArtwork
         ? rawArtwork.replace(/\/\d+x\d+bb\./, '/800x800bb.')
         : undefined;
 
+      // 優先採用 Apple Music 官方母帶封面；查無封面時才以已知專輯名稱交叉比對 Wiki 肖像
+      let finalCover = albumCover;
+      if (!finalCover) {
+        try {
+          const wikiCover = await fetchArtistPortrait(item.artistName || clean, item.collectionName);
+          if (wikiCover) finalCover = wikiCover;
+        } catch {
+          // fallback
+        }
+      }
+
       return {
-        coverImage: artistPortrait || albumCover,
+        coverImage: finalCover,
         albumTitle: item.collectionName,
         artistName: item.artistName || clean,
         releaseYear: item.releaseDate ? item.releaseDate.substring(0, 4) : undefined,
         primaryGenre: item.primaryGenreName,
         appleMusicUrl: item.collectionViewUrl
       };
-    } else if (artistPortrait) {
-      return {
-        coverImage: artistPortrait,
-        artistName: clean
-      };
     }
   } catch (err) {
-    console.warn('[AppleMusic Bridge] 自動抓取中繼資料失敗，啟用 fallback:', err);
-    if (artistPortrait) {
-      return {
-        coverImage: artistPortrait,
-        artistName: clean
-      };
-    }
+    console.warn('[AppleMusic Bridge] 自動抓取中繼資料失敗:', err);
   }
 
   return null;
@@ -132,36 +117,110 @@ export interface ArtistCandidate {
 
 /**
  * 搜尋多筆候選藝人 (以藝人 entity=musicArtist 為核心搜尋，並批次取得代表作品與封面)
+ * 優化：
+ * 1. 檢索上限由 10 筆大幅提升至 50 筆，避免同名藝人（如 Adagio）之金屬/搖滾樂團被流行/古典結果淹沒截斷。
+ * 2. 候選池由 5 筆擴增至 20 筆，提供更完整的排歧視野。
+ * 3. lookup 專輯時移除 limit=1 全局限制，確保每個藝人都能取得各自的代表作與封面。
+ * 4. 支援關鍵字曲風/風格語意權重排序。
  */
 export async function searchAppleMusicCandidates(query: string): Promise<ArtistCandidate[]> {
   const clean = query.trim();
   if (!clean) return [];
 
   try {
-    // 1. 優先以藝人主體檢索 (entity=musicArtist)
-    const artistUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=musicArtist&limit=10`;
+    // 1. 優先以藝人主體檢索 (entity=musicArtist)，上限擴增至 50 筆
+    const artistUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=musicArtist&limit=50`;
     const res = await fetch(artistUrl);
     if (!res.ok) return [];
 
     const data = await res.json();
-    const rawArtists = (data.results || []).filter((r: any) => r.artistName);
+    let rawArtists: any[] = (data.results || []).filter((r: any) => r.artistName);
+
+    // 若搜尋詞包含風格關鍵字（例如 Adagio metal），或主體搜尋筆數偏少，加測專輯檢索以補足關聯藝人
+    const lowerQuery = clean.toLowerCase();
+    const styleKeywords = ['metal', 'rock', 'pop', 'jazz', 'classical', 'hip hop', 'rap', 'indie', 'punk', 'folk', '金屬', '前衛', '搖滾'];
+    const matchedStyle = styleKeywords.find((kw) => lowerQuery.includes(kw));
+
+    if (matchedStyle || rawArtists.length < 5) {
+      try {
+        const albumSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=album&limit=25`;
+        const albumRes = await fetch(albumSearchUrl);
+        if (albumRes.ok) {
+          const albumData = await albumRes.json();
+          const existingIds = new Set(rawArtists.map((a) => a.artistId));
+          for (const alb of albumData.results || []) {
+            if (alb.artistId && !existingIds.has(alb.artistId) && alb.artistName) {
+              existingIds.add(alb.artistId);
+              rawArtists.push({
+                artistId: alb.artistId,
+                artistName: alb.artistName,
+                primaryGenreName: alb.primaryGenreName,
+                artistLinkUrl: alb.artistViewUrl
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[AppleMusic Bridge] 補充專輯關聯藝人搜尋略過:', err);
+      }
+    }
 
     if (rawArtists.length > 0) {
-      const qLower = clean.toLowerCase();
-      // 精確排序：完全匹配 > 前綴匹配 > 其他
-      const exact = rawArtists.filter((a: any) => a.artistName.toLowerCase() === qLower);
-      const prefix = rawArtists.filter((a: any) => a.artistName.toLowerCase().startsWith(qLower) && !exact.includes(a));
-      const partial = rawArtists.filter((a: any) => a.artistName.toLowerCase().includes(qLower) && !exact.includes(a) && !prefix.includes(a));
-      const others = rawArtists.filter((a: any) => !exact.includes(a) && !prefix.includes(a) && !partial.includes(a));
-      const sortedArtists = [...exact, ...prefix, ...partial, ...others].slice(0, 5);
+      // 去重保證相同 artistId 唯一
+      const uniqueArtistsMap = new Map<number, any>();
+      for (const a of rawArtists) {
+        if (a.artistId && !uniqueArtistsMap.has(a.artistId)) {
+          uniqueArtistsMap.set(a.artistId, a);
+        }
+      }
+      const deduplicated = Array.from(uniqueArtistsMap.values());
 
-      // 2. 批次查詢這些藝人的代表專輯與母帶封面
+      // 智慧多層排序：
+      // - 完全匹配藝人名 (如 "adagio" === "adagio")
+      // - 若有指定風格關鍵字，符合該風格者優先
+      // - 前綴匹配
+      // - 包含匹配
+      // - 提升候選池容量至最多 20 筆
+      const sortedArtists = deduplicated.sort((a: any, b: any) => {
+        const aName = (a.artistName || '').toLowerCase();
+        const bName = (b.artistName || '').toLowerCase();
+        const aGenre = (a.primaryGenreName || '').toLowerCase();
+        const bGenre = (b.primaryGenreName || '').toLowerCase();
+
+        const aExact = aName === lowerQuery;
+        const bExact = bName === lowerQuery;
+
+        // 若搜尋詞包含風格，符合風格者權重提升
+        if (matchedStyle) {
+          const aStyleMatch = aGenre.includes(matchedStyle);
+          const bStyleMatch = bGenre.includes(matchedStyle);
+          if (aStyleMatch && !bStyleMatch) return -1;
+          if (!aStyleMatch && bStyleMatch) return 1;
+        }
+
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        const aPrefix = aName.startsWith(lowerQuery);
+        const bPrefix = bName.startsWith(lowerQuery);
+        if (aPrefix && !bPrefix) return -1;
+        if (!aPrefix && bPrefix) return 1;
+
+        const aIncludes = aName.includes(lowerQuery);
+        const bIncludes = bName.includes(lowerQuery);
+        if (aIncludes && !bIncludes) return -1;
+        if (!aIncludes && bIncludes) return 1;
+
+        return 0;
+      }).slice(0, 20);
+
+      // 2. 批次查詢這些藝人的代表專輯與母帶封面（移除全局 limit=1 限制，確保多 ID 時每位藝人皆能取得專輯）
       const artistIds = sortedArtists.map((a: any) => a.artistId).filter(Boolean);
       const albumMap = new Map<number, { albumTitle?: string; coverImage?: string; releaseYear?: string; appleMusicUrl?: string }>();
 
       if (artistIds.length > 0) {
         try {
-          const lookupUrl = `https://itunes.apple.com/lookup?id=${artistIds.join(',')}&entity=album&limit=1`;
+          const lookupUrl = `https://itunes.apple.com/lookup?id=${artistIds.join(',')}&entity=album`;
           const lookupRes = await fetch(lookupUrl);
           if (lookupRes.ok) {
             const lookupData = await lookupRes.json();
@@ -183,15 +242,24 @@ export async function searchAppleMusicCandidates(query: string): Promise<ArtistC
         }
       }
 
-      // 3. 對候選藝人進行藝人肖像優先補齊 (維基百科藝人照片優先於專輯封面)
+      // 3. 候選藝人視覺配置：優先採用 Apple Music 官方代表作封面 (800x800)
+      // 若 Apple Music 無代表專輯封面，才以「藝人名 + 代表作」交叉驗證 Wiki 肖像做為備援
       const resultsWithPortrait = await Promise.all(
         sortedArtists.map(async (a: any) => {
           const albumInfo = albumMap.get(a.artistId);
-          let portrait: string | null = null;
-          try {
-            portrait = await fetchArtistPortrait(a.artistName);
-          } catch {
-            // fallback
+          let cover = albumInfo?.coverImage;
+
+          // 若 Apple Music 查無封面，且具有代表作品，以代表作名稱交叉配對 Wiki 條目
+          if (!cover && albumInfo?.albumTitle) {
+            try {
+              const wikiCover = await Promise.race([
+                fetchArtistPortrait(a.artistName, albumInfo.albumTitle),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200))
+              ]);
+              if (wikiCover) cover = wikiCover;
+            } catch {
+              // fallback
+            }
           }
 
           return {
@@ -200,7 +268,7 @@ export async function searchAppleMusicCandidates(query: string): Promise<ArtistC
             albumTitle: albumInfo?.albumTitle,
             primaryGenre: a.primaryGenreName,
             releaseYear: albumInfo?.releaseYear,
-            coverImage: portrait || albumInfo?.coverImage,
+            coverImage: cover,
             appleMusicUrl: a.artistLinkUrl || albumInfo?.appleMusicUrl
           };
         })
@@ -210,7 +278,7 @@ export async function searchAppleMusicCandidates(query: string): Promise<ArtistC
     }
 
     // Fallback: 若 entity=musicArtist 無結果，才檢索 entity=album
-    const albumFallbackUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=album&limit=5`;
+    const albumFallbackUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=album&limit=15`;
     const fbRes = await fetch(albumFallbackUrl);
     if (!fbRes.ok) return [];
     const fbData = await fbRes.json();
