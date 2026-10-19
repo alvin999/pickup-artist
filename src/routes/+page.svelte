@@ -16,6 +16,7 @@
   import StudioTopBar from '$lib/components/studio/StudioTopBar.svelte';
   import CrateDiggerView from '$lib/components/studio/CrateDiggerView.svelte';
   import HoneycombClusterView from '$lib/components/studio/HoneycombClusterView.svelte';
+  import AcousticMatrixView from '$lib/components/studio/AcousticMatrixView.svelte';
   import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
@@ -490,6 +491,24 @@
           onpickupSimilar={handlePickupSimilar}
           onupdateWeight={handleUpdateWeight}
           onupdatePos={handleUpdatePos}
+        />
+      {:else if activeStudioView === 'acoustic-matrix'}
+        <!-- 視圖 3: 風格矩陣視圖 (Acoustic Matrix View) -->
+        <AcousticMatrixView
+          artists={filteredArtists}
+          bind:selectedArtistId
+          onselectArtist={(id) => (selectedArtistId = id)}
+          onopenInCrate={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          onlocateInGalaxy={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'honeycomb-cluster';
+          }}
+          ondeleteArtist={handleDelete}
+          onanalyzeArtist={handleAnalyze}
+          {isAnalyzing}
         />
       {:else}
         <!-- 其他 Studio 模組待命占位 -->
