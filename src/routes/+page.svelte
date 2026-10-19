@@ -27,6 +27,7 @@
     getActiveAccount,
     subscribeSyncState,
     syncFromCloudOnStartup,
+    reauthenticateAndSync,
     type CloudSyncState
   } from '$lib/services/onedrive';
   import { CheckCircle2 } from 'lucide-svelte';
@@ -48,6 +49,24 @@
   let isAnalyzing = $state(false);
   let isRecommendingMore = $state(false);
   let queueState = $state<QueueState>(analysisQueue.getState());
+  let isReauthenticating = $state(false);
+
+  async function handleQuickReauth() {
+    isReauthenticating = true;
+    showToast('正在喚起微軟登入視窗...');
+    try {
+      await reauthenticateAndSync(async () => {
+        await reloadArtists();
+      });
+      showToast('微軟授權驗證成功，雲端資料庫已即時同步！');
+    } catch (err: any) {
+      if (err?.errorCode !== 'user_cancelled') {
+        showToast(err?.message || '重新驗證失敗');
+      }
+    } finally {
+      isReauthenticating = false;
+    }
+  }
 
   async function refreshTelemetryStatus() {
     try {
@@ -423,6 +442,30 @@
   <!-- Studio 主畫布內容區 (帶左側 60 欄位位移與頂部 16 欄位位移) -->
   <div class="lg:pl-60 pt-16 flex-1 flex flex-col">
     <main class="flex-1 p-4 md:p-6 w-full">
+      <!-- Session 過期引導橫幅 (Local-First Fallback & One-Click Re-Auth) -->
+      {#if cloudSyncState.status === 'session_expired'}
+        <div class="mb-4 p-3.5 bg-[#1a150e]/95 border border-amber-500/50 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 font-mono text-xs shadow-lg backdrop-blur-sm animate-fadeIn">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">lock_clock</span>
+            <div>
+              <span class="font-bold text-amber-300">微軟雲端授權已過期：</span>
+              <span class="text-amber-200/90">系統已無縫切換至「本機安全快取」模式，您的閱讀與編輯皆已妥善保存。</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onclick={handleQuickReauth}
+            disabled={isReauthenticating}
+            class="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-void font-bold text-[11px] uppercase tracking-wider rounded-[2px] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span class="material-symbols-outlined text-[15px] {isReauthenticating ? 'animate-spin' : ''}">
+              {isReauthenticating ? 'sync' : 'refresh'}
+            </span>
+            <span>{isReauthenticating ? '正在重新驗證...' : '一鍵重新連線並同步'}</span>
+          </button>
+        </div>
+      {/if}
+
       {#if activeStudioView === 'crate-digger'}
         <!-- 視圖 1: 藝人展間視圖 (Artist Showroom / Crate Digger View) -->
         <CrateDiggerView

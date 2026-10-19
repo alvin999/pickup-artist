@@ -121,8 +121,9 @@ export async function logoutOneDrive(): Promise<void> {
 
 /**
  * 取得有效的 Access Token（優先從快取靜默獲取，過期自動刷新）
+ * @param allowInteractive 是否允許在過期時喚起 Popup 互動（僅在使用者手勢點擊情境下啟用，避免背景被瀏覽器攔截彈窗）
  */
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken(allowInteractive = false): Promise<string> {
   const msal = await getMsalInstance();
   const account = await getActiveAccount();
 
@@ -136,8 +137,17 @@ export async function getAccessToken(): Promise<string> {
       scopes: GRAPH_SCOPES,
     });
     return tokenResponse.accessToken;
-  } catch {
-    // 靜默獲取失敗（例如 Refresh Token 失效），改用 Popup 重新認證
+  } catch (err: any) {
+    // 若在背景或自動同步環境，靜默獲取失敗切勿呼叫 popup，避免遭瀏覽器封鎖彈窗
+    if (!allowInteractive) {
+      updateSyncState({
+        status: 'session_expired',
+        errorMessage: '微軟帳戶登入已過期，請重新驗證以繼續同步。',
+      });
+      throw new Error('SESSION_EXPIRED');
+    }
+
+    // 手動操作時才允許彈窗交互
     const tokenResponse = await msal.acquireTokenPopup({
       account,
       scopes: GRAPH_SCOPES,
@@ -644,7 +654,7 @@ export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: numb
 // 即時雲端同步管理器 (Auto-Sync Manager - 雙軌增量與快照整併)
 // ----------------------------------------------------
 
-export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline' | 'session_expired';
 
 export interface CloudSyncState {
   status: SyncStatus;
@@ -775,10 +785,17 @@ async function executeCloudSync(): Promise<void> {
     }
   } catch (err: any) {
     console.error('[OneDrive AutoSync] 同步上傳失敗:', err);
-    updateSyncState({
-      status: 'error',
-      errorMessage: err?.message || '即時同步至雲端失敗',
-    });
+    if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
+      updateSyncState({
+        status: 'session_expired',
+        errorMessage: '微軟帳戶登入已過期，請重新驗證以繼續同步。',
+      });
+    } else {
+      updateSyncState({
+        status: 'error',
+        errorMessage: err?.message || '即時同步至雲端失敗',
+      });
+    }
   } finally {
     isSyncInProgress = false;
     if (pendingSyncAfterCurrent) {
@@ -919,13 +936,53 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
     return true;
   } catch (err: any) {
     console.warn('[OneDrive AutoSync] 啟動自動同步失敗:', err);
-    updateSyncState({
-      status: 'error',
-      errorMessage: err?.message || '從雲端載入最新資料失敗',
-    });
+    if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
+      updateSyncState({
+        status: 'session_expired',
+        errorMessage: '微軟帳戶授權已過期，請點擊重新驗證以同步雲端資料。',
+      });
+    } else {
+      updateSyncState({
+        status: 'error',
+        errorMessage: err?.message || '從雲端載入最新資料失敗',
+      });
+    }
     return false;
   } finally {
     isRestoring = false;
+  }
+}
+
+/**
+ * 重新授權並自動同步雲端資料庫（一鍵修復 session 過期，無需手動重新整理）
+ * @param onSuccess 成功後的回呼函式（例如重新載入藝人列表 reloadArtists）
+ */
+export async function reauthenticateAndSync(onSuccess?: () => Promise<void>): Promise<boolean> {
+  clearMsalInteractionLocks();
+  try {
+    await loginToOneDrive();
+    updateSyncState({ status: 'syncing', errorMessage: undefined });
+
+    // 執行雲端雙向合併
+    const restored = await syncFromCloudOnStartup();
+
+    // 若有斷線期間累積的本機異動，接續上傳至雲端
+    if (pendingChanges.size > 0 || needsFullCompaction) {
+      executeCloudSync();
+    }
+
+    if (onSuccess) {
+      await onSuccess();
+    }
+    return true;
+  } catch (err: any) {
+    console.error('[OneDrive] 重新授權與同步失敗:', err);
+    if (err?.errorCode === 'user_cancelled') {
+      updateSyncState({ status: 'session_expired', errorMessage: '使用者已取消登入驗證' });
+    } else {
+      updateSyncState({ status: 'error', errorMessage: err?.message || '重新驗證失敗' });
+    }
+    throw err;
   }
 }
 

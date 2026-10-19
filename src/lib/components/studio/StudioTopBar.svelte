@@ -29,6 +29,7 @@
 
   const syncLabel = $derived.by(() => {
     if (!isOneDriveConnected) return t('status_sync_not_synced');
+    if (syncStatus === 'session_expired') return t('status_sync_session_expired');
     if (syncStatus === 'syncing') return t('status_sync_syncing');
     if (syncStatus === 'offline') return '離線待命';
     if (syncStatus === 'error') return '同步失敗';
@@ -81,11 +82,13 @@
     <button
       type="button"
       onclick={onopenCloudSync}
-      title={isOneDriveConnected ? (syncStatus === 'syncing' ? '正在即時同步資料至雲端...' : '雲端即時同步已啟動，點擊管理') : '點擊設定 OneDrive 雲端即時同步'}
-      class="group hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border {syncStatus === 'error' ? 'border-red-500/70 text-red-400' : syncStatus === 'syncing' ? 'border-amber-400/70 text-amber-300' : isOneDriveConnected ? 'border-[#2d3a33] text-emerald-400/90 hover:border-emerald-500' : 'border-wire hover:border-signal text-ink-muted hover:text-ink'} text-[10px] transition-all cursor-pointer"
+      title={syncStatus === 'session_expired' ? '微軟帳戶登入已過期，點擊以重新驗證並同步' : isOneDriveConnected ? (syncStatus === 'syncing' ? '正在即時同步資料至雲端...' : '雲端即時同步已啟動，點擊管理') : '點擊設定 OneDrive 雲端即時同步'}
+      class="group hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-chassis hover:bg-[#15161e] border {syncStatus === 'session_expired' ? 'border-amber-500/80 text-amber-300 hover:border-amber-400 bg-amber-500/10' : syncStatus === 'error' ? 'border-red-500/70 text-red-400' : syncStatus === 'syncing' ? 'border-amber-400/70 text-amber-300' : isOneDriveConnected ? 'border-[#2d3a33] text-emerald-400/90 hover:border-emerald-500' : 'border-wire hover:border-signal text-ink-muted hover:text-ink'} text-[10px] transition-all cursor-pointer"
     >
       {#if !isOneDriveConnected}
         <span class="material-symbols-outlined text-[13px] text-ink-dim group-hover:text-signal transition-colors">cloud_off</span>
+      {:else if syncStatus === 'session_expired'}
+        <span class="material-symbols-outlined text-[13px] text-amber-400 animate-pulse">lock_clock</span>
       {:else if syncStatus === 'syncing'}
         <span class="material-symbols-outlined text-[13px] text-amber-400 animate-spin">sync</span>
       {:else if syncStatus === 'error'}

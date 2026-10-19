@@ -9,6 +9,7 @@
     restoreBackupFromOneDrive,
     getCloudBackupMetadata,
     clearMsalInteractionLocks,
+    syncFromCloudOnStartup,
     type CloudMetadata
   } from '$lib/services/onedrive';
 
@@ -60,7 +61,13 @@
     try {
       account = await loginToOneDrive();
       onAccountChange?.(true);
-      statusMessage = '微軟帳戶連結成功！';
+      statusMessage = '微軟帳戶連結成功！正在同步雲端資料庫...';
+      statusType = 'info';
+      await syncFromCloudOnStartup();
+      if (onRestored) {
+        await onRestored();
+      }
+      statusMessage = '微軟帳戶連結成功！雲端資料庫已同步完成。';
       statusType = 'success';
       cloudMeta = await getCloudBackupMetadata();
     } catch (err: any) {
