@@ -125,13 +125,9 @@
     });
 
     (async () => {
-      await refreshTelemetryStatus();
-
-      // 若已連結 OneDrive，啟動時優先自雲端載入最新資料庫（雲端為單一真實來源）
-      const didRestoreFromCloud = await syncFromCloudOnStartup();
-      if (didRestoreFromCloud) {
-        await reloadArtists();
-      } else {
+      // 1. 【樂觀優先】立即自本機 IndexedDB 載入現有快取資料，達成 0 毫秒首頁秒開
+      await reloadArtists();
+      if (artists.length === 0) {
         await seedInitialSampleIfEmpty();
         await reloadArtists();
       }
@@ -139,6 +135,24 @@
       if (artists.length > 0 && !selectedArtistId) {
         selectedArtistId = artists[0].id;
       }
+
+      // 2. 【背景無感同步】於背景刷新遙測狀態與雲端資料庫（不阻塞 UI 首屏渲染）
+      refreshTelemetryStatus().catch(console.warn);
+
+      // 若已連結 OneDrive，於背景自雲端同步最新狀態（以雲端為單一真實來源進行雙向時間戳合併）
+      syncFromCloudOnStartup()
+        .then(async (didRestoreFromCloud) => {
+          if (didRestoreFromCloud) {
+            await reloadArtists();
+            // 確保原本已選中的藝人不會被意外重置
+            if (!artists.some((a) => a.id === selectedArtistId)) {
+              selectedArtistId = artists[0]?.id || null;
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('[CloudSync] 背景啟動同步失敗:', err);
+        });
 
       // 方案 A：支援透過 URL Query 參數（如 iOS 捷徑、Shazam 自動化）快速收錄藝人
       if (typeof window !== 'undefined') {
