@@ -632,6 +632,79 @@
               </div>
             {/if}
 
+            <!-- 動作按鈕與 AI 深度解剖核心觸發區 (Action Buttons & AI Ingestion Control) -->
+            <div class="mt-3 flex flex-col gap-2 font-mono">
+              {#if !selectedArtist.analysis}
+                <!-- 未解剖狀態：高醒目度引導 (Hero CTA with Corner-Cut) -->
+                <div class="corner-cut border border-signal/40 bg-signal-dim/30 p-3 flex flex-col gap-2 relative overflow-hidden">
+                  <div class="flex items-center justify-between text-[10px] text-signal">
+                    <span class="flex items-center gap-1.5 font-bold tracking-wider">
+                      <span class="w-1.5 h-1.5 rounded-full bg-signal animate-ping"></span>
+                      AWAITING_AI_INGESTION // 等待資料解剖
+                    </span>
+                    <span class="text-[9px] opacity-75">STANDBY</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isAnalyzing}
+                    onclick={() => onanalyzeArtist(selectedArtist)}
+                    class="corner-cut w-full flex items-center justify-between px-4 py-2.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(255,107,0,0.3)] transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Sparkles class="w-4 h-4 {isAnalyzing ? 'animate-spin text-white' : 'text-white'}" />
+                      <span>{isAnalyzing ? 'AI 深度解剖分析中...' : '啟動 AI 深度解剖'}</span>
+                    </div>
+                    <span class="text-[10px] opacity-90">[GET_DATA ↗]</span>
+                  </button>
+
+                  <p class="text-[10px] text-ink-muted leading-relaxed font-sans">
+                    點擊以調用 AI 模型分析此藝人之聲學星系定位、風格脈絡與發燒推薦專輯。
+                  </p>
+                </div>
+              {:else}
+                <!-- 已解剖狀態：標準動作雙列 (排入隊列 + AI 重新解剖) -->
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onclick={() => onaddToQueue?.(selectedArtist)}
+                    class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                    title="將整位藝人加入聆賞隊列"
+                  >
+                    <span class="material-symbols-outlined text-[14px]">queue_music</span>
+                    <span>+ 藝人排入隊列</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isAnalyzing}
+                    onclick={() => onanalyzeArtist(selectedArtist)}
+                    class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                    title="重新調用 AI 進行深度解剖分析"
+                  >
+                    <Sparkles class="w-3.5 h-3.5 text-signal" />
+                    <span>{isAnalyzing ? 'AI 深度掃描中...' : 'AI 深度解剖'}</span>
+                  </button>
+                </div>
+              {/if}
+
+              <!-- 外部串流觸發器 -->
+              {#if selectedArtist.appleMusicUrl}
+                <a
+                  href={selectedArtist.appleMusicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="corner-cut flex items-center justify-between px-4 py-2 bg-ink hover:bg-signal text-void hover:text-white font-mono text-[11px] font-bold uppercase tracking-widest transition-all"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                    <span>LAUNCH_APPLE_MUSIC_STREAM</span>
+                  </div>
+                  <span class="text-[10px]">[EXT ↗]</span>
+                </a>
+              {/if}
+            </div>
+
             <!-- 聲學極簡腕錶指針羅盤 (Acoustic Minimalist Chrono Dial) -->
             <div class="mt-2 bg-chassis border border-wire p-4 flex flex-col gap-3">
               <div class="flex justify-between items-center font-mono text-[9px] text-ink-dim border-b border-wire pb-2">
@@ -949,46 +1022,6 @@
             </div>
           </div>
 
-          <!-- 動作按鈕：外部串流觸發器 + AI 解剖按鈕 -->
-          <div class="flex flex-col gap-2">
-            {#if selectedArtist.appleMusicUrl}
-              <a
-                href={selectedArtist.appleMusicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="corner-cut flex items-center justify-between px-4 py-2.5 bg-ink hover:bg-signal text-void hover:text-white font-mono text-xs font-bold uppercase tracking-widest transition-all"
-              >
-                <div class="flex items-center gap-2">
-                  <span class="material-symbols-outlined text-[16px]">play_arrow</span>
-                  <span>LAUNCH_APPLE_MUSIC_STREAM</span>
-                </div>
-                <span>[EXT ↗]</span>
-              </a>
-            {/if}
-
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onclick={() => onaddToQueue?.(selectedArtist)}
-                class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                title="將整位藝人加入聆賞隊列"
-              >
-                <span class="material-symbols-outlined text-[14px]">queue_music</span>
-                <span>+ 藝人排入隊列</span>
-              </button>
-
-              <button
-                type="button"
-                disabled={isAnalyzing}
-                onclick={() => onanalyzeArtist(selectedArtist)}
-                class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-              >
-                <Sparkles class="w-3.5 h-3.5 text-signal" />
-                <span>{isAnalyzing ? '掃描中...' : '深度解剖'}</span>
-              </button>
-            </div>
-          </div>
-
           <!-- AI 音樂脈絡精析 (AI Context Breakdown) -->
           {#if selectedArtist.analysis}
             <div class="border border-wire bg-void/60 p-4 flex flex-col gap-3">
@@ -1031,7 +1064,7 @@
                       <button
                         type="button"
                         onclick={() => handleNextAlbumBatch(selectedArtist!.analysis!.notableAlbums.length)}
-                        class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                        class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
                         title="在已推薦專輯清單中輪播換一批"
                       >
                         <span class="material-symbols-outlined text-[11px]">sync</span>
@@ -1042,7 +1075,7 @@
                       type="button"
                       onclick={() => onrecommendMoreAlbums?.(selectedArtist!)}
                       disabled={isRecommendingAlbums}
-                      class="text-[9px] px-1.5 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="corner-cut-sm text-[9px] px-2 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="請 AI 深入唱片脈絡挖掘更多代表盤與發燒寶藏"
                     >
                       {#if isRecommendingAlbums}
@@ -1084,7 +1117,7 @@
                             <button
                               type="button"
                               onclick={() => onaddToQueue?.(selectedArtist!, alb)}
-                              class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                              class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
                               title="將此盤加入聆賞隊列"
                             >
                               <span class="material-symbols-outlined text-[11px]">queue_music</span>
@@ -1147,7 +1180,7 @@
                       <button
                         type="button"
                         onclick={handleNextSimilarBatch}
-                        class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                        class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
                         title="在本地累積未收錄名單中輪播換一批"
                       >
                         <span class="material-symbols-outlined text-[11px]">sync</span>
@@ -1158,7 +1191,7 @@
                       type="button"
                       onclick={() => onrecommendMoreSimilar?.(selectedArtist)}
                       disabled={isRecommendingMore}
-                      class="text-[9px] px-1.5 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="corner-cut-sm text-[9px] px-2 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="請 AI 深入聲學網絡探索更多未被發掘的相似音樂人"
                     >
                       {#if isRecommendingMore}
