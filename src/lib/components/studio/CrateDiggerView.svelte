@@ -824,11 +824,20 @@
                       {@const color = ACOUSTIC_SECTORS[sector.id]?.colorHex || '#52565E'}
                       
                       <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
                       <g
-                        class="cursor-pointer group select-none"
+                        role="button"
+                        tabindex="0"
+                        class="cursor-pointer group select-none focus:outline-none"
                         onmouseenter={() => setHoveredSectorDebounced(sector.id)}
                         onmouseleave={() => setHoveredSectorDebounced(null)}
                         onclick={() => toggleHoverImmediate(sector.id)}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleHoverImmediate(sector.id);
+                          }
+                        }}
                       >
                         <!-- 擴大感應熱區 (Hitbox) -->
                         <circle cx={sector.x} cy={sector.y} r="20" fill="transparent" />
