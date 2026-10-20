@@ -59,6 +59,7 @@ export interface AppleMusicMetadata {
 /**
  * Apple Music 官方專輯封面優先原則：
  * 優先獲取 Apple Music / iTunes 高解析度（800x800）代表作品母帶封面，確保視覺 100% 精確且官方授權；
+ * 透過藝人主體檢索 (entity=musicArtist) 鎖定正確藝人，避免同名專輯撞名 (例如樂團 Battles 誤抓 In Flames 的專輯《Battles》)；
  * 僅在 Apple Music 官方查無封面時，才啟用具備專輯交叉配對 (Album Cross-validation) 的 Wiki 肖像作為備援。
  */
 export async function fetchAppleMusicMetadata(query: string): Promise<AppleMusicMetadata | null> {
@@ -66,36 +67,18 @@ export async function fetchAppleMusicMetadata(query: string): Promise<AppleMusic
   if (!clean) return null;
 
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(clean)}&entity=album&limit=1`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (data.resultCount > 0 && data.results[0]) {
-      const item = data.results[0];
-      const rawArtwork = (item.artworkUrl100 || item.artworkUrl60) as string | undefined;
-      const albumCover = rawArtwork
-        ? rawArtwork.replace(/\/\d+x\d+bb\./, '/800x800bb.')
-        : undefined;
-
-      // 優先採用 Apple Music 官方母帶封面；查無封面時才以已知專輯名稱交叉比對 Wiki 肖像
-      let finalCover = albumCover;
-      if (!finalCover) {
-        try {
-          const wikiCover = await fetchArtistPortrait(item.artistName || clean, item.collectionName);
-          if (wikiCover) finalCover = wikiCover;
-        } catch {
-          // fallback
-        }
-      }
-
+    const candidates = await searchAppleMusicCandidates(clean);
+    if (candidates.length > 0) {
+      const lowerClean = clean.toLowerCase();
+      // 優先挑選藝人名稱完全相符者，若無則依排序權重取第一筆
+      const best = candidates.find((c) => c.name.trim().toLowerCase() === lowerClean) || candidates[0];
       return {
-        coverImage: finalCover,
-        albumTitle: item.collectionName,
-        artistName: item.artistName || clean,
-        releaseYear: item.releaseDate ? item.releaseDate.substring(0, 4) : undefined,
-        primaryGenre: item.primaryGenreName,
-        appleMusicUrl: item.collectionViewUrl
+        coverImage: best.coverImage,
+        albumTitle: best.albumTitle,
+        artistName: best.name,
+        releaseYear: best.releaseYear,
+        primaryGenre: best.primaryGenre,
+        appleMusicUrl: best.appleMusicUrl
       };
     }
   } catch (err) {

@@ -11,7 +11,7 @@
     onDatabaseChange
   } from '$lib/db';
   import type { ArtistEntry } from '$lib/types/artist';
-  import type { ArtistCandidate } from '$lib/utils/appleMusic';
+  import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
   import StudioSidebar from '$lib/components/studio/StudioSidebar.svelte';
   import StudioTopBar from '$lib/components/studio/StudioTopBar.svelte';
   import CrateDiggerView from '$lib/components/studio/CrateDiggerView.svelte';
@@ -42,6 +42,8 @@
   let selectedArtistId = $state<string | null>(null);
   let searchQuery = $state('');
   let isPickupModalOpen = $state(false);
+  let pickupModalInitialQuery = $state<string>('');
+  let pickupModalInitialCandidates = $state<ArtistCandidate[]>([]);
   let isAISettingsOpen = $state(false);
   let isUnlockModalOpen = $state(false);
   let isCloudSyncOpen = $state(false);
@@ -269,19 +271,48 @@
     }
   }
 
-  // 相似藝人一鍵知悉（支援重複檢查：若已在收藏庫中則直接定位）
+  // 相似藝人一鍵知悉（支援重複檢查：若已在收藏庫中則直接定位；支援智慧候選無感入庫與同名爭議排歧）
   async function handlePickupSimilar(name: string) {
-    const cleanName = name.trim().toLowerCase();
-    const existing = artists.find((a) => a.name.trim().toLowerCase() === cleanName);
+    const cleanName = name.trim();
+    if (!cleanName) return;
+
+    const lowerClean = cleanName.toLowerCase();
+    const existing = artists.find((a) => a.name.trim().toLowerCase() === lowerClean);
     if (existing) {
       selectedArtistId = existing.id;
       showToast(`「${existing.name}」已在收藏庫中，已為您定位`);
       return;
     }
-    const newEntry = await quickPickupArtist(name);
-    await reloadArtists();
-    selectedArtistId = newEntry.id;
-    showToast('已知悉');
+
+    try {
+      showToast(`檢索「${cleanName}」音樂人資料...`);
+      const candidates = await searchAppleMusicCandidates(cleanName);
+
+      if (candidates.length === 1) {
+        // 唯一定位：精確無感入庫
+        const newEntry = await quickPickupArtist(cleanName, candidates[0]);
+        await reloadArtists();
+        selectedArtistId = newEntry.id;
+        showToast(`已知悉：${newEntry.name}`);
+      } else if (candidates.length > 1) {
+        // 存在多名同名/相似藝人（例如 Battles）：開啟排歧選單供使用者挑選曲風與封面
+        pickupModalInitialQuery = cleanName;
+        pickupModalInitialCandidates = candidates;
+        isPickupModalOpen = true;
+      } else {
+        // 查無候選：以藝人名稱直接知悉
+        const newEntry = await quickPickupArtist(cleanName);
+        await reloadArtists();
+        selectedArtistId = newEntry.id;
+        showToast(`已知悉：${newEntry.name}`);
+      }
+    } catch (err: any) {
+      console.warn('[handlePickupSimilar] 候選檢索異常，退回純文字知悉:', err);
+      const newEntry = await quickPickupArtist(cleanName);
+      await reloadArtists();
+      selectedArtistId = newEntry.id;
+      showToast('已知悉');
+    }
   }
 
   // 一鍵請 AI 推薦更多相似藝人（方案 A：累加擴展池 ＋ 避開排除清單）
@@ -489,7 +520,13 @@
   <FastPickupModal
     open={isPickupModalOpen}
     existingArtists={artists}
-    onclose={() => (isPickupModalOpen = false)}
+    initialQuery={pickupModalInitialQuery}
+    initialCandidates={pickupModalInitialCandidates}
+    onclose={() => {
+      isPickupModalOpen = false;
+      pickupModalInitialQuery = '';
+      pickupModalInitialCandidates = [];
+    }}
     onpickup={handlePickup}
     onselectExisting={(artist) => {
       selectedArtistId = artist.id;

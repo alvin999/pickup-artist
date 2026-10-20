@@ -11,6 +11,8 @@
     onpickup: (nameOrUrl: string, candidate?: ArtistCandidate) => void;
     existingArtists?: ArtistEntry[];
     onselectExisting?: (artist: ArtistEntry) => void;
+    initialQuery?: string;
+    initialCandidates?: ArtistCandidate[];
   }
 
   let {
@@ -18,7 +20,9 @@
     onclose,
     onpickup,
     existingArtists = [],
-    onselectExisting
+    onselectExisting,
+    initialQuery = '',
+    initialCandidates = []
   }: Props = $props();
 
   let pickupInput = $state('');
@@ -28,6 +32,19 @@
   let step = $state<'input' | 'disambiguation' | 'duplicate_alert'>('input');
   let showMobileGuide = $state(false);
   let copiedUrl = $state(false);
+
+  // 當外部傳入候選人時，直接開啟排歧選單，無須重複搜尋
+  $effect(() => {
+    if (open) {
+      if (initialCandidates && initialCandidates.length > 0) {
+        pickupInput = initialQuery || initialCandidates[0].name;
+        candidates = initialCandidates;
+        step = 'disambiguation';
+      }
+    } else {
+      resetState();
+    }
+  });
 
   let duplicateMatch = $state<{
     existing: ArtistEntry;
