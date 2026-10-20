@@ -83,10 +83,49 @@
   let deleteCountdown = $state(3);
   let deleteTimer: ReturnType<typeof setInterval> | null = null;
 
+  // 卡片快捷刪除二次確認計時器狀態
+  let cardDeleteConfirmId = $state<string | null>(null);
+  let cardDeleteCountdown = $state(3);
+  let cardDeleteTimer: ReturnType<typeof setInterval> | null = null;
+
+  function resetCardDeleteConfirm() {
+    cardDeleteConfirmId = null;
+    cardDeleteCountdown = 3;
+    if (cardDeleteTimer) {
+      clearInterval(cardDeleteTimer);
+      cardDeleteTimer = null;
+    }
+  }
+
+  function handleStartCardDelete(e: MouseEvent, id: string) {
+    e.stopPropagation();
+    if (cardDeleteConfirmId === id) return;
+    resetCardDeleteConfirm();
+    cardDeleteConfirmId = id;
+    cardDeleteCountdown = 3;
+    cardDeleteTimer = setInterval(() => {
+      cardDeleteCountdown -= 1;
+      if (cardDeleteCountdown <= 0) {
+        resetCardDeleteConfirm();
+      }
+    }, 1000);
+  }
+
+  function handleConfirmCardDelete(e: MouseEvent, id: string) {
+    e.stopPropagation();
+    resetCardDeleteConfirm();
+    ondeleteArtist(id);
+  }
+
   $effect(() => {
     if (selectedArtistId) {
       resetDeleteConfirm();
+      resetCardDeleteConfirm();
     }
+    return () => {
+      resetDeleteConfirm();
+      resetCardDeleteConfirm();
+    };
   });
 
   function resetDeleteConfirm() {
@@ -441,11 +480,34 @@
                   {artist.analysis?.era || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}
                 </span>
               </div>
-              {#if artist.status === 'analyzed' || artist.analysis}
-                <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal font-mono text-[9px] uppercase tracking-wider shrink-0">
-                  AI_PARSED
-                </span>
-              {/if}
+              <div class="flex items-center gap-1.5 shrink-0">
+                {#if cardDeleteConfirmId === artist.id}
+                  <!-- 二次防誤觸確認按鈕：點擊第一次後變紅並顯示 3 秒倒數 -->
+                  <button
+                    type="button"
+                    onclick={(e) => handleConfirmCardDelete(e, artist.id)}
+                    class="px-1.5 py-0.5 bg-signal text-white font-mono text-[9px] font-bold rounded-[2px] animate-pulse flex items-center gap-1 shadow-[0_0_8px_rgba(255,42,60,0.6)] cursor-pointer z-10"
+                    title="再次點擊以確認自展間移除此藝人"
+                  >
+                    <span>⚠️ 確認? ({cardDeleteCountdown}s)</span>
+                  </button>
+                {:else}
+                  {#if artist.status === 'analyzed' || artist.analysis}
+                    <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal font-mono text-[9px] uppercase tracking-wider shrink-0">
+                      AI_PARSED
+                    </span>
+                  {/if}
+                  <!-- 平時懸停 (Hover) 時顯現的微型刪除圖示，支援防誤觸阻止冒泡 -->
+                  <button
+                    type="button"
+                    onclick={(e) => handleStartCardDelete(e, artist.id)}
+                    title={`從展間移除 ${artist.name}`}
+                    class="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 text-ink-dim hover:text-signal transition-all cursor-pointer rounded-[2px] hover:bg-signal-dim/40 z-10"
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                {/if}
+              </div>
             </div>
 
             <!-- 舞台聚光艙與氛圍光暈結構 (Stage Aura & Spotlight Viewport) -->
@@ -542,14 +604,6 @@
             </div>
             <div class="flex items-center gap-2">
               <span class="text-[9px] text-ink-dim">BYOK_ACTIVE</span>
-              <button
-                type="button"
-                onclick={() => ondeleteArtist(selectedArtist.id)}
-                title="離開舞台"
-                class="w-6 h-6 border border-wire hover:border-signal text-ink-muted hover:text-signal flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <Trash2 class="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
 
