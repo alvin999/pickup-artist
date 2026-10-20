@@ -72,6 +72,7 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
   "sector": "ROCK",
   "subGenre": "代表性二級子流派",
   "artistRole": "核心角色與專精（如 Bassist / Vocalist、Piano Trio、Producer）",
+  "era": "代表年代或活躍時期（如 1970s、1990s - 2000s、2010s - Present）",
   "aestheticTags": ["4-6 個英文小寫連字號美學標籤，如 analog-warmth, lo-fi, math-groove"],
   "genres": ["主要風格標籤 1", "風格標籤 2", "風格標籤 3"],
   "entityType": "band",

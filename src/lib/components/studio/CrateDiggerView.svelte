@@ -613,11 +613,11 @@
                 {/if}
               </div>
               <div class="bg-chassis p-2 border border-wire min-w-0">
-                <span class="text-ink-dim text-[8px] block">GRADE</span>
-                <span class="text-ink font-bold truncate block">{selectedArtist.audiophileGrade || 'STANDARD'}</span>
-                {#if selectedArtist.dynamicRange}
-                  <span class="text-signal text-[9px] block">DR{selectedArtist.dynamicRange}</span>
-                {/if}
+                <span class="text-ink-dim text-[8px] block">ERA</span>
+                <span class="text-ink font-bold truncate block" title={selectedArtist.analysis?.era || 'AWAITING_SCAN'}>
+                  {selectedArtist.analysis?.era || (selectedArtist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}
+                </span>
+                <span class="text-signal text-[9px] truncate block">TIMELINE</span>
               </div>
             </div>
 

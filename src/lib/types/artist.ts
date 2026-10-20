@@ -27,6 +27,7 @@ export interface ArtistAnalysis {
   sector: AcousticSector;        // Level 1: 蜂巢 8 軸固定大板塊
   subGenre: string;              // Level 2: AI 決定的代表子流派 (例如 Neo-Soul, Baroque Cello, Math Rock)
   artistRole?: string;           // 藝人核心角色與專精 (例如 Bassist / Vocalist, Piano Trio, Producer)
+  era?: string;                  // 代表年代或活躍時期 (例如 '2000s', '1970s Golden Era', '1950s - 1970s')
   aestheticTags?: string[];      // Level 3: 美學與態度標籤 (例如 indie, analog-warmth, lo-fi, progressive)
   
   genres: string[];              // 相關音樂標籤

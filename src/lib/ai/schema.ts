@@ -42,6 +42,7 @@ export const ArtistAnalysisResponseSchema = z.object({
   ]).nullish().transform((v) => v || 'ROCK'),
   subGenre: z.string().nullish().transform((v) => v || 'General'),
   artistRole: z.string().nullish().transform((v) => v || undefined),
+  era: z.string().nullish().transform((v) => v || undefined),
   aestheticTags: z.array(z.string()).nullish().transform((v) => v || []),
   genres: z.array(z.string()).nullish().transform((v) => v || []),
   

@@ -287,6 +287,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       analysis: {
         sector: 'ROCK',
         subGenre: 'Math Rock',
+        era: '2000s',
         aestheticTags: ['indie', 'analog-recording', 'complex-polyrhythm'],
         genres: ['Math Rock', 'Instrumental Rock', 'Post-Rock'],
         summary: '2000 年成軍於日本東京的傳奇器樂搖滾/數學搖滾名團。由山嵜廣和（吉他）、美濃隆章（吉他）、山根敏史（貝斯）與柏倉隆史（鼓）四人組成。以細密繁複的點弦、動態龐大的鼓點切分以及無可挑剔的類比錄音品質聞名於世。',
@@ -336,6 +337,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       analysis: {
         sector: 'AMBIENT',
         subGenre: 'Ambient Folk',
+        era: '2010s',
         aestheticTags: ['indie', 'pure-acoustic', 'tube-mic'],
         genres: ['Ambient Folk', 'Acoustic Folk', 'Chamber Music'],
         summary: '日本當代氛圍民謠作曲家、吉他手兼歌手。善於利用空間自然混響與清澈透明的古典吉他指彈，建構如同水底世界般的沉浸聽覺場景。',
@@ -385,6 +387,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       analysis: {
         sector: 'JAZZ',
         subGenre: 'Modal Jazz Trio',
+        era: '1960s',
         aestheticTags: ['legendary-trio', 'vanguard-live', 'deep-soundstage'],
         genres: ['Modal Jazz', 'Cool Jazz', 'Piano Trio'],
         summary: '爵士鋼琴傳奇大師 Bill Evans 與天才貝斯手 Scott LaFaro、鼓手 Paul Motian 共同組成的歷史標竿三重奏。1961 年在 Village Vanguard 的現場錄音奠定了三方對等即興對話之典範。',
@@ -442,6 +445,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       analysis: {
         sector: 'CLASSICAL',
         subGenre: 'Baroque Keyboard',
+        era: '1950s - 1980s',
         aestheticTags: ['analytical-clarity', 'unpedaled-counterpoint', 'columbia-master'],
         genres: ['Classical', 'Baroque Piano', 'Romantic Piano'],
         summary: '二十世紀最富爭議與天才特質的加拿大鋼琴怪傑。以極度清晰、無踏板獨立聲部跳音演奏巴哈複調音樂奠定不可撼動之歷史地位。',
@@ -490,6 +494,7 @@ export async function seedInitialSampleIfEmpty(): Promise<void> {
       analysis: {
         sector: 'ROCK',
         subGenre: 'Math Rock / Post-Jazz',
+        era: '2000s - 2010s',
         aestheticTags: ['indie', 'dual-piano', 'heavy-drumming'],
         genres: ['Math Rock', 'Post-Rock', 'Jazz Fusion'],
         summary: '以雙鋼琴與爵士鼓為核心編制的日本前衛後搖/數學樂團。兼具極簡主義現代音樂之冷冽與後硬核節奏之狂熱爆發力。',

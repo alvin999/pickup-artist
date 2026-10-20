@@ -232,6 +232,7 @@ class AnalysisQueueService {
         sector: result.sector,
         subGenre: result.subGenre,
         artistRole: result.artistRole,
+        era: result.era,
         aestheticTags: result.aestheticTags,
         genres: result.genres,
         summary: result.summary,
