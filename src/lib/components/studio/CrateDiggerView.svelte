@@ -433,25 +433,17 @@
             onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
             class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : 'bg-void hover:bg-[#0d0e14]'}"
           >
-            <!-- 頂部微距數據列 -->
+            <!-- 頂部微距數據列：最左上角顯示時代印記 (取代無意義的 STAGE-XXX)，右側呈現 AI_PARSED -->
             <div class="flex items-center justify-between font-mono text-[10px] pb-3 border-b border-wire border-dashed">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full {isActive ? 'animate-pulse' : 'bg-ink-dim'}" style="{isActive ? `background-color: ${aura.accentColor}` : ''}"></span>
-                <span class="{isActive ? 'text-ink font-bold tracking-wider' : 'text-ink-muted'}">
-                  {artist.catalogNumber || `STAGE-${artist.id.substring(0, 6).toUpperCase()}`}
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="w-2 h-2 rounded-full shrink-0 {isActive ? 'animate-pulse' : 'bg-ink-dim'}" style="{isActive ? `background-color: ${aura.accentColor}` : ''}"></span>
+                <span class="truncate {isActive ? 'text-ink font-bold tracking-wider' : 'text-ink-muted'}">
+                  {artist.analysis?.era || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}
                 </span>
               </div>
-              {#if isActive}
-                <span class="px-1.5 py-0.5 bg-signal text-white font-dot text-[9px] tracking-widest uppercase">
-                  ON_STAGE
-                </span>
-              {:else if artist.status === 'inbox'}
-                <span class="px-1.5 py-0.5 border border-signal/40 bg-signal-dim text-signal font-mono text-[9px] uppercase">
-                  STANDBY
-                </span>
-              {:else}
-                <span class="text-ink-dim text-[9px]">
-                  {artist.dynamicRange ? `DR${artist.dynamicRange}` : '44.1k/24b'}
+              {#if artist.status === 'analyzed' || artist.analysis}
+                <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal font-mono text-[9px] uppercase tracking-wider shrink-0">
+                  AI_PARSED
                 </span>
               {/if}
             </div>
@@ -482,22 +474,11 @@
                 <div class="absolute inset-0 bg-gradient-to-t from-[#07080c] via-[#07080c]/35 to-transparent"></div>
               </div>
 
-              <!-- 4. 舞台左上監聽 HUD (Top-Left Stage HUD) -->
-              <div class="absolute top-2 left-2 z-20 px-2 py-0.5 bg-void/90 border border-wire-bright/50 font-mono text-[9px] text-ink flex items-center gap-1.5 backdrop-blur-sm">
-                <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background-color: {aura.accentColor}"></span>
-                <span class="font-bold tracking-wider">{artist.dynamicRange ? `DR${artist.dynamicRange} // LIVE` : 'STAGE_FEED'}</span>
-              </div>
-
-              <!-- 5. 舞台右上風格領域 (Top-Right Stage Sector) -->
-              <div class="absolute top-2 right-2 z-20 font-mono text-[8px] text-ink-muted bg-void/85 px-1.5 py-0.5 border border-wire backdrop-blur-sm tracking-widest uppercase">
-                {artist.analysis?.sector || artist.countryCode || 'STAGE'}
-              </div>
-
-              <!-- 6. 底部藝人舞台焦點 (Bottom Artist Stage Typography) -->
+              <!-- 底部藝人舞台焦點 (Bottom Artist Stage Typography - 僅保留子流派與藝人名稱，圖片上方無浮貼標籤) -->
               <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20">
                 <div class="flex items-center gap-1.5 text-[9px] font-mono tracking-widest uppercase mb-0.5">
                   <span style="color: {aura.accentColor}">●</span>
-                  <span class="text-ink-dim">{artist.status === 'analyzed' ? 'STAGE_ARCHIVE' : 'LIVE_STANDBY'}</span>
+                  <span class="text-ink-dim truncate">{artist.analysis?.subGenre || artist.analysis?.artistRole || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}</span>
                 </div>
                 <h3 class="font-sans text-lg text-ink font-black tracking-tight leading-snug truncate drop-shadow-md">
                   {artist.name}
@@ -505,27 +486,39 @@
               </div>
             </div>
 
-            <!-- 底部硬體參數條 -->
+            <!-- 底部硬體參數條：整合大分類 (Sector) 與子流派標籤、星系引力權重 (GRAVITY) 與 聆賞日誌 (LOGGED / NO_LOG) -->
             <div class="pt-2 border-t border-wire flex flex-col gap-2 font-mono">
               <div class="flex flex-wrap gap-1">
-                {#if artist.analysis?.genres}
-                  {#each artist.analysis.genres.slice(0, 2) as g}
-                    <span class="px-1.5 py-0.5 bg-void border border-wire text-ink text-[9px]">
+                {#if artist.analysis?.sector}
+                  <!-- 大分類標章 (Primary Sector)：整合至下方首位，突顯星系大板塊 -->
+                  <span class="px-1.5 py-0.5 bg-wire-bright/50 border border-wire-bright text-ink font-bold text-[9px] uppercase tracking-wider">
+                    {artist.analysis.sector}
+                  </span>
+                {/if}
+                {#if artist.analysis?.genres && artist.analysis.genres.length > 0}
+                  {#each artist.analysis.genres.filter(g => g.toUpperCase() !== artist.analysis?.sector).slice(0, 2) as g}
+                    <span class="px-1.5 py-0.5 bg-void border border-wire text-ink-muted text-[9px]">
                       {g.toUpperCase()}
                     </span>
                   {/each}
-                  <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal text-[9px]">
-                    AI_PARSED
-                  </span>
-                {:else}
-                  <span class="px-1.5 py-0.5 bg-signal-dim border border-signal/40 text-signal text-[9px]">
+                {:else if !artist.analysis?.sector}
+                  <span class="px-1.5 py-0.5 bg-amber-950/20 border border-amber-500/30 text-amber-400 text-[9px]">
                     AWAITING_ANALYZE
                   </span>
                 {/if}
               </div>
-              <div class="flex items-center justify-between text-[10px] text-ink-dim">
-                <span class="truncate max-w-[120px]">{artist.runoutMatrix || 'MTX: A-1 SST'}</span>
-                <span class="text-ink font-bold">{artist.fileSize || '1.18 GB [FLAC]'}</span>
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-ink-dim truncate">
+                  GRAVITY: <span class="text-ink font-bold">W-{artist.weight || 20}</span>
+                </span>
+                {#if artist.personalNotes && artist.personalNotes.trim().length > 0}
+                  <span class="text-signal font-bold flex items-center gap-1 text-[9px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-signal"></span>
+                    LOGGED{#if artist.rating} [{artist.rating}★]{/if}
+                  </span>
+                {:else}
+                  <span class="text-ink-dim text-[9px]">NO_LOG</span>
+                {/if}
               </div>
             </div>
           </div>
