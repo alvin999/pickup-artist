@@ -8,16 +8,25 @@ export interface DisambiguationContext {
 }
 
 /**
- * 聲學發燒友音樂學家 Prompt 架構（精簡去重版）
+ * 人文音樂學家與藝術評論 Prompt 架構
  * 
  * 設計意圖與架構決策 (Why & Design Trade-offs)：
- * 1. 嚴控 Token 預扣以根絕 Groq / OpenAI 的 429 TPM（Tokens Per Minute）限額報錯：
- *    原先 Prompt 中英雙語繁複贅述，使單次 Requested Tokens 飆破 6,200（直逼 8,000 TPM 限額）。
- *    此版本將重複規則合而為一，消除三度重複的欄位說明，將輸入 Context 壓降至 ~600 Tokens。
- * 2. 注入「同名藝人消歧義錨點 (Disambiguation Context)」：
- *    讓 AI 精確鎖定特定世代、領域或代表作的藝人，徹底解決同名盲猜誤判問題。
- * 3. 完整保留星系二級晶片所依賴之 'sector' 與 'subGenre'，確保蜂巢星系圖拓撲聚類不受影響。
- * 4. 移除由前端自行生成即可之 'appleMusicSearchUrl'，避免消耗生成 Token。
+ * 
+ * 1. 嚴禁負面約束 (No Negative Constraints)：
+ *    - 禁止使用「嚴禁...」、「切勿...」、「不要...」、「避開...」等否定指令。
+ *    - 原因：否定指令在 LLM 注意力機制中極易引發逆向聚焦（Pink Elephant Effect）或觸發對抗式過度對齊，
+ *      進而破壞結構化輸出引導（Harness）與 JSON 語法約束。一律改用正面、清晰的目標指令。
+ * 
+ * 2. 嚴禁具體舉例 (No In-Prompt Examples)：
+ *    - 禁止在 Prompt 與 Schema 欄位說明中使用具體內容舉例（如「如 Math Rock」、「如 TOKYO_JP」）。
+ *    - 原因：具體範例會造成嚴重的「錨定偏誤 (Anchoring Bias / Over-indexing)」，使模型在 Harness 約束下
+ *      將範例當成預設值照抄，導致不同藝人輸出多樣性崩潰。必須只提供抽象規則與型別格式定義。
+ * 
+ * 3. 聚焦人文深度與演奏美學，排除純音響器材指引：
+ *    - 全面轉向創作哲學、時代文化隱喻、歌詞詩意與演奏手感質地，排除耳機音響硬體搭配與 DR 分數限制等發燒術語。
+ * 
+ * 4. 嚴控 Token 預扣以防範 429 TPM 限制：
+ *    - 輸入 Context 精準控制在 ~600 Tokens 內，平滑維持 API 吞吐穩定度。
  */
 export function buildArtistAnalysisPrompt(
   artistName: string,
@@ -29,13 +38,13 @@ export function buildArtistAnalysisPrompt(
 } {
   const languageRules =
     locale === 'zh-TW'
-      ? `必須使用繁體中文（台灣標準繁體）與專業發燒音響術語（母帶、動態範圍、音場、空間感、殘響、分離度、瞬態反應、真空管、類比盤帶、推力、結像定位）。稱呼以「音樂人/藝人」為主。`
+      ? `必須使用繁體中文（台灣標準繁體）與具備人文深度之音樂學筆觸，著重創作哲學、歌詞意境、時代隱喻、演奏手感質地、樂思對話與情感張力。稱呼以「音樂人/藝人」為主。`
       : locale === 'ja'
-      ? `すべてのテキストを日本語で記述し、ハイエンド・オーディオファイル用語（音場、トランジェント、ダイナミックレンジ、真空管、マスターテープ、定位）を用いてください。`
-      : `Write all text fields in English using professional audiophile terminology (dynamic range, soundstage depth, harmonic richness, transient speed, stereo imaging).`;
+      ? `すべてのテキストを日本語で記述し、文学的・音楽学的な視点（創作哲学、歌詞の含意、演奏のニュアンス、対位法的な対話、精神性）を用いてください。`
+      : `Write all text fields in English using profound musicological and humanistic critique, focusing on creative philosophy, lyrical subtext, performative nuance, expressive touch, and cultural resonance.`;
 
-  const systemPrompt = `You are a world-class musicologist and veteran mastering engineer for "Pickup Artist".
-Dissect the musical artist into an authoritative JSON dossier for audiophiles and music explorers.
+  const systemPrompt = `You are an insightful musicologist, cultural critic, and veteran music essayist for "Pickup Artist".
+Dissect the musical artist into an authoritative JSON dossier focusing on artistic philosophy, performative mastery, and humanistic depth.
 
 【語言規範】
 ${languageRules}
@@ -44,12 +53,12 @@ ${languageRules}
 ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 
 【核心要求】
-1. subGenre: 唯一代表性二級子流派（如 Math Rock, Post-Rock, Neo-Soul, Modal Jazz, Ambient Folk，用以聚類星系）。
-2. summary: 個人創作靈魂、聲音系譜、演化脈絡與無可取代性（約 150-250 字）。
-3. instrumentationNotes: 編曲層次、立體聲音場結像、動態對比（DR）、類比錄音質地與推薦耳機/音響回放系統。
-4. notableAlbums: 推薦 2 張專輯：
-   - tier "milestone": 生涯藝術顛峰代表作。
-   - tier "hidden-treasure": 冷門高音質神盤（嚴禁大熱門，須含 rarityReason 挖寶理由、audiophileHighlight 聲學亮點、dynamicRangeScore 12-16）。
+1. subGenre: 代表性二級風格子流派。
+2. summary: 創作靈魂、精神核心、時代文化背景與生命哲學（約 150-250 字）。
+3. instrumentationNotes: 【演奏特色與曲義精神】專注於演奏手感、樂器對位對話、留白美學與歌曲核心曲義哲思。
+4. notableAlbums: 推薦 2 張代表性專輯：
+   - tier "milestone": 生涯藝術精神巔峰代表作（理解其哲學的基石）。
+   - tier "hidden-treasure": 具備深刻人文意境或獨特演奏神采之作（含 rarityReason 藝術堅持與背景、audiophileHighlight 演奏神髓或曲義精華）。
 5. Output MUST be a single strictly valid JSON object matching the requested keys without markdown fences.`;
 
   // 構造同名消歧義錨點提示
@@ -61,47 +70,48 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
       context.genre ? `主要領域/曲風：${context.genre}` : ''
     ].filter(Boolean).join('、');
     
-    disambiguationNotice = `\n【同名排歧脈絡錨點（極重要）】：\n目標藝人帶有以下背景特徵：${details}。\n請嚴格鎖定此特定音樂人進行分析，切勿混淆為其他同名藝人！\n`;
+    disambiguationNotice = `\n【同名排歧脈絡錨點】：\n目標藝人帶有以下背景特徵：${details}。\n請依此脈絡專注剖析該特定音樂人。\n`;
   }
 
-  const userPrompt = `請深度解剖音樂人：「${artistName}」${disambiguationNotice}
+  const userPrompt = `請深度剖析音樂人的人文精神與演奏美學：「${artistName}」${disambiguationNotice}
 嚴格輸出符合下列結構的單一 JSON：
 {
   "name": "${artistName}",
   "aliases": [],
-  "sector": "ROCK",
-  "subGenre": "代表性二級子流派",
-  "artistRole": "核心角色與專精（如 Bassist / Vocalist、Piano Trio、Producer）",
-  "era": "代表年代或活躍時期（如 1970s、1990s - 2000s、2010s - Present）",
-  "aestheticTags": ["4-6 個英文小寫連字號美學標籤，如 analog-warmth, lo-fi, math-groove"],
+  "sector": "8 軸板塊選一：CLASSICAL | JAZZ | ROCK | METAL | AMBIENT | ELECTRONIC | GROOVE | WORLD",
+  "subGenre": "代表性二級風格子流派",
+  "originLocation": "發跡城市與國碼（格式：CITY_COUNTRYCODE）",
+  "formedYear": "出道或成軍年份（四位數字）",
+  "canonTier": "歷史地位選一：PIONEER | VIRTUOSO | CULT_CLASSIC | GENRE_DEFINING | STUDIO_ALCHEMIST | CONTEMPORARY",
+  "formation": "實體演奏編制型態代碼",
+  "artistRole": "核心角色與專精領域",
+  "era": "代表年代或活躍時期",
+  "aestheticTags": ["4-6 個英文小寫連字號風格美學標籤"],
   "genres": ["主要風格標籤 1", "風格標籤 2", "風格標籤 3"],
-  "entityType": "band",
+  "entityType": "身分選一：solo | band | side-project | supergroup",
   "lineage": {
     "primaryArtistName": "核心主腦或母團（選填）",
     "memberRoster": ["主要成員與擔當器樂"]
   },
-  "summary": "【深度介紹】創作靈魂、聲線與器樂特質、系譜演進（150-250 字）。",
-  "instrumentationNotes": "【聆聽重點】音場深度、結像定位、動態對比（DR）與推薦音響設備搭配。",
-  "similarArtists": ["相似風格音樂人 1", "相似音樂人 2", "相似音樂人 3", "相似音樂人 4"],
+  "summary": "【深度介紹】創作哲學、時代精神隱喻、文學詩性與生命脈絡（150-250 字）。",
+  "instrumentationNotes": "【演奏特色與曲義精神】演奏手感質地、樂器對話與意境留白、代表曲目歌詞詩意或核心哲思。",
+  "similarArtists": ["精神或美學相通的音樂人 1", "音樂人 2", "音樂人 3", "音樂人 4"],
   "notableAlbums": [
     {
       "title": "里程碑經典專輯名",
       "year": "年份",
       "tier": "milestone",
-      "description": "為何此作是理解其音樂哲學的必聽基石。"
+      "description": "理解其音樂哲學與精神核心的必備基石。"
     },
     {
-      "title": "深埋發燒寶藏專輯名",
+      "title": "深埋私藏瑰寶專輯名",
       "year": "年份",
       "tier": "hidden-treasure",
-      "description": "避開商業排行的冷門神盤解析。",
-      "rarityReason": "為何主流演算法忽視（如獨立限量盤、概念現場錄音）。",
-      "audiophileHighlight": "具體聲學亮點（如無壓縮自然動態、原木共振、真空管泛音）。",
-      "dynamicRangeScore": 14
+      "description": "具備深厚人文意境或演奏神采之深刻作解析。",
+      "rarityReason": "創作脈絡與藝術堅持背景說明。",
+      "audiophileHighlight": "演奏神髓或曲義精華闡述。"
     }
-  ],
-  "suggestedDynamicRange": 14,
-  "suggestedAudiophileGrade": "Reference"
+  ]
 }`;
 
   return { systemPrompt, userPrompt };
@@ -132,14 +142,14 @@ export function buildMoreSimilarArtistsPrompt(
       ? `日本の音楽メディアでの標準的な表記または公式アーティスト名で出力してください。`
       : `Output using official artist names in English or their primary regional name.`;
 
-  const systemPrompt = `You are an elite music curator and acoustic soundscape researcher for "Pickup Artist".
-Your task is to recommend 4 to 5 strictly distinct musical artists who share high acoustic affinity, artistic ethos, or sonic texture with the target artist.
+  const systemPrompt = `You are an elite music curator and cultural soundscape researcher for "Pickup Artist".
+Your task is to recommend 4 to 5 strictly distinct musical artists who share high artistic affinity, ethos, or performative texture with the target artist.
 
-【規範與限制】
+【規範要求】
 1. ${languageRules}
-2. 絕對禁止推薦「已排除名單」中的任何音樂人。
-3. 優先挖掘深具藝術價值、冷門優質或在相同樂派/子流派（如 Post-Rock, Math Rock, Modal Jazz, Neo-Soul）中有高度美學共鳴的音樂人。
-4. The output must strictly be a single valid JSON object containing only the "similarArtists" array key. Do not output any preamble, commentary, or markdown text.`;
+2. 請推薦排除名單之外的全新音樂人。
+3. 優先挖掘深具藝術價值、優質深刻且在相應風格領域中有高度美學共鳴的音樂人。
+4. The output must strictly be a single valid JSON object containing only the "similarArtists" array key.`;
 
   const contextHints = [
     sector ? `核心領域：${sector}` : '',
@@ -148,9 +158,9 @@ Your task is to recommend 4 to 5 strictly distinct musical artists who share hig
 
   // 取最多 40 個已存在名字做為排除名單，節省 Prompt Token
   const cleanExclude = Array.from(new Set(excludeList.map((n) => n.trim()).filter(Boolean))).slice(0, 40);
-  const excludeText = cleanExclude.length > 0 ? `\n【已收錄或已推薦排除名單（嚴禁重複推薦）】：\n${cleanExclude.join('、')}\n` : '';
+  const excludeText = cleanExclude.length > 0 ? `\n【已收錄或已推薦排除名單】：\n${cleanExclude.join('、')}\n` : '';
 
-  const userPrompt = `Provide 4 to 5 acoustic and stylistic kindred artists for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+  const userPrompt = `Provide 4 to 5 artistic and stylistic kindred artists for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
 Respond in valid JSON format:
 {
   "similarArtists": ["Artist 1", "Artist 2", "Artist 3", "Artist 4"]
@@ -160,11 +170,11 @@ Respond in valid JSON format:
 }
 
 /**
- * 推薦更多代表盤與深埋寶藏專用 Prompt
+ * 推薦更多代表盤與深刻寶藏專用 Prompt
  * 
  * 設計意圖與架構決策 (Why & Design Trade-offs)：
- * 1. 注入既有已收錄專輯（excludeAlbums），確保 AI 挖掘該藝人生涯中其他未收錄的精品盤、現場名盤或稀有寶藏。
- * 2. 產出 2~3 張具備發燒聲學價值之專輯，嚴格包含 title, year, tier, description, rarityReason, audiophileHighlight, dynamicRangeScore。
+ * 1. 注入既有已收錄專輯（excludeAlbums），確保 AI 挖掘該藝人生涯中其他未收錄的藝術精品或私藏代表作。
+ * 2. 嚴禁負面約束與具體範例，全數採用正向規則與格式抽象定義，確保 Harness 穩定。
  * 3. 純 JSON 輸出，維持低 Token 消耗與高解析穩定性。
  */
 export function buildMoreNotableAlbumsPrompt(
@@ -179,20 +189,20 @@ export function buildMoreNotableAlbumsPrompt(
 } {
   const languageRules =
     locale === 'zh-TW'
-      ? `請以繁體中文撰寫說明、挖寶理由與聲學亮點；專輯名稱請維持其官方原始發行名稱（通常為英文、日文或原文）。`
+      ? `請以繁體中文撰寫說明、創作背景與演奏曲義精華；專輯名稱請維持其官方原始發行名稱。`
       : locale === 'ja'
-      ? `解説・発掘理由・音響特性は日本語で記述し、アルバム名は公式表記を維持してください。`
-      : `Write descriptions and audiophile highlights in English; maintain official album titles.`;
+      ? `解説・創作背景・演奏特性は日本語で記述し、アルバム名は公式表記を維持してください。`
+      : `Write descriptions and performance highlights in English; maintain official album titles.`;
 
-  const systemPrompt = `You are a world-class audiophile discography archivist and acoustic researcher for "Pickup Artist (大音悉聲)".
+  const systemPrompt = `You are an insightful music discography archivist and researcher for "Pickup Artist (大音悉聲)".
 Your mission is to explore and recommend 2 to 3 ADDITIONAL standout albums for the artist "${artistName}".
 
-【發燒友雙軌唱片挖掘標準】
-1. 【時代基石 (milestone)】：定義其音樂生涯分水嶺、風格演變核心或代表性經典長篇。
-2. 【深埋寶藏 (hidden-treasure)】：避開主流爛大街的商業暢銷曲，挖掘錄音品質極佳、動態範疇廣、不插電原木共振、或冷門精絕的現場/再版盤。
+【雙軌唱片推薦標準】
+1. 【時代基石 (milestone)】：定義其音樂生涯分水嶺、精神核心或代表性經典之作。
+2. 【深埋寶藏 (hidden-treasure)】：挖掘具備深刻人文意境、演奏神采或深刻探索性的代表作。
 3. ${languageRules}
-4. 絕對嚴禁推薦「已收錄排除清單」中的任何專輯名稱！
-5. 必須嚴格輸出合法的單一 JSON 物件，包含 "notableAlbums" 陣列。禁止輸出任何 markdown 代碼框外的贅詞。`;
+4. 請推薦已收錄清單以外的全新作品。
+5. 必須嚴格輸出合法的單一 JSON 物件，包含 "notableAlbums" 陣列。`;
 
   const contextHints = [
     sector ? `核心領域：${sector}` : '',
@@ -200,29 +210,25 @@ Your mission is to explore and recommend 2 to 3 ADDITIONAL standout albums for t
   ].filter(Boolean).join('、');
 
   const cleanExclude = Array.from(new Set(excludeAlbums.map((t) => t.trim()).filter(Boolean))).slice(0, 30);
-  const excludeText = cleanExclude.length > 0 ? `\n【已收錄專輯排除名單（嚴禁重複推薦）】：\n${cleanExclude.join('、')}\n` : '';
+  const excludeText = cleanExclude.length > 0 ? `\n【已收錄專輯清單】：\n${cleanExclude.join('、')}\n` : '';
 
-  const userPrompt = `Explore 2 to 3 additional notable albums or hidden treasure records for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+  const userPrompt = `Explore 2 to 3 additional notable albums or treasure records for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
 Output format strictly matching:
 {
   "notableAlbums": [
     {
       "title": "Album Title",
-      "year": "2018",
+      "year": "年份",
       "tier": "milestone",
-      "losslessSpec": "96kHz 24bit ALAC",
-      "description": "簡明評述該作品之藝術成就與聽感特徵",
-      "dynamicRangeScore": 13
+      "description": "簡明評述該作品之藝術成就與精神核心"
     },
     {
       "title": "Hidden Gem Album Title",
-      "year": "2015",
+      "year": "年份",
       "tier": "hidden-treasure",
-      "losslessSpec": "192kHz 24bit FLAC",
-      "description": "冷門但聲學質地極高之作品解說",
-      "rarityReason": "挖寶理由 (如：獨立廠牌限量壓片、罕見現場錄音)",
-      "audiophileHighlight": "聲學亮點 (如：鼓擊動態無壓縮、原木微動態透明度高)",
-      "dynamicRangeScore": 14
+      "description": "深刻藝術價值之作品解說",
+      "rarityReason": "創作脈絡與藝術堅持背景說明",
+      "audiophileHighlight": "演奏神髓或曲義精華闡述"
     }
   ]
 }`;

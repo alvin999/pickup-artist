@@ -207,14 +207,11 @@ class AnalysisQueueService {
   private async executeAnalysis(item: QueueItem) {
     const { artist, locale } = item;
 
-    // 從現有資料中萃取同名排歧脈絡
+    // 從現有資料中萃取同名排歧脈絡（僅使用發行年代等客觀資訊，嚴禁使用舊 clusterCategory 避免回饋污染）
     const context: DisambiguationContext = {};
     if (artist.formatSpec) {
       const yearMatch = artist.formatSpec.match(/\b(19\d\d|20\d\d)\b/);
       if (yearMatch) context.releaseYear = yearMatch[1];
-    }
-    if (artist.clusterCategory) {
-      context.genre = artist.clusterCategory;
     }
 
     const result = await analyzeArtistWithAI(artist.name, locale, undefined, context);
@@ -222,6 +219,11 @@ class AnalysisQueueService {
     // 持久化更新至 IndexedDB
     await updateArtist(artist.id, {
       status: 'analyzed',
+      originLocation: result.originLocation,
+      formedYear: result.formedYear,
+      canonTier: result.canonTier,
+      formation: result.formation,
+      countryCode: result.originLocation?.split('_')?.[1] || artist.countryCode,
       audiophileGrade: result.suggestedAudiophileGrade || 'Reference',
       dynamicRange: result.suggestedDynamicRange || 14,
       clusterSector: result.sector,

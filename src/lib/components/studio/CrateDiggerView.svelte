@@ -593,17 +593,21 @@
       {#if selectedArtist}
         <div class="p-5 flex flex-col gap-5">
 
-          <!-- 艙門頂部狀態列 -->
+          <!-- 艙門頂部狀態列：發跡時空 ✕ 音樂史定位 ✕ 編制與風格 (去識別化預設值) -->
           <div class="flex items-center justify-between border-b border-wire pb-3 font-mono">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 bg-signal"></span>
-              <span class="font-dot text-xs tracking-[0.15em] text-ink">
-                DOSSIER_INSPECTOR // #{selectedArtist.catalogNumber || '0824'}
+              <span class="font-dot text-xs tracking-[0.15em] text-ink uppercase">
+                {selectedArtist.originLocation || (selectedArtist.countryCode ? `${selectedArtist.countryCode}_ARCHIVE` : 'ORIGIN_RAW')} // #{selectedArtist.formedYear || (selectedArtist.id ? selectedArtist.id.slice(0, 4).toUpperCase() : '0000')}
               </span>
-              <span class="px-1.5 py-0.5 border border-wire bg-void text-ink-muted text-[9px]">MASTER_TIER</span>
+              <span class="px-1.5 py-0.5 border border-wire bg-void text-ink-muted text-[9px] uppercase tracking-wider">
+                {selectedArtist.canonTier || (selectedArtist.status === 'inbox' ? 'UNCLASSIFIED' : 'STUDIO_TIER')}
+              </span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-[9px] text-ink-dim">BYOK_ACTIVE</span>
+              <span class="text-[9px] text-ink-dim uppercase tracking-wider">
+                {selectedArtist.formation || 'ROSTER_RAW'} // {selectedArtist.analysis?.subGenre ? selectedArtist.analysis.subGenre.replace(/\s+/g, '_') : 'UNMAPPED'}
+              </span>
             </div>
           </div>
 
@@ -1084,21 +1088,21 @@
               <div class="flex items-center justify-between border-b border-wire pb-2 font-mono">
                 <div class="flex items-center gap-1.5">
                   <span class="text-signal text-xs">■</span>
-                  <span class="font-dot text-xs text-ink tracking-wider">AI_ACOUSTIC_SPECTRUM [脈絡解剖]</span>
+                  <span class="font-dot text-xs text-ink tracking-wider">AI_HUMANISTIC_DOSSIER [人文脈絡精析]</span>
                 </div>
                 <span class="text-[9px] text-ink-dim">LLAMA-3.3 // GEMINI</span>
               </div>
 
               <div class="space-y-3">
                 <div class="border-l-2 border-signal pl-3 py-0.5">
-                  <span class="font-mono text-[10px] text-signal font-bold tracking-wider block mb-1">01 // ARTIST_ESSENCE [音樂人/藝人介紹與美學脈絡]</span>
+                  <span class="font-mono text-[10px] text-signal font-bold tracking-wider block mb-1">01 // ARTIST_ESSENCE [創作哲學與人文脈絡]</span>
                   <p class="text-xs text-ink-muted leading-relaxed">
                     {selectedArtist.analysis.summary}
                   </p>
                 </div>
                 {#if selectedArtist.analysis.instrumentationNotes}
                   <div class="border-l-2 border-amber-400 pl-3 py-0.5">
-                    <span class="font-mono text-[10px] text-amber-400 font-bold tracking-wider block mb-1">02 // LISTENING_FOCUS [發燒聆聽重點與聲學質地]</span>
+                    <span class="font-mono text-[10px] text-amber-400 font-bold tracking-wider block mb-1">02 // LISTENING_FOCUS [演奏特色與曲義精神]</span>
                     <p class="text-xs text-ink-muted leading-relaxed">
                       {selectedArtist.analysis.instrumentationNotes}
                     </p>

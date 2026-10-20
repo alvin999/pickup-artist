@@ -41,6 +41,13 @@ export const ArtistAnalysisResponseSchema = z.object({
     'WORLD'
   ]).nullish().transform((v) => v || 'ROCK'),
   subGenre: z.string().nullish().transform((v) => v || 'General'),
+  
+  // 藝人時空與歷史定位指標
+  originLocation: z.string().nullish().transform((v) => v || undefined),
+  formedYear: z.string().nullish().transform((v) => v || undefined),
+  canonTier: z.string().nullish().transform((v) => v || undefined),
+  formation: z.string().nullish().transform((v) => v || undefined),
+
   artistRole: z.string().nullish().transform((v) => v || undefined),
   era: z.string().nullish().transform((v) => v || undefined),
   aestheticTags: z.array(z.string()).nullish().transform((v) => v || []),
@@ -105,6 +112,10 @@ export function sanitizeAnalysisPayload(raw: any, fallbackName: string): any {
 
   // 2. 別名對齊相容 (Aliasing Mapping)
   if (!clean.subGenre && clean.sub_genre) clean.subGenre = clean.sub_genre;
+  if (!clean.originLocation && clean.origin_location) clean.originLocation = clean.origin_location;
+  if (!clean.formedYear && clean.formed_year) clean.formedYear = clean.formed_year;
+  if (!clean.canonTier && clean.canon_tier) clean.canonTier = clean.canon_tier;
+  if (!clean.formation && clean.formation_type) clean.formation = clean.formation_type;
   if (!clean.artistRole && clean.artist_role) clean.artistRole = clean.artist_role;
   if (!clean.aestheticTags && clean.aesthetic_tags) clean.aestheticTags = clean.aesthetic_tags;
   if (!clean.similarArtists && clean.similar_artists) clean.similarArtists = clean.similar_artists;

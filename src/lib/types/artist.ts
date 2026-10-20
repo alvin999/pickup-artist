@@ -82,6 +82,12 @@ export interface ArtistEntry {
   coverImage?: string;             // 專輯或藝人封面
   countryCode?: string;            // 產地/版本標記 (如 'JP', 'TW', 'US', 'NO')
   
+  // 藝人歷史時空與音樂史定位 (Artist Origin & Canon Telemetry)
+  originLocation?: string;        // 發跡地 (例如 'TOKYO_JP', 'OXFORD_UK', 'NEW_YORK_US')
+  formedYear?: string;            // 成軍/出道年份 (例如 '2000', '1956', '1985')
+  canonTier?: string;             // 音樂史定位 (例如 'CULT_CLASSIC', 'GENRE_DEFINING', 'VIRTUOSO', 'PIONEER')
+  formation?: string;             // 編制型態 (例如 '4-PIECE', 'POWER_TRIO', 'SOLO_ACOUSTIC')
+  
   // 聲學星系座標 (Honeycomb Cluster Matrix)
   clusterCategory?: AcousticSector | 'math-rock' | 'jazz' | 'neo-classical' | 'ambient';
   clusterSector?: AcousticSector;

@@ -37,13 +37,13 @@ export const translations = {
     action_sync: '雲端同步',
     
     // 詳情抽屜
-    dossier_biography: '聲響演進與創作脈絡',
+    dossier_biography: '創作脈絡與時代精神',
     dossier_albums: '經典代表專輯',
-    dossier_acoustics: '配器與錄音室質地',
+    dossier_acoustics: '演奏特色與曲義精神',
     dossier_similar: '相似風格系譜',
     dossier_personal_notes: '私藏聆聽筆記',
-    dossier_notes_placeholder: '記錄器材搭配、聆聽耳機或當下心境...',
-    dossier_not_analyzed: '尚未進行 AI 深度解剖。點擊按鈕探索其創作風格與聲學特徵。',
+    dossier_notes_placeholder: '記錄聆聽感觸、曲目意境或當下心境...',
+    dossier_not_analyzed: '尚未進行 AI 深度解剖。點擊按鈕探索其創作風格與人文特徵。',
     
     // 系統狀態
     status_local_first: 'LOCAL-FIRST // 本地運作中',
@@ -93,12 +93,12 @@ export const translations = {
     action_settings: 'Settings',
     action_sync: 'Sync Vault',
     
-    dossier_biography: 'Sound Signature & Evolution',
+    dossier_biography: 'Creative Philosophy & Evolution',
     dossier_albums: 'Notable Discography',
-    dossier_acoustics: 'Instrumentation & Texture',
+    dossier_acoustics: 'Performance Nuance & Lyrical Depth',
     dossier_similar: 'Related Lineage',
     dossier_personal_notes: 'Listening Journal',
-    dossier_notes_placeholder: 'Log gear pairing, headphone tone, or impressions...',
+    dossier_notes_placeholder: 'Log emotional reflections, poetic themes, or impressions...',
     dossier_not_analyzed: 'Not analyzed yet. Run AI Sonic Analysis to uncover artistic lineage.',
     
     status_local_first: 'LOCAL-FIRST // STANDALONE',
@@ -149,10 +149,10 @@ export const translations = {
     
     dossier_biography: '音響の変遷と創作の軌跡',
     dossier_albums: '代表的アルバム群',
-    dossier_acoustics: '楽器構成とスタジオ質感',
+    dossier_acoustics: '演奏の美学と楽曲精神',
     dossier_similar: '関連アーティスト系譜',
     dossier_personal_notes: '試聴ノート',
-    dossier_notes_placeholder: '使用機材、ヘッドホン、試聴時の印象など...',
+    dossier_notes_placeholder: '楽曲のメッセージや聴取時の心境を記録...',
     dossier_not_analyzed: '未解析です。AI音響解析を実行して音楽的系譜を紐解きます。',
     
     status_local_first: 'LOCAL-FIRST // スタンドアロン',
