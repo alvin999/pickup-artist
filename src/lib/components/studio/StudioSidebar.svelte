@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
+  import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
 
   interface Props {
     activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log';
@@ -14,6 +15,18 @@
     totalArtistsCount = 6,
     inboxCount = 2
   }: Props = $props();
+
+  // 聆賞隊列即時動態訂閱
+  let queueItems = $state<ListeningQueueItem[]>([]);
+
+  $effect(() => {
+    return listeningQueue.subscribe((items) => {
+      queueItems = items;
+    });
+  });
+
+  const pendingQueueCount = $derived(queueItems.filter((i) => i.status !== 'completed').length);
+  const isAnyListening = $derived(queueItems.some((i) => i.status === 'listening'));
 </script>
 
 <aside class="fixed left-0 top-0 h-full w-60 bg-chassis/95 backdrop-blur-xl border-r border-wire z-40 flex flex-col justify-between select-none">
@@ -107,7 +120,16 @@
             <span class="material-symbols-outlined text-[16px] {activeView === 'listening-queue' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">queue_music</span>
             <span>04_聆賞隊列</span>
           </div>
-          <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
+          <div class="flex items-center gap-1.5">
+            {#if isAnyListening}
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" title="目前有盤片正在品鑑中"></span>
+            {/if}
+            {#if pendingQueueCount > 0}
+              <span class="font-mono text-[9px] px-1 py-0.2 {activeView === 'listening-queue' ? 'bg-void text-signal font-bold' : 'text-signal bg-signal/10 border border-signal/30 font-bold'}">[{pendingQueueCount}]</span>
+            {:else}
+              <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
+            {/if}
+          </div>
         </button>
 
         <button

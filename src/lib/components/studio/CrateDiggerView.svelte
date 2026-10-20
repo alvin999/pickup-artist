@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ArtistEntry } from '$lib/types/artist';
+  import type { ArtistEntry, NotableAlbum } from '$lib/types/artist';
   import { t } from '$lib/i18n/index.svelte';
   import {
     Music,
@@ -52,8 +52,11 @@
     onanalyzeArtist: (artist: ArtistEntry) => void;
     onpickupSimilar: (name: string) => void;
     onrecommendMoreSimilar?: (artist: ArtistEntry) => Promise<void> | void;
+    onrecommendMoreAlbums?: (artist: ArtistEntry) => Promise<void> | void;
+    onaddToQueue?: (artist: ArtistEntry, album?: NotableAlbum) => void;
     isAnalyzing?: boolean;
     isRecommendingMore?: boolean;
+    isRecommendingAlbums?: boolean;
   }
 
   let {
@@ -64,8 +67,11 @@
     onanalyzeArtist,
     onpickupSimilar,
     onrecommendMoreSimilar,
+    onrecommendMoreAlbums,
+    onaddToQueue,
     isAnalyzing = false,
-    isRecommendingMore = false
+    isRecommendingMore = false,
+    isRecommendingAlbums = false
   }: Props = $props();
 
   // 篩選與排序狀態
@@ -116,12 +122,20 @@
 
   // 相似藝人輪播偏移量（當未收錄藝人超過 3 位時支援純前端翻頁）
   let similarOffset = $state(0);
+  // 代表專輯輪播偏移量（當收錄專輯超過 2 張時支援純前端翻頁）
+  let albumOffset = $state(0);
 
   $effect(() => {
     if (selectedArtistId) {
       similarOffset = 0;
+      albumOffset = 0;
     }
   });
+
+  function handleNextAlbumBatch(totalCount: number) {
+    if (totalCount <= 2) return;
+    albumOffset = (albumOffset + 2) % totalCount;
+  }
 
   // 本地已收錄藝人字典（比對 name 與 aliases，全轉小寫以避免大小寫重複誤判）
   const collectedNamesMap = $derived.by(() => {
@@ -952,15 +966,27 @@
               </a>
             {/if}
 
-            <button
-              type="button"
-              disabled={isAnalyzing}
-              onclick={() => onanalyzeArtist(selectedArtist)}
-              class="w-full corner-cut flex items-center justify-center gap-2 px-4 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Sparkles class="w-3.5 h-3.5 text-signal" />
-              <span>{isAnalyzing ? 'ENGINE RUNNING...' : 'AI 深度音樂學解剖 (SPECTRUM SCAN)'}</span>
-            </button>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onclick={() => onaddToQueue?.(selectedArtist)}
+                class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                title="將整位藝人加入聆賞隊列"
+              >
+                <span class="material-symbols-outlined text-[14px]">queue_music</span>
+                <span>+ 藝人排入隊列</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isAnalyzing}
+                onclick={() => onanalyzeArtist(selectedArtist)}
+                class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                <Sparkles class="w-3.5 h-3.5 text-signal" />
+                <span>{isAnalyzing ? '掃描中...' : '深度解剖'}</span>
+              </button>
+            </div>
           </div>
 
           <!-- AI 音樂脈絡精析 (AI Context Breakdown) -->
@@ -993,69 +1019,121 @@
             </div>
 
             <!-- 雙軌唱片挖掘：核心推薦專輯 ✕ 深埋發燒寶藏 (Dual-Track Archives) -->
-            {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
+            {#if selectedArtist.analysis}
               <div class="font-mono flex flex-col gap-2">
                 <div class="flex items-center justify-between text-[10px]">
                   <span class="text-ink-muted uppercase tracking-widest">// RECORD_ARCHIVES [推薦專輯 ✕ 深埋寶藏]</span>
-                  <span class="text-signal">0{selectedArtist.analysis.notableAlbums.length}_ENCODED</span>
+                  <div class="flex items-center gap-1.5">
+                    {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
+                      <span class="text-signal">0{selectedArtist.analysis.notableAlbums.length}_ENCODED</span>
+                    {/if}
+                    {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 2}
+                      <button
+                        type="button"
+                        onclick={() => handleNextAlbumBatch(selectedArtist!.analysis!.notableAlbums.length)}
+                        class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                        title="在已推薦專輯清單中輪播換一批"
+                      >
+                        <span class="material-symbols-outlined text-[11px]">sync</span>
+                        <span>換一批 ({Math.floor(albumOffset / 2) + 1}/{Math.ceil(selectedArtist.analysis.notableAlbums.length / 2)})</span>
+                      </button>
+                    {/if}
+                    <button
+                      type="button"
+                      onclick={() => onrecommendMoreAlbums?.(selectedArtist!)}
+                      disabled={isRecommendingAlbums}
+                      class="text-[9px] px-1.5 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="請 AI 深入唱片脈絡挖掘更多代表盤與發燒寶藏"
+                    >
+                      {#if isRecommendingAlbums}
+                        <span class="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
+                        <span>探勘中...</span>
+                      {:else}
+                        <span class="material-symbols-outlined text-[11px]">auto_awesome</span>
+                        <span>AI 推薦更多</span>
+                      {/if}
+                    </button>
+                  </div>
                 </div>
-                <div class="flex flex-col gap-2">
-                  {#each selectedArtist.analysis.notableAlbums as alb}
-                    {@const isHidden = alb.tier === 'hidden-treasure' || alb.trackType === 'hidden-treasure'}
-                    <div class="border p-2.5 flex flex-col gap-1.5 transition-colors {isHidden ? 'border-amber-500/40 bg-amber-950/10' : 'border-wire bg-void hover:bg-panel'}">
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2 min-w-0">
-                          {#if isHidden}
-                            <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold shrink-0">深埋寶藏</span>
-                          {:else}
-                            <span class="text-[9px] px-1.5 py-0.2 bg-signal-dim text-signal border border-signal/40 font-bold shrink-0">核心推薦</span>
-                          {/if}
-                          <span class="text-[10px] text-ink-dim font-bold shrink-0">{alb.year || 'HIST'}</span>
-                          <span class="font-sans text-xs text-ink font-bold truncate">{alb.title}</span>
-                        </div>
-                        <div class="flex items-center gap-2 shrink-0 ml-2">
-                          {#if alb.dynamicRangeScore}
-                            <span class="text-[9px] text-signal font-bold">DR{alb.dynamicRangeScore}</span>
-                          {/if}
-                          {#if alb.appleMusicSearchUrl}
-                            <a
-                              href={alb.appleMusicSearchUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="text-ink-dim hover:text-signal"
-                              title="在 Apple Music 開啟"
+
+                {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
+                  {@const albumsToDisplay = selectedArtist.analysis.notableAlbums.length > 2
+                    ? [
+                        selectedArtist.analysis.notableAlbums[albumOffset % selectedArtist.analysis.notableAlbums.length],
+                        selectedArtist.analysis.notableAlbums[(albumOffset + 1) % selectedArtist.analysis.notableAlbums.length]
+                      ].filter(Boolean)
+                    : selectedArtist.analysis.notableAlbums}
+                  <div class="flex flex-col gap-2">
+                    {#each albumsToDisplay as alb}
+                      {@const isHidden = alb.tier === 'hidden-treasure' || alb.trackType === 'hidden-treasure'}
+                      <div class="border p-2.5 flex flex-col gap-1.5 transition-colors {isHidden ? 'border-amber-500/40 bg-amber-950/10' : 'border-wire bg-void hover:bg-panel'}">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2 min-w-0">
+                            {#if isHidden}
+                              <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold shrink-0">深埋寶藏</span>
+                            {:else}
+                              <span class="text-[9px] px-1.5 py-0.2 bg-signal-dim text-signal border border-signal/40 font-bold shrink-0">核心推薦</span>
+                            {/if}
+                            <span class="text-[10px] text-ink-dim font-bold shrink-0">{alb.year || 'HIST'}</span>
+                            <span class="font-sans text-xs text-ink font-bold truncate">{alb.title}</span>
+                          </div>
+                          <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                            {#if alb.dynamicRangeScore}
+                              <span class="text-[9px] text-signal font-bold mr-0.5">DR{alb.dynamicRangeScore}</span>
+                            {/if}
+                            <button
+                              type="button"
+                              onclick={() => onaddToQueue?.(selectedArtist!, alb)}
+                              class="text-[9px] px-1.5 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
+                              title="將此盤加入聆賞隊列"
                             >
-                              <ArrowUpRight class="w-3.5 h-3.5" />
-                            </a>
-                          {/if}
+                              <span class="material-symbols-outlined text-[11px]">queue_music</span>
+                              <span>+ 聆賞</span>
+                            </button>
+                            {#if alb.appleMusicSearchUrl}
+                              <a
+                                href={alb.appleMusicSearchUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-ink-dim hover:text-signal p-0.5"
+                                title="在 Apple Music 開啟"
+                              >
+                                <ArrowUpRight class="w-3.5 h-3.5" />
+                              </a>
+                            {/if}
+                          </div>
                         </div>
+
+                        {#if alb.description}
+                          <p class="font-sans text-[11px] text-ink-muted leading-relaxed pl-1">
+                            {alb.description}
+                          </p>
+                        {/if}
+
+                        {#if isHidden && (alb.rarityReason || alb.audiophileHighlight)}
+                          <div class="pt-1.5 mt-0.5 border-t border-amber-500/20 text-[10px] flex flex-col gap-1 pl-1">
+                            {#if alb.rarityReason}
+                              <div class="text-ink-dim flex items-start gap-1">
+                                <span class="text-amber-400 shrink-0 font-bold">[挖寶理由]</span>
+                                <span class="text-ink-muted">{alb.rarityReason}</span>
+                              </div>
+                            {/if}
+                            {#if alb.audiophileHighlight}
+                              <div class="text-ink-dim flex items-start gap-1">
+                                <span class="text-emerald-400 shrink-0 font-bold">[聲學亮點]</span>
+                                <span class="text-ink-muted">{alb.audiophileHighlight}</span>
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
                       </div>
-
-                      {#if alb.description}
-                        <p class="font-sans text-[11px] text-ink-muted leading-relaxed pl-1">
-                          {alb.description}
-                        </p>
-                      {/if}
-
-                      {#if isHidden && (alb.rarityReason || alb.audiophileHighlight)}
-                        <div class="pt-1.5 mt-0.5 border-t border-amber-500/20 text-[10px] flex flex-col gap-1 pl-1">
-                          {#if alb.rarityReason}
-                            <div class="text-ink-dim flex items-start gap-1">
-                              <span class="text-amber-400 shrink-0 font-bold">[挖寶理由]</span>
-                              <span class="text-ink-muted">{alb.rarityReason}</span>
-                            </div>
-                          {/if}
-                          {#if alb.audiophileHighlight}
-                            <div class="text-ink-dim flex items-start gap-1">
-                              <span class="text-emerald-400 shrink-0 font-bold">[聲學亮點]</span>
-                              <span class="text-ink-muted">{alb.audiophileHighlight}</span>
-                            </div>
-                          {/if}
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="border border-dashed border-wire p-3 text-center text-ink-dim text-[11px]">
+                    尚未收錄代表作品，點擊右上方「AI 推薦更多」進行唱片挖掘
+                  </div>
+                {/if}
               </div>
             {/if}
 

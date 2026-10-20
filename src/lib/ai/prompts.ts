@@ -157,3 +157,74 @@ Respond in valid JSON format:
 
   return { systemPrompt, userPrompt };
 }
+
+/**
+ * 推薦更多代表盤與深埋寶藏專用 Prompt
+ * 
+ * 設計意圖與架構決策 (Why & Design Trade-offs)：
+ * 1. 注入既有已收錄專輯（excludeAlbums），確保 AI 挖掘該藝人生涯中其他未收錄的精品盤、現場名盤或稀有寶藏。
+ * 2. 產出 2~3 張具備發燒聲學價值之專輯，嚴格包含 title, year, tier, description, rarityReason, audiophileHighlight, dynamicRangeScore。
+ * 3. 純 JSON 輸出，維持低 Token 消耗與高解析穩定性。
+ */
+export function buildMoreNotableAlbumsPrompt(
+  artistName: string,
+  sector?: string,
+  subGenre?: string,
+  excludeAlbums: string[] = [],
+  locale: SupportedLocale = 'zh-TW'
+): {
+  systemPrompt: string;
+  userPrompt: string;
+} {
+  const languageRules =
+    locale === 'zh-TW'
+      ? `請以繁體中文撰寫說明、挖寶理由與聲學亮點；專輯名稱請維持其官方原始發行名稱（通常為英文、日文或原文）。`
+      : locale === 'ja'
+      ? `解説・発掘理由・音響特性は日本語で記述し、アルバム名は公式表記を維持してください。`
+      : `Write descriptions and audiophile highlights in English; maintain official album titles.`;
+
+  const systemPrompt = `You are a world-class audiophile discography archivist and acoustic researcher for "Pickup Artist (大音悉聲)".
+Your mission is to explore and recommend 2 to 3 ADDITIONAL standout albums for the artist "${artistName}".
+
+【發燒友雙軌唱片挖掘標準】
+1. 【時代基石 (milestone)】：定義其音樂生涯分水嶺、風格演變核心或代表性經典長篇。
+2. 【深埋寶藏 (hidden-treasure)】：避開主流爛大街的商業暢銷曲，挖掘錄音品質極佳、動態範疇廣、不插電原木共振、或冷門精絕的現場/再版盤。
+3. ${languageRules}
+4. 絕對嚴禁推薦「已收錄排除清單」中的任何專輯名稱！
+5. 必須嚴格輸出合法的單一 JSON 物件，包含 "notableAlbums" 陣列。禁止輸出任何 markdown 代碼框外的贅詞。`;
+
+  const contextHints = [
+    sector ? `核心領域：${sector}` : '',
+    subGenre ? `代表子流派：${subGenre}` : ''
+  ].filter(Boolean).join('、');
+
+  const cleanExclude = Array.from(new Set(excludeAlbums.map((t) => t.trim()).filter(Boolean))).slice(0, 30);
+  const excludeText = cleanExclude.length > 0 ? `\n【已收錄專輯排除名單（嚴禁重複推薦）】：\n${cleanExclude.join('、')}\n` : '';
+
+  const userPrompt = `Explore 2 to 3 additional notable albums or hidden treasure records for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+Output format strictly matching:
+{
+  "notableAlbums": [
+    {
+      "title": "Album Title",
+      "year": "2018",
+      "tier": "milestone",
+      "losslessSpec": "96kHz 24bit ALAC",
+      "description": "簡明評述該作品之藝術成就與聽感特徵",
+      "dynamicRangeScore": 13
+    },
+    {
+      "title": "Hidden Gem Album Title",
+      "year": "2015",
+      "tier": "hidden-treasure",
+      "losslessSpec": "192kHz 24bit FLAC",
+      "description": "冷門但聲學質地極高之作品解說",
+      "rarityReason": "挖寶理由 (如：獨立廠牌限量壓片、罕見現場錄音)",
+      "audiophileHighlight": "聲學亮點 (如：鼓擊動態無壓縮、原木微動態透明度高)",
+      "dynamicRangeScore": 14
+    }
+  ]
+}`;
+
+  return { systemPrompt, userPrompt };
+}

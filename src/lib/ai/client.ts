@@ -1,7 +1,9 @@
-import { ArtistAnalysisResponseSchema, sanitizeAnalysisPayload, type ValidatedArtistAnalysisResponse } from './schema';
-import { buildArtistAnalysisPrompt, buildMoreSimilarArtistsPrompt, type DisambiguationContext } from './prompts';
+import { ArtistAnalysisResponseSchema, sanitizeAnalysisPayload, NotableAlbumSchema, type ValidatedArtistAnalysisResponse } from './schema';
+import { buildArtistAnalysisPrompt, buildMoreSimilarArtistsPrompt, buildMoreNotableAlbumsPrompt, type DisambiguationContext } from './prompts';
 import type { SupportedLocale } from '$lib/i18n';
 import { loadSecureAISettings } from './vault';
+import type { NotableAlbum } from '$lib/types/artist';
+import { buildAppleMusicSearchUrl } from '$lib/utils/appleMusic';
 
 export interface AISettings {
   provider: 'groq' | 'gemini';
@@ -692,4 +694,201 @@ export async function fetchMoreSimilarArtists(
     .filter((name: any) => typeof name === 'string' && name.trim())
     .map((name: string) => name.trim())
     .filter((name: string) => !excludeSet.has(name.toLowerCase()));
+}
+
+/**
+ * 請 AI 探索推薦更多代表盤與發燒寶藏（擴展藝人之 notableAlbums）
+ * 
+ * 設計意圖與架構決策 (Why & Design Trade-offs)：
+ * 1. 注入已收錄專輯排除名單，精準要求 AI 挖掘全新的時代基石 (milestone) 或深埋寶藏 (hidden-treasure)。
+ * 2. 嚴格經由 NotableAlbumSchema 驗證，並自動生成 Apple Music 搜尋 URL。
+ * 3. 雙引擎 (Groq / Gemini) 支援，具備 429 RateLimit 與自動修復降級解析。
+ */
+export async function fetchMoreNotableAlbums(
+  artistName: string,
+  sector?: string,
+  subGenre?: string,
+  excludeAlbums: string[] = [],
+  locale: SupportedLocale = 'zh-TW',
+  customSettings?: AISettings
+): Promise<NotableAlbum[]> {
+  let settings: AISettings;
+
+  if (customSettings) {
+    settings = customSettings;
+  } else {
+    const secureLoaded = await loadSecureAISettings();
+    settings = secureLoaded.settings;
+  }
+
+  const { systemPrompt, userPrompt } = buildMoreNotableAlbumsPrompt(
+    artistName,
+    sector,
+    subGenre,
+    excludeAlbums,
+    locale
+  );
+
+  let rawJsonText = '';
+
+  if (settings.provider === 'groq') {
+    if (!settings.groqKey.trim()) {
+      throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.groqKey.trim()}`
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1200,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    if (res.status === 400) {
+      const errText = await res.text();
+      const isJsonValidationError =
+        errText.toLowerCase().includes('failed to validate json') ||
+        errText.toLowerCase().includes('response_format') ||
+        errText.toLowerCase().includes('json_object');
+
+      if (isJsonValidationError) {
+        console.warn('[Groq] 專輯探索 JSON 約束未通過，自動降級為標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
+      } else {
+        throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      }
+    } else if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
+    } else {
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      rawJsonText =
+        choice?.message?.content ||
+        choice?.text ||
+        choice?.message?.reasoning ||
+        (choice?.message as any)?.reasoning_content ||
+        '';
+
+      if (!rawJsonText.trim()) {
+        console.warn('[Groq] 專輯探索回傳空字串，以標準對話模式重試');
+        rawJsonText = await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
+      }
+    }
+  } else {
+    if (!settings.geminiKey.trim()) {
+      throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${
+      settings.geminiModel || DEFAULT_GEMINI_MODEL
+    }:generateContent?key=${settings.geminiKey.trim()}`;
+
+    let res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+
+    if (res.status === 429) {
+      const retryErrText = await res.text();
+      const retrySec = extractRetrySeconds(res, retryErrText);
+      throw new RateLimitError(
+        `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (errText.toLowerCase().includes('response_mime_type') || errText.toLowerCase().includes('application/json')) {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+            generationConfig: { temperature: 0.3 }
+          })
+        });
+      } else {
+        throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      }
+    }
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, err)}`);
+    }
+
+    const data = await res.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    rawJsonText = parts.map((p: any) => p.text).filter(Boolean).join('\n');
+  }
+
+  const parsedJson = extractAndParseJson(rawJsonText) as any;
+  const albumRawList = Array.isArray(parsedJson?.notableAlbums)
+    ? parsedJson.notableAlbums
+    : Array.isArray(parsedJson?.albums)
+    ? parsedJson.albums
+    : Array.isArray(parsedJson)
+    ? parsedJson
+    : [];
+
+  const excludeSet = new Set(excludeAlbums.map((t) => t.trim().toLowerCase()));
+
+  const validatedAlbums: NotableAlbum[] = [];
+  for (const item of albumRawList) {
+    const parsed = NotableAlbumSchema.safeParse(item);
+    if (parsed.success) {
+      const alb = parsed.data;
+      if (!alb.title || excludeSet.has(alb.title.trim().toLowerCase())) continue;
+
+      validatedAlbums.push({
+        title: alb.title.trim(),
+        year: alb.year || '',
+        tier: alb.tier,
+        description: alb.description || '',
+        appleMusicSearchUrl: buildAppleMusicSearchUrl(`${artistName} ${alb.title.trim()}`),
+        rarityReason: alb.rarityReason,
+        audiophileHighlight: alb.audiophileHighlight,
+        dynamicRangeScore: alb.dynamicRangeScore,
+        losslessSpec: (item as any)?.losslessSpec || 'Lossless'
+      });
+    }
+  }
+
+  return validatedAlbums;
 }

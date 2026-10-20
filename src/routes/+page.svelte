@@ -17,13 +17,16 @@
   import CrateDiggerView from '$lib/components/studio/CrateDiggerView.svelte';
   import HoneycombClusterView from '$lib/components/studio/HoneycombClusterView.svelte';
   import AcousticMatrixView from '$lib/components/studio/AcousticMatrixView.svelte';
+  import ListeningQueueView from '$lib/components/studio/ListeningQueueView.svelte';
   import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
   import { loadSecureAISettings } from '$lib/ai/vault';
-  import { fetchMoreSimilarArtists } from '$lib/ai/client';
+  import { fetchMoreSimilarArtists, fetchMoreNotableAlbums } from '$lib/ai/client';
+  import { listeningQueue } from '$lib/services/listeningQueue';
+  import type { NotableAlbum } from '$lib/types/artist';
   import {
     getActiveAccount,
     subscribeSyncState,
@@ -49,6 +52,7 @@
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
   let isRecommendingMore = $state(false);
+  let isRecommendingAlbums = $state(false);
   let queueState = $state<QueueState>(analysisQueue.getState());
   let isReauthenticating = $state(false);
 
@@ -349,6 +353,91 @@
     }
   }
 
+  // 一鍵請 AI 推薦更多代表盤與發燒寶藏（累加至 notableAlbums）
+  async function handleRecommendMoreAlbums(artist: ArtistEntry) {
+    if (isRecommendingAlbums) return;
+
+    try {
+      const secureLoaded = await loadSecureAISettings();
+      if (secureLoaded.isLocked) {
+        pendingArtistToAnalyze = artist;
+        isUnlockModalOpen = true;
+        showToast('請先解鎖主密碼保管庫以調用 AI');
+        return;
+      }
+
+      const { settings } = secureLoaded;
+      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
+      if (!hasKey) {
+        isAISettingsOpen = true;
+        showToast('請先設定 AI 金鑰');
+        return;
+      }
+
+      isRecommendingAlbums = true;
+
+      // 收集該藝人已收錄的專輯名稱作為排除名單
+      const existingAlbums = (artist.analysis?.notableAlbums || []).map((alb) => alb.title.trim());
+
+      const newAlbums = await fetchMoreNotableAlbums(
+        artist.name,
+        artist.analysis?.sector,
+        artist.analysis?.subGenre,
+        existingAlbums,
+        i18n.locale,
+        settings
+      );
+
+      if (!newAlbums || newAlbums.length === 0) {
+        showToast('AI 未探索到更多新專輯，目前收錄之代表盤已相當經典');
+        return;
+      }
+
+      // 合併去重並更新回資料庫（累加擴展池）
+      const currentAlbums = artist.analysis?.notableAlbums || [];
+      const mergedAlbums = [...currentAlbums, ...newAlbums];
+
+      const cleanAnalysis = JSON.parse(JSON.stringify(artist.analysis || {}));
+      cleanAnalysis.notableAlbums = mergedAlbums;
+
+      await updateArtist(artist.id, {
+        analysis: cleanAnalysis
+      });
+
+      await reloadArtists();
+      showToast(`已成功為「${artist.name}」挖掘並收錄 ${newAlbums.length} 張發燒名盤！`);
+    } catch (err: any) {
+      console.error('[Recommend More Albums Error]:', err);
+      showToast(err?.message || '推薦專輯過程遭遇異常');
+    } finally {
+      isRecommendingAlbums = false;
+    }
+  }
+
+  // 將藝人或特定專輯加入聆賞隊列
+  function handleAddToQueue(artist: ArtistEntry, album?: NotableAlbum) {
+    const res = listeningQueue.add({
+      artistId: artist.id,
+      artistName: artist.name,
+      albumTitle: album?.title,
+      albumYear: album?.year,
+      tier: album?.tier,
+      losslessSpec: album?.losslessSpec || artist.formatSpec,
+      description: album?.description,
+      rarityReason: album?.rarityReason,
+      audiophileHighlight: album?.audiophileHighlight,
+      dynamicRangeScore: album?.dynamicRangeScore || artist.dynamicRange,
+      appleMusicUrl: album?.appleMusicSearchUrl || artist.appleMusicUrl,
+      coverImage: artist.coverImage
+    });
+
+    if (res.alreadyExists) {
+      showToast(`《${album ? album.title : artist.name}》已在聆賞隊列中`);
+    } else {
+      showToast(`已將《${album ? album.title : artist.name}》推入聆賞隊列`);
+    }
+  }
+
   // 調整藝人聲學引力權重 (Weight: 1 ~ 100)
   async function handleUpdateWeight(id: string, weight: number) {
     await updateArtist(id, { weight });
@@ -491,8 +580,11 @@
           onanalyzeArtist={handleAnalyze}
           onpickupSimilar={handlePickupSimilar}
           onrecommendMoreSimilar={handleRecommendMoreSimilar}
+          onrecommendMoreAlbums={handleRecommendMoreAlbums}
+          onaddToQueue={handleAddToQueue}
           {isAnalyzing}
           {isRecommendingMore}
+          {isRecommendingAlbums}
         />
       {:else if activeStudioView === 'honeycomb-cluster'}
         <!-- 視圖 2: 藝人星系蜂巢矩陣視圖 (Artist Constellation View) -->
@@ -523,6 +615,20 @@
           ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
           {isAnalyzing}
+        />
+      {:else if activeStudioView === 'listening-queue'}
+        <!-- 視圖 4: 聆賞隊列視圖 (Listening Queue View) -->
+        <ListeningQueueView
+          artists={artists}
+          onselectArtist={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          onopenInCrate={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          {showToast}
         />
       {:else}
         <!-- 其他 Studio 模組待命占位 -->
