@@ -11,6 +11,7 @@
     ExternalLink
   } from 'lucide-svelte';
   import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
+  import type { QueueState } from '$lib/services/analysisQueue';
 
   // 聲學腕錶風格 8 軸羅盤幾何參數 (中心 140, 140)
   const DIAL_CENTER = 140;
@@ -47,6 +48,7 @@
   interface Props {
     artists: ArtistEntry[];
     selectedArtistId: string | null;
+    queueState?: QueueState;
     onselectArtist: (id: string) => void;
     ondeleteArtist: (id: string) => void;
     onanalyzeArtist: (artist: ArtistEntry) => void;
@@ -63,6 +65,7 @@
   let {
     artists = [],
     selectedArtistId = $bindable(null),
+    queueState = undefined,
     onselectArtist,
     ondeleteArtist,
     onanalyzeArtist,
@@ -467,13 +470,15 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 bg-wire gap-px border border-wire">
         {#each processedArtists as artist (artist.id)}
           {@const isActive = selectedArtistId === artist.id}
+          {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
+          {@const isQueued = queueState?.queuedArtistIds?.includes(artist.id)}
           {@const aura = getStageAuraStyle(artist.analysis?.sector, isActive)}
           <div
             role="button"
             tabindex="0"
             onclick={() => onselectArtist(artist.id)}
             onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
-            class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : 'bg-void hover:bg-[#0d0e14]'}"
+            class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : isCurrentTarget ? 'bg-[#101218] ring-1 ring-inset ring-signal/70 bg-micro-grid shadow-[0_0_18px_rgba(255,42,60,0.25)]' : 'bg-void hover:bg-[#0d0e14]'}"
           >
             <!-- 頂部微距數據列：最左上角顯示時代印記 (取代無意義的 STAGE-XXX)，右側呈現 AI_PARSED -->
             <div class="flex items-center justify-between font-mono text-[10px] pb-3 border-b border-wire border-dashed">
@@ -566,10 +571,41 @@
                       {g.toUpperCase()}
                     </span>
                   {/each}
-                {:else if !artist.analysis?.sector}
-                  <span class="px-1.5 py-0.5 bg-amber-950/20 border border-amber-500/30 text-amber-400 text-[9px]">
-                    AWAITING_ANALYZE
-                  </span>
+                {:else if !artist.analysis}
+                  {#if isCurrentTarget}
+                    <button
+                      type="button"
+                      disabled
+                      class="px-2 py-0.5 bg-signal/25 border border-signal text-signal text-[9px] font-bold rounded-[2px] flex items-center gap-1 animate-pulse cursor-not-allowed shadow-[0_0_8px_rgba(255,42,60,0.5)]"
+                      title="AI 深度聲學解剖進行中"
+                    >
+                      <Sparkles class="w-3 h-3 animate-spin text-signal" />
+                      <span>AI 解剖中...</span>
+                    </button>
+                  {:else if isQueued}
+                    <button
+                      type="button"
+                      disabled
+                      class="px-2 py-0.5 bg-panel border border-wire text-ink-muted text-[9px] font-bold rounded-[2px] flex items-center gap-1 cursor-not-allowed"
+                      title="已排入背景批次解剖佇列等候中"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full bg-signal animate-ping"></span>
+                      <span>等候佇列中</span>
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        onanalyzeArtist(artist);
+                      }}
+                      title="立即啟動此藝人的 AI 深度解剖"
+                      class="px-2 py-0.5 bg-signal/15 hover:bg-signal border border-signal/50 hover:border-signal text-signal hover:text-white text-[9px] font-bold rounded-[2px] flex items-center gap-1 transition-all cursor-pointer group/btn shadow-[0_0_8px_rgba(255,42,60,0.15)] hover:shadow-[0_0_12px_rgba(255,42,60,0.4)]"
+                    >
+                      <Sparkles class="w-3 h-3 text-signal group-hover/btn:text-white transition-colors" />
+                      <span>啟動 AI 分析</span>
+                    </button>
+                  {/if}
                 {/if}
               </div>
               <div class="flex items-center justify-between text-[10px]">

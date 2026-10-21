@@ -37,6 +37,7 @@ export interface QueueState {
   totalInBatch: number;
   cooldownRemainingSeconds: number;
   lastMessage: string | null;
+  queuedArtistIds: string[];
 }
 
 class AnalysisQueueService {
@@ -79,7 +80,8 @@ class AnalysisQueueService {
       pendingCount: this.queue.length,
       totalInBatch: this.totalBatchCount,
       cooldownRemainingSeconds: this.cooldownSeconds,
-      lastMessage: this.lastMessage
+      lastMessage: this.lastMessage,
+      queuedArtistIds: this.queue.map((q) => q.artist.id)
     };
   }
 

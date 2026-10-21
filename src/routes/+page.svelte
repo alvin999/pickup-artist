@@ -639,6 +639,7 @@
           onrecommendMoreAlbums={handleRecommendMoreAlbums}
           onaddToQueue={handleAddToQueue}
           onopenInLog={handleOpenInLog}
+          {queueState}
           {isAnalyzing}
           {isRecommendingMore}
           {isRecommendingAlbums}
