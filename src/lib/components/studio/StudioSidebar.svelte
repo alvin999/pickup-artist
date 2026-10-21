@@ -252,8 +252,6 @@
           </div>
           {#if activeView === 'crate-digger'}
             <span class="font-dot text-[10px] bg-signal text-white px-1">[ACT]</span>
-          {:else if inboxCount > 0}
-            <span class="font-mono text-[9px] text-signal font-bold">[{inboxCount}]</span>
           {/if}
         </button>
 
@@ -294,11 +292,7 @@
             {#if isAnyListening}
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" title="目前有盤片正在品鑑中"></span>
             {/if}
-            {#if pendingQueueCount > 0}
-              <span class="font-mono text-[9px] px-1 py-0.2 {activeView === 'listening-queue' ? 'bg-void text-signal font-bold' : 'text-signal bg-signal/10 border border-signal/30 font-bold'}">[{pendingQueueCount}]</span>
-            {:else}
-              <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
-            {/if}
+            <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
           </div>
         </button>
 
@@ -312,11 +306,7 @@
             <span>05_聆賞日誌</span>
           </div>
           <div class="flex items-center gap-1">
-            {#if loggedCount > 0}
-              <span class="font-mono text-[9px] px-1 py-0.2 {activeView === 'listening-log' ? 'bg-void text-signal font-bold' : 'text-signal bg-signal/10 border border-signal/30 font-bold'}">[{loggedCount}]</span>
-            {:else}
-              <span class="text-[9px] {activeView === 'listening-log' ? 'text-void font-bold' : 'text-ink-dim'}">LOG</span>
-            {/if}
+            <span class="text-[9px] {activeView === 'listening-log' ? 'text-void font-bold' : 'text-ink-dim'}">LOG</span>
           </div>
         </button>
       </nav>
