@@ -54,6 +54,7 @@
     onrecommendMoreSimilar?: (artist: ArtistEntry) => Promise<void> | void;
     onrecommendMoreAlbums?: (artist: ArtistEntry) => Promise<void> | void;
     onaddToQueue?: (artist: ArtistEntry, album?: NotableAlbum) => void;
+    onopenInLog?: (id: string) => void;
     isAnalyzing?: boolean;
     isRecommendingMore?: boolean;
     isRecommendingAlbums?: boolean;
@@ -69,6 +70,7 @@
     onrecommendMoreSimilar,
     onrecommendMoreAlbums,
     onaddToQueue,
+    onopenInLog,
     isAnalyzing = false,
     isRecommendingMore = false,
     isRecommendingAlbums = false
@@ -574,12 +576,32 @@
                   GRAVITY: <span class="text-ink font-bold">W-{artist.weight || 20}</span>
                 </span>
                 {#if artist.personalNotes && artist.personalNotes.trim().length > 0}
-                  <span class="text-signal font-bold flex items-center gap-1 text-[9px]">
-                    <span class="w-1.5 h-1.5 rounded-full bg-signal"></span>
-                    LOGGED{#if artist.rating} [{artist.rating}★]{/if}
-                  </span>
+                  <button
+                    type="button"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      onopenInLog?.(artist.id);
+                    }}
+                    class="text-signal hover:text-white bg-signal/15 hover:bg-signal border border-signal/40 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center gap-1 text-[9px] transition-all cursor-pointer group shadow-sm"
+                    title="點擊跳轉至此藝人的聆賞手札"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-signal group-hover:bg-white animate-pulse"></span>
+                    <span>LOGGED</span>
+                    <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+                  </button>
                 {:else}
-                  <span class="text-ink-dim text-[9px]">NO_LOG</span>
+                  <button
+                    type="button"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      onopenInLog?.(artist.id);
+                    }}
+                    class="text-ink-dim hover:text-signal hover:bg-panel border border-transparent hover:border-wire px-1.5 py-0.5 rounded-[2px] text-[9px] transition-all cursor-pointer flex items-center gap-0.5"
+                    title="點擊為此藝人開啟第一篇手札"
+                  >
+                    <span>NO_LOG</span>
+                    <span class="material-symbols-outlined text-[9px]">edit</span>
+                  </button>
                 {/if}
               </div>
             </div>
@@ -1319,7 +1341,15 @@
           <div class="border border-wire border-dashed bg-void/80 p-3 font-mono flex flex-col gap-2">
             <div class="flex items-center justify-between text-[10px]">
               <span class="text-ink-muted uppercase tracking-wider">// LOCAL_IMPRESSIONS [私密試聽鏈路]</span>
-              <span class="material-symbols-outlined text-ink-dim text-[14px]">edit_note</span>
+              <button
+                type="button"
+                onclick={() => onopenInLog?.(selectedArtist.id)}
+                class="text-signal hover:text-white bg-signal/15 hover:bg-signal border border-signal/40 px-2 py-0.5 rounded-[2px] text-[9px] flex items-center gap-1 transition-all cursor-pointer"
+                title="在聆賞日誌中開啟或抒寫完整手札"
+              >
+                <span>在日誌中開啟</span>
+                <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+              </button>
             </div>
             <div class="p-2 bg-chassis border border-wire text-[10px] text-ink flex items-center justify-between">
               <span>CHAIN: HD600 // 4.4mm BALANCED</span>

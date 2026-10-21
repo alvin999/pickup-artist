@@ -18,6 +18,7 @@
   import HoneycombClusterView from '$lib/components/studio/HoneycombClusterView.svelte';
   import AcousticMatrixView from '$lib/components/studio/AcousticMatrixView.svelte';
   import ListeningQueueView from '$lib/components/studio/ListeningQueueView.svelte';
+  import ListeningLogView from '$lib/components/studio/ListeningLogView.svelte';
   import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
@@ -57,6 +58,13 @@
   let isRecommendingAlbums = $state(false);
   let queueState = $state<QueueState>(analysisQueue.getState());
   let isReauthenticating = $state(false);
+  let targetLogArtistId = $state<string | null>(null);
+
+  // 跨視圖跳轉：自展間或外部節點跳轉至聆賞日誌並聚焦該藝人
+  function handleOpenInLog(artistId: string) {
+    targetLogArtistId = artistId;
+    activeStudioView = 'listening-log';
+  }
 
   async function handleQuickReauth() {
     isReauthenticating = true;
@@ -488,6 +496,15 @@
     }
   }
 
+  // 儲存來自聆賞手札的藝人筆記、心頭好專輯與標籤更新
+  async function handleUpdateArtistFromLog(updated: ArtistEntry) {
+    await updateArtist(updated.id, updated);
+    const idx = artists.findIndex((a) => a.id === updated.id);
+    if (idx !== -1) {
+      artists[idx] = updated;
+    }
+  }
+
   // 全域快捷鍵
   function handleGlobalKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -619,6 +636,7 @@
           onrecommendMoreSimilar={handleRecommendMoreSimilar}
           onrecommendMoreAlbums={handleRecommendMoreAlbums}
           onaddToQueue={handleAddToQueue}
+          onopenInLog={handleOpenInLog}
           {isAnalyzing}
           {isRecommendingMore}
           {isRecommendingAlbums}
@@ -667,12 +685,28 @@
           }}
           {showToast}
         />
+      {:else if activeStudioView === 'listening-log'}
+        <!-- 視圖 5: 聆賞日誌視圖 (Listening Log View) -->
+        <ListeningLogView
+          artists={artists}
+          initialTargetArtistId={targetLogArtistId}
+          onupdateArtist={handleUpdateArtistFromLog}
+          onselectArtist={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          onopenInCrate={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          {showToast}
+        />
       {:else}
         <!-- 其他 Studio 模組待命占位 -->
         <div class="py-24 text-center font-mono text-xs text-[#8E9298] bg-[#0D0E11] rounded-[4px] border border-[#1F2228] p-8">
           <span class="material-symbols-outlined text-[36px] text-[#FEC486] mb-2">settings_input_component</span>
           <div class="text-sm font-bold text-[#EEF0F2] mb-1">
-            {activeStudioView.toUpperCase()} // MODULE STANDBY
+            {String(activeStudioView).toUpperCase()} // MODULE STANDBY
           </div>
           <p class="text-[#52565E]">此聆賞模組電路已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
         </div>

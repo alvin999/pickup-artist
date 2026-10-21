@@ -92,6 +92,15 @@ export interface ArtistEntry {
   clusterCategory?: AcousticSector | 'math-rock' | 'jazz' | 'neo-classical' | 'ambient';
   clusterSector?: AcousticSector;
   clusterPos?: { x: number; y: number };
+
+  // 聆賞手札擴充 (Listening Journal)
+  listeningContext?: {
+    scene?: 'headphone' | 'speaker' | 'on-the-go' | 'night-solitude'; // 極簡聆聽情境 (最低限度)
+    pickedAlbums?: string[];       // 點選喜愛的代表專輯名稱 (源自 notableAlbums)
+    favoriteTracks?: string[];     // 心頭好曲目 (點擊標記或自填)
+    moodTags?: string[];           // 氛圍標籤 (點擊即選)
+    lastLoggedAt?: number;         // 最後記述時間戳
+  };
 }
 
 export interface CloudSyncPayload {

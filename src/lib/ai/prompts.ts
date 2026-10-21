@@ -235,3 +235,59 @@ Output format strictly matching:
 
   return { systemPrompt, userPrompt };
 }
+
+/**
+ * 構建「人文聽感共鳴分析 (Listening Resonance)」Prompt
+ * 
+ * 設計意圖 (Why & Philosophy):
+ * 1. 人文感優先：摒除冷硬發燒測試術語，專注於心境共振、時代氛圍與生活情境。
+ * 2. 降低手寫負擔：將使用者隨意記下的片語或關鍵字，轉化為具文學質感的短手札。
+ * 3. 點選化推薦：自動推薦 1-3 首契合心境的曲目與 2-4 個人文標籤，便於一鍵帶入。
+ */
+export function buildListeningResonancePrompt(
+  artistName: string,
+  userNotes: string,
+  availableAlbums: string[] = [],
+  locale: SupportedLocale = 'zh-TW'
+): { systemPrompt: string; userPrompt: string } {
+  const languageRules =
+    locale === 'zh-TW'
+      ? `請以繁體中文撰寫感言潤飾與推薦理由；歌名請維持原發行名稱。`
+      : locale === 'ja'
+      ? `日本語で情緒的な所感を記述し、曲名は公式表記を維持してください。`
+      : `Write thoughtful reflections in English; maintain official track names.`;
+
+  const systemPrompt = `You are a sensitive and poetic music essayist and curator for "Pickup Artist (大音悉聲)".
+Your mission is to help a listener articulate their emotional connection with the music of "${artistName}".
+
+【人文美學與情感共振引領 (Positive Affirmative Guidance)】
+1. 深度同理與專屬呼應：將使用者描繪的每一處情緒、感官印記（如雨夜微涼、城市漫步、舊日時光或某段器樂音色）視為手札的靈魂，以真摯細膩的文筆將其昇華，展現專屬而深刻的心靈對話。
+2. 純粹文學與生活語境：聚焦於文字的呼吸感、詩意留白、情感撫慰與生活當下的共振。
+3. 契合選曲：精選與該心境特質最為呼應相通的代表曲目與氛圍標籤。
+4. ${languageRules}
+5. 請直接輸出標準結構的單一 JSON 物件。`;
+
+  const albumsHint = availableAlbums.length > 0
+    ? `\n該藝人代表專輯參考：${availableAlbums.join('、')}`
+    : '';
+
+  const notesHint = userNotes.trim().length > 0
+    ? `【使用者真摯寫下的聽感與心境印記】：\n「${userNotes.trim()}」\n請全然融入上述使用者的真實心境，提煉極富共鳴的文學題詞、感言潤飾與心靈契合曲目。`
+    : `使用者交由你引領共鳴，請以「${artistName}」最核心的靈魂特質與情感底蘊出發，為深夜或日常聆聽寫下一段優美深邃的導讀手札。`;
+
+  const userPrompt = `請為音樂人「${artistName}」提煉人文聽感共鳴與心境選曲：${albumsHint}
+${notesHint}
+
+請輸出符合下列嚴格 JSON 格式：
+{
+  "userEchoQuote": "提煉使用者心境的簡短共鳴金句（約 15-25 字，例如：雨夜獨處時，被那段延遲吉他切開了思緒）",
+  "enhancedNote": "精煉的人文聽感隨筆（約 60-120 字，文字優雅溫潤，深刻呼應並昇華使用者的感觸）",
+  "recommendedTracks": ["代表曲1", "代表曲2"],
+  "moodTags": ["雨天沉思", "深夜獨處", "詩意吉他"],
+  "suggestedScene": "night-solitude"
+}
+(備註：suggestedScene 僅限從 headphone, speaker, on-the-go, night-solitude 中擇一)`;
+
+  return { systemPrompt, userPrompt };
+}
+

@@ -1,5 +1,11 @@
 import { ArtistAnalysisResponseSchema, sanitizeAnalysisPayload, NotableAlbumSchema, type ValidatedArtistAnalysisResponse } from './schema';
-import { buildArtistAnalysisPrompt, buildMoreSimilarArtistsPrompt, buildMoreNotableAlbumsPrompt, type DisambiguationContext } from './prompts';
+import {
+  buildArtistAnalysisPrompt,
+  buildMoreSimilarArtistsPrompt,
+  buildMoreNotableAlbumsPrompt,
+  buildListeningResonancePrompt,
+  type DisambiguationContext
+} from './prompts';
 import type { SupportedLocale } from '$lib/i18n';
 import { loadSecureAISettings } from './vault';
 import type { NotableAlbum } from '$lib/types/artist';
@@ -892,3 +898,156 @@ export async function fetchMoreNotableAlbums(
 
   return validatedAlbums;
 }
+
+export interface ListeningResonanceResult {
+  userEchoQuote?: string;
+  enhancedNote: string;
+  recommendedTracks: string[];
+  moodTags: string[];
+  suggestedScene?: 'headphone' | 'speaker' | 'on-the-go' | 'night-solitude';
+}
+
+/**
+ * 執行「人文聽感共鳴分析」
+ * 根據使用者隨手筆記或音樂人底蘊，提煉出詩意感言、推薦契合曲目與情境標籤
+ */
+export async function analyzeListeningResonance(
+  artistName: string,
+  userNotes: string,
+  availableAlbums: string[] = [],
+  locale: SupportedLocale = 'zh-TW',
+  overrideSettings?: AISettings
+): Promise<ListeningResonanceResult> {
+  let settings = overrideSettings;
+  if (!settings) {
+    const secureLoaded = await loadSecureAISettings();
+    settings = secureLoaded.settings;
+  }
+
+  const { systemPrompt, userPrompt } = buildListeningResonancePrompt(
+    artistName,
+    userNotes,
+    availableAlbums,
+    locale
+  );
+
+  let rawJsonText = '';
+
+  if (settings.provider === 'groq') {
+    if (!settings.groqKey.trim()) {
+      throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.groqKey.trim()}`
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.5,
+        max_tokens: 800,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Groq API 請求失敗 (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    rawJsonText = data.choices?.[0]?.message?.content || '{}';
+  } else {
+    // Gemini
+    if (!settings.geminiKey.trim()) {
+      throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    }
+
+    const geminiModel = settings.geminiModel || DEFAULT_GEMINI_MODEL;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${settings.geminiKey.trim()}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.5
+        }
+      })
+    });
+
+    if (res.status === 429) {
+      const errText = await res.text();
+      const retrySec = extractRetrySeconds(res, errText);
+      throw new RateLimitError(
+        `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+        retrySec
+      );
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API 請求失敗 (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  }
+
+  try {
+    const parsed = JSON.parse(rawJsonText);
+    const validScenes: Array<'headphone' | 'speaker' | 'on-the-go' | 'night-solitude'> = [
+      'headphone',
+      'speaker',
+      'on-the-go',
+      'night-solitude'
+    ];
+    const scene = validScenes.includes(parsed.suggestedScene) ? parsed.suggestedScene : undefined;
+
+    return {
+      userEchoQuote: typeof parsed.userEchoQuote === 'string' ? parsed.userEchoQuote.trim() : undefined,
+      enhancedNote: typeof parsed.enhancedNote === 'string' ? parsed.enhancedNote.trim() : userNotes,
+      recommendedTracks: Array.isArray(parsed.recommendedTracks)
+        ? parsed.recommendedTracks.map((t: any) => String(t).trim()).filter(Boolean)
+        : [],
+      moodTags: Array.isArray(parsed.moodTags)
+        ? parsed.moodTags.map((t: any) => String(t).trim()).filter(Boolean)
+        : [],
+      suggestedScene: scene
+    };
+  } catch (err) {
+    console.warn('[AI Listening Resonance Parse Error]:', err, rawJsonText);
+    return {
+      enhancedNote: userNotes,
+      recommendedTracks: [],
+      moodTags: []
+    };
+  }
+}
+
