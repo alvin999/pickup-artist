@@ -581,6 +581,8 @@
       onselectView={(v) => (activeStudioView = v)}
       totalArtistsCount={artists.length}
       {inboxCount}
+      {artists}
+      {showToast}
     />
   </div>
 
