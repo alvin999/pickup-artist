@@ -10,7 +10,7 @@
     Flame,
     ExternalLink
   } from 'lucide-svelte';
-  import { ACOUSTIC_SECTORS } from '$lib/constants/sectors';
+  import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
 
   // 聲學腕錶風格 8 軸羅盤幾何參數 (中心 140, 140)
   const DIAL_CENTER = 140;
@@ -300,21 +300,32 @@
   // 待解剖收件匣計數
   const inboxCount = $derived(artists.filter((a) => a.status === 'inbox').length);
 
-  // 計算流派分布計數
-  const genreCounts = $derived({
-    math: artists.filter((a) => a.analysis?.genres.some((g) => /math|instrumental/i.test(g))).length,
-    jazz: artists.filter((a) => a.analysis?.genres.some((g) => /jazz|modal/i.test(g))).length,
-    ambient: artists.filter((a) => a.analysis?.genres.some((g) => /ambient|folk|drone/i.test(g))).length
+  // 統計 8 軸聲學大扇區藝人數量 (依 sector / clusterSector / clusterCategory)
+  const sectorCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const sector of SECTOR_LIST) {
+      counts[sector.id] = artists.filter((a) => {
+        const targetSector = a.analysis?.sector || a.clusterSector || a.clusterCategory;
+        return targetSector === sector.id;
+      }).length;
+    }
+    return counts;
   });
+
+  // 動態過濾：只顯示目前庫存中有收錄藝人的大分類板塊
+  const availableSectors = $derived(
+    SECTOR_LIST.filter((s) => (sectorCounts[s.id] || 0) > 0)
+  );
 
   // 篩選與排序邏輯
   const processedArtists = $derived(
     artists
       .filter((a) => {
         if (activeFilter === 'inbox') return a.status === 'inbox';
-        if (activeFilter === 'math') return a.analysis?.genres.some((g) => /math|instrumental/i.test(g));
-        if (activeFilter === 'jazz') return a.analysis?.genres.some((g) => /jazz|modal/i.test(g));
-        if (activeFilter === 'ambient') return a.analysis?.genres.some((g) => /ambient|folk|drone/i.test(g));
+        if (activeFilter !== 'all') {
+          const targetSector = a.analysis?.sector || a.clusterSector || a.clusterCategory;
+          return targetSector === activeFilter;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -413,30 +424,20 @@
         <span>ALL_RECORDS [{artists.length}]</span>
       </button>
 
-      <button
-        type="button"
-        onclick={() => (activeFilter = activeFilter === 'math' ? 'all' : 'math')}
-        class="flex items-center gap-1.5 px-3 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'math' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
-      >
-        <span class="material-symbols-outlined text-[14px]">grain</span>
-        <span>MATH_ROCK & INST [{genreCounts.math}]</span>
-      </button>
-
-      <button
-        type="button"
-        onclick={() => (activeFilter = activeFilter === 'jazz' ? 'all' : 'jazz')}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'jazz' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
-      >
-        <span>JAZZ_MODAL [{genreCounts.jazz}]</span>
-      </button>
-
-      <button
-        type="button"
-        onclick={() => (activeFilter = activeFilter === 'ambient' ? 'all' : 'ambient')}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'ambient' ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
-      >
-        <span>AMBIENT_FOLK [{genreCounts.ambient}]</span>
-      </button>
+      <!-- 動態 8 軸聲學大分類按鈕 (有收藏藝人的板塊) -->
+      {#each availableSectors as sector (sector.id)}
+        {@const count = sectorCounts[sector.id] || 0}
+        {@const isSelected = activeFilter === sector.id}
+        <button
+          type="button"
+          onclick={() => (activeFilter = isSelected ? 'all' : sector.id)}
+          class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {isSelected ? 'border border-ink bg-ink text-void font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
+          title="{sector.nameTw} ({sector.name})"
+        >
+          <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {sector.colorHex}"></span>
+          <span>{sector.id} [{count}]</span>
+        </button>
+      {/each}
     </div>
 
     <!-- 排序選單 -->
