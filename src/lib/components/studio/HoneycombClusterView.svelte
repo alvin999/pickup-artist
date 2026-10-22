@@ -1414,22 +1414,29 @@
               onclick={() => navigateToSubNode(sub)}
               onkeydown={(e) => e.key === 'Enter' && navigateToSubNode(sub)}
               title="點擊聚焦【{sub.name}】子流派藝人群"
-              class="subgenre-node absolute flex flex-col items-center justify-center cursor-pointer group z-25 transition-transform duration-200 hover:scale-115"
+              class="subgenre-node absolute flex flex-col items-center justify-center cursor-pointer group z-25 transition-transform duration-200 hover:scale-110"
               style="left: {sub.x - sub.size / 2}px; top: {sub.y - sub.size / 2}px; width: {sub.size}px; height: {sub.size}px;"
             >
               <!-- Sub 節點晶片本體 -->
               <div
                 class="w-full h-full rounded-2xl flex flex-col items-center justify-center text-center p-1.5 shadow-lg relative border transition-all {isSubActive
-                  ? 'bg-[#181B24] border-2 border-[#FEC486] ring-2 ring-[#FEC486]/50'
-                  : 'bg-[#0E1015] border border-[#2B303C] hover:border-[#FEC486]'}"
-                style="box-shadow: {isSubActive ? `0 0 20px ${sub.color}88` : `0 0 10px ${sub.color}33`};"
+                  ? 'bg-[#161A24] border-2 border-[#FEC486] ring-1 ring-[#FEC486]/50'
+                  : 'bg-[#0C0E14] border border-[#2B303C] hover:border-[#FEC486]'}"
+                style="box-shadow: {isSubActive ? `0 0 16px ${sub.color}60` : 'none'};"
               >
-                <span class="font-mono text-[8px] text-[#8E9298] uppercase leading-none">SUB</span>
-                <span class="font-serif text-[10px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486] leading-tight block truncate max-w-[60px] mt-0.5">
-                  {sub.name}
-                </span>
-                <span class="font-mono text-[8px] text-[#FEC486] font-bold mt-0.5">
+                <span class="font-mono text-[7px] text-[#8E9298] uppercase leading-none tracking-widest font-bold">SUB</span>
+                <span class="font-mono text-[11px] text-[#FEC486] font-bold mt-1">
                   {sub.artistCount}
+                </span>
+                <span class="font-mono text-[6px] text-[#52565E] uppercase tracking-tighter">BODIES</span>
+              </div>
+
+              <!-- 外部懸浮完整子流派全名標籤 (不遮擋、不裁切) -->
+              <div
+                class="absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 z-35 pointer-events-none px-2 py-0.5 rounded-[3px] bg-[#080A0F]/90 backdrop-blur-md border border-[#262C38] shadow-md text-center whitespace-nowrap max-w-[130px] group-hover:border-[#FEC486]/60 transition-colors"
+              >
+                <span class="font-serif text-[10px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486] leading-tight block truncate">
+                  {sub.name}
                 </span>
               </div>
             </div>
@@ -1505,7 +1512,7 @@
                   : 'bg-[#15171C] border border-[#2C313B] hover:border-[#E0A96D]'}"
                 style="box-shadow: {haloGlow};"
               >
-                <!-- 行星黑膠/肖像鏡面載體 (帶黑膠微刻槽與底片暗角) -->
+                <!-- 行星黑膠/肖像鏡面載體 (100% 純淨不遮擋圖片，同心黑膠刻紋) -->
                 <div
                   class="w-full h-full rounded-full bg-[#08090C] overflow-hidden relative flex flex-col items-center justify-center p-1 text-center shadow-inner"
                   style="
@@ -1518,48 +1525,61 @@
                     <img
                       src={artist.coverImage}
                       alt={artist.name}
-                      class="absolute inset-0 w-full h-full object-cover {isSelected ? 'opacity-80' : 'opacity-45 group-hover:opacity-75'} transition-opacity pointer-events-none"
+                      class="absolute inset-0 w-full h-full object-cover {isSelected ? 'opacity-95' : 'opacity-75 group-hover:opacity-95'} transition-opacity pointer-events-none"
                     />
                     <!-- 黑膠同心刻紋覆蓋層 -->
                     <div
-                      class="absolute inset-0 pointer-events-none opacity-25 mix-blend-overlay"
+                      class="absolute inset-0 pointer-events-none opacity-20 mix-blend-overlay"
                       style="background-image: repeating-radial-gradient(circle at center, transparent 0px, transparent 2px, rgba(255,255,255,0.12) 3px);"
                     ></div>
-                  {/if}
-
-                  <!-- 語意縮放：宏觀模式下微星光點，中微觀模式展開文字資訊 -->
-                  {#if showLabel}
-                    <div class="relative z-10 flex flex-col items-center px-1 pointer-events-none transition-opacity duration-200">
-                      <span
-                        class="font-serif font-bold text-[#EEF0F2] group-hover:text-[#FEC486] leading-tight block truncate text-center"
-                        style="font-size: {Math.max(9, Math.min(13, Math.round(pos.size * 0.16)))}px; max-w: {pos.size - 12}px;"
-                      >
-                        {artist.name.split(' ')[0]}
-                      </span>
-
-                      {#if showDetails}
-                        <div class="flex items-center gap-1 mt-0.5">
-                          <span class="font-mono text-[9px] text-[#FEC486] font-bold">
-                            W{weight}
-                          </span>
-                          {#if artist.dynamicRange && colorByDR}
-                            <span class="font-mono text-[8px] {isDrHigh ? 'text-[#63C78B]' : 'text-[#8E9298]'} font-bold">
-                              DR{artist.dynamicRange}
-                            </span>
-                          {:else if artist.status === 'inbox'}
-                            <span class="font-mono text-[7px] text-[#FA383E] uppercase font-bold px-1 bg-[#2B0E12] rounded">
-                              RAW
-                            </span>
-                          {/if}
-                        </div>
-                      {/if}
-                    </div>
+                    <!-- 黑膠中心微軸孔 (Center Spindle) -->
+                    <div class="w-1.5 h-1.5 rounded-full bg-[#050608] border border-white/30 z-10 pointer-events-none"></div>
                   {:else}
-                    <!-- 宏觀深空極簡模式：小星點光芒 -->
-                    <div class="w-2 h-2 rounded-full bg-[#FEC486] shadow-[0_0_8px_#FEC486] pointer-events-none"></div>
+                    <!-- 無封面時：黑膠中心唱片標籤紙與音樂圖示 -->
+                    <div class="w-5 h-5 rounded-full bg-[#151922] border border-[#2B313D] flex items-center justify-center pointer-events-none">
+                      <Music class="w-2.5 h-2.5 text-[#FEC486]/70" />
+                    </div>
                   {/if}
                 </div>
               </div>
+
+              <!-- 外部懸浮完整全名標籤膠囊 (不遮擋天體圖片、完整顯示藝人全名) -->
+              {#if showLabel}
+                <div
+                  class="absolute top-[calc(100%+5px)] left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center transition-all duration-200 {isSelected ? 'scale-105' : 'group-hover:scale-105'}"
+                >
+                  <div
+                    class="px-2 py-0.5 rounded-[3px] bg-[#07090E]/92 backdrop-blur-md border {isSelected
+                      ? 'border-[#FEC486] shadow-[0_2px_10px_rgba(254,196,134,0.35)]'
+                      : 'border-[#262C38] group-hover:border-[#FEC486]/70'} shadow-lg flex flex-col items-center text-center whitespace-nowrap max-w-[140px] transition-colors"
+                  >
+                    <!-- 藝人完整全名 (不裁切單詞，完整呈現) -->
+                    <span
+                      class="font-serif font-bold text-[11px] {isSelected ? 'text-[#FEC486]' : 'text-[#EEF0F2] group-hover:text-[#FEC486]'} leading-tight block truncate max-w-full"
+                      title={artist.name}
+                    >
+                      {artist.name}
+                    </span>
+
+                    <!-- 規格微標籤 (Weight / Dynamic Range / Inbox) -->
+                    {#if showDetails}
+                      <div class="flex items-center gap-1 mt-0.5 font-mono text-[8px] leading-none">
+                        <span class="text-[#FEC486] font-bold">W{weight}</span>
+                        {#if artist.dynamicRange && colorByDR}
+                          <span class="text-[#52565E]">·</span>
+                          <span class="{isDrHigh ? 'text-[#63C78B]' : 'text-[#8E9298]'} font-bold">DR{artist.dynamicRange}</span>
+                        {:else if artist.status === 'inbox'}
+                          <span class="text-[#52565E]">·</span>
+                          <span class="text-[#FA383E] uppercase font-bold px-1 bg-[#2B0E12] rounded-[2px]">RAW</span>
+                        {/if}
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              {:else}
+                <!-- 宏觀深空極簡模式：小星點光芒提示 -->
+                <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#FEC486] shadow-[0_0_6px_#FEC486] pointer-events-none"></div>
+              {/if}
             </div>
           {/each}
         </div>
