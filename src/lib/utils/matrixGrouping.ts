@@ -23,7 +23,7 @@ export interface MatrixHierarchy {
   totalSubGenres: number;
 }
 
-export type MatrixSortMode = 'rating' | 'dr' | 'recent' | 'name';
+export type MatrixSortMode = 'weight' | 'dr' | 'recent' | 'name';
 
 /**
  * 依據藝人屬性進行階層式分組：
@@ -34,7 +34,7 @@ export type MatrixSortMode = 'rating' | 'dr' | 'recent' | 'name';
 export function buildMatrixHierarchy(
   artists: ArtistEntry[],
   searchQuery: string = '',
-  sortMode: MatrixSortMode = 'rating'
+  sortMode: MatrixSortMode = 'weight'
 ): MatrixHierarchy {
   const query = searchQuery.trim().toLowerCase();
 
@@ -54,10 +54,10 @@ export function buildMatrixHierarchy(
   const sortArtists = (list: ArtistEntry[]) => {
     return [...list].sort((a, b) => {
       switch (sortMode) {
-        case 'rating': {
-          const rA = a.rating ?? 0;
-          const rB = b.rating ?? 0;
-          if (rB !== rA) return rB - rA;
+        case 'weight': {
+          const wA = a.weight ?? 20;
+          const wB = b.weight ?? 20;
+          if (wB !== wA) return wB - wA;
           return (b.addedAt || 0) - (a.addedAt || 0);
         }
         case 'dr': {

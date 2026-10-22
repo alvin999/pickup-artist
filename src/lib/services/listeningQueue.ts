@@ -19,7 +19,6 @@ export interface ListeningQueueItem {
   startedAt?: number;              // 開始品鑑時間戳
   completedAt?: number;            // 品鑑完成時間戳
   quickNotes?: string;             // 隨手聽感筆記
-  rating?: number;                 // 1-5 星級評分
 }
 
 const STORAGE_KEY = 'pua_listening_queue_v1';
@@ -186,14 +185,13 @@ class ListeningQueueService {
   }
 
   /**
-   * 更新聆聽速記與星級
+   * 更新聆聽速記
    */
-  public updateReview(id: string, quickNotes?: string, rating?: number): void {
+  public updateReview(id: string, quickNotes?: string): void {
     const item = this.items.find((i) => i.id === id);
     if (!item) return;
 
     if (quickNotes !== undefined) item.quickNotes = quickNotes;
-    if (rating !== undefined) item.rating = rating;
 
     this.saveToStorage();
     this.notify();

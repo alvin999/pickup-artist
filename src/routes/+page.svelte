@@ -639,6 +639,7 @@
           onrecommendMoreAlbums={handleRecommendMoreAlbums}
           onaddToQueue={handleAddToQueue}
           onopenInLog={handleOpenInLog}
+          onupdateWeight={handleUpdateWeight}
           {queueState}
           {isAnalyzing}
           {isRecommendingMore}
@@ -672,6 +673,7 @@
           }}
           ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
+          onupdateWeight={handleUpdateWeight}
           {isAnalyzing}
         />
       {:else if activeStudioView === 'listening-queue'}

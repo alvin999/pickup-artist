@@ -15,6 +15,7 @@
     onlocateInGalaxy?: (id: string) => void;
     ondeleteArtist?: (id: string) => void;
     onanalyzeArtist?: (artist: ArtistEntry) => void;
+    onupdateWeight?: (id: string, weight: number) => void;
     isAnalyzing?: boolean;
   }
 
@@ -26,12 +27,13 @@
     onlocateInGalaxy,
     ondeleteArtist,
     onanalyzeArtist,
+    onupdateWeight,
     isAnalyzing = false
   }: Props = $props();
 
   // 搜尋與排序狀態
   let searchQuery = $state('');
-  let sortMode = $state<MatrixSortMode>('rating');
+  let sortMode = $state<MatrixSortMode>('weight');
 
   // 階層下鑽狀態：Level 1 (大分類) 與 Level 2 (子分類)
   let activeSectorId = $state<AcousticSector | 'INBOX'>('ROCK');
@@ -170,7 +172,7 @@
         class="bg-panel border border-wire rounded px-2 py-1 text-xs font-mono text-ink-muted hover:text-ink focus:outline-none focus:border-wire-bright cursor-pointer"
         aria-label="排序依據"
       >
-        <option value="rating">★ 評分優先</option>
+        <option value="weight">⚡ 引力權重優先</option>
         <option value="dr">DR 動態優先</option>
         <option value="recent">最近新增</option>
         <option value="name">字首排序</option>
@@ -397,14 +399,8 @@
                     </div>
                   {/if}
 
-                  <!-- 聲學指標與星級列 -->
+                  <!-- 聲學指標列 -->
                   <div class="flex flex-wrap items-center gap-2 mb-3 font-mono text-[10px]">
-                    <!-- 星級評分 -->
-                    {#if artist.rating && artist.rating > 0}
-                      <span class="text-amber-400 font-bold tracking-tight">
-                        {'★'.repeat(artist.rating)}{'☆'.repeat(Math.max(0, 5 - artist.rating))}
-                      </span>
-                    {/if}
 
                     <!-- DR 動態指標 -->
                     {#if artist.dynamicRange || topAlbum?.dynamicRangeScore}
@@ -433,6 +429,36 @@
                         <span>時代基石</span>
                       </span>
                     {/if}
+
+                    <!-- 聲學引力 Weight 微步進器 (1 ~ 100) -->
+                    <div class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-void border border-wire text-ink font-mono text-[9px]">
+                      <span class="text-ink-dim font-bold">W:</span>
+                      {#if onupdateWeight}
+                        <button
+                          type="button"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            onupdateWeight(artist.id, Math.max(1, (artist.weight ?? 20) - 5));
+                          }}
+                          class="text-ink-dim hover:text-signal px-0.5 font-bold cursor-pointer transition-colors"
+                          title="調降權重 -5"
+                        >-</button>
+                      {/if}
+                      <span class="font-bold {(artist.weight ?? 20) >= 70 ? 'text-[#FEC486]' : 'text-ink'} font-tabular">
+                        {artist.weight ?? 20}
+                      </span>
+                      {#if onupdateWeight}
+                        <button
+                          type="button"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            onupdateWeight(artist.id, Math.min(100, (artist.weight ?? 20) + 5));
+                          }}
+                          class="text-ink-dim hover:text-signal px-0.5 font-bold cursor-pointer transition-colors"
+                          title="調升權重 +5"
+                        >+</button>
+                      {/if}
+                    </div>
                   </div>
 
                   <!-- 代表專輯或核心錄音 -->

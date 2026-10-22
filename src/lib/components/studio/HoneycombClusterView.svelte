@@ -120,6 +120,16 @@
   let deleteCountdown = $state(3);
   let deleteTimer: ReturnType<typeof setInterval> | null = null;
 
+  // 聲學引力質量 Weight 操作即時回饋狀態 (HUD 浮動標籤與震盪波漣漪)
+  let weightFeedback = $state<{
+    artistId: string;
+    delta: number;
+    newWeight: number;
+    isGasGiantBreakthrough: boolean;
+  } | null>(null);
+  let weightFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+  let rippleKey = $state(0);
+
   // 衍生運算：篩選後的藝人清單 (依 Sector, SubGenre 與 Weight 門檻過濾)
   const visibleArtists = $derived(
     artists.filter((a) => {
@@ -583,9 +593,29 @@
     panY -= e.deltaY * 0.9;
   }
 
-  // 調整 Weight (1 ~ 100)
+  // 調整 Weight (1 ~ 100) 並觸發引力震盪波與天體頭頂 HUD 即時回饋
   function changeWeight(artistId: string, targetWeight: number) {
+    const artist = artists.find((a) => a.id === artistId);
+    const oldWeight = artist?.weight ?? 20;
     const clamped = Math.max(1, Math.min(100, Math.round(targetWeight)));
+    if (clamped === oldWeight) return;
+
+    const delta = clamped - oldWeight;
+    const isGasGiantBreakthrough = oldWeight < 70 && clamped >= 70;
+
+    weightFeedback = {
+      artistId,
+      delta,
+      newWeight: clamped,
+      isGasGiantBreakthrough
+    };
+    rippleKey += 1;
+
+    if (weightFeedbackTimer) clearTimeout(weightFeedbackTimer);
+    weightFeedbackTimer = setTimeout(() => {
+      weightFeedback = null;
+    }, 1200);
+
     if (onupdateWeight) {
       onupdateWeight(artistId, clamped);
     }
@@ -908,6 +938,7 @@
   <div class="grid grid-cols-12 gap-6 items-start">
     <!-- 宇宙深空視口 (8 欄) -->
     <div class="col-span-12 xl:col-span-8 flex flex-col gap-2">
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         role="region"
         aria-label="Acoustic Hierarchical Galaxy Canvas"
@@ -1500,9 +1531,36 @@
                 top: {pos.y - pos.size / 2}px;
                 width: {pos.size}px;
                 height: {pos.size}px;
-                transition: {isDraggingThis ? 'none' : 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, left 0.1s ease-out, top 0.1s ease-out'};
+                transition: {isDraggingThis ? 'none' : 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, left 0.1s ease-out, top 0.1s ease-out, width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)'};
               "
             >
+              <!-- 聲學引力波震盪漣漪 (Gravitational Shockwave Ripple) -->
+              {#if weightFeedback && weightFeedback.artistId === artist.id}
+                {#key rippleKey}
+                  <div
+                    class="gravity-shockwave pointer-events-none absolute -inset-2 rounded-full border-2 {weightFeedback.isGasGiantBreakthrough ? 'border-[#FA383E] shadow-[0_0_20px_#FA383E]' : 'border-[#FEC486] shadow-[0_0_15px_#FEC486]'}"
+                  ></div>
+                {/key}
+              {/if}
+
+              <!-- 天體頭頂即時 HUD 浮動刻度膠囊 (快捷鍵 / 滾輪微調即時反饋) -->
+              {#if weightFeedback && weightFeedback.artistId === artist.id}
+                <div
+                  class="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center whitespace-nowrap"
+                >
+                  <div class="px-2 py-0.5 rounded-[4px] font-mono text-[11px] font-bold shadow-[0_0_16px_rgba(0,0,0,0.9)] border flex items-center gap-1.5 {weightFeedback.isGasGiantBreakthrough ? 'bg-[#2B0E12] border-[#FA383E] text-[#FEC486]' : 'bg-[#090C12] border-[#FEC486] text-[#FEC486]'}">
+                    <span class={weightFeedback.delta > 0 ? 'text-[#63C78B]' : 'text-[#FA383E]'}>
+                      {weightFeedback.delta > 0 ? `+${weightFeedback.delta}` : weightFeedback.delta}
+                    </span>
+                    <span class="text-[#8E9298] text-[9px]">➔</span>
+                    <span class="text-white">W{weightFeedback.newWeight}</span>
+                    {#if weightFeedback.isGasGiantBreakthrough}
+                      <span class="text-[#FA383E] text-[9px] animate-pulse">💥 氣態巨星!</span>
+                    {/if}
+                  </div>
+                </div>
+              {/if}
+
               <!-- 行星外環 (拉絲金屬與真空管琥珀收斂環) -->
               <div
                 class="w-full h-full rounded-full p-1 transition-all flex items-center justify-center {isSelected
@@ -2116,6 +2174,21 @@
 
   .celestial-breathe {
     animation: celestialBreathe 4.5s ease-in-out infinite;
+  }
+
+  @keyframes gravityShockwave {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.95;
+    }
+    100% {
+      transform: scale(2.6);
+      opacity: 0;
+    }
+  }
+
+  .gravity-shockwave {
+    animation: gravityShockwave 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 </style>
 
