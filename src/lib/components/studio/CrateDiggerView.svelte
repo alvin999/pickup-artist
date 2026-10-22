@@ -488,7 +488,7 @@
             <div class="flex items-center justify-between font-mono text-[10px] pb-3 border-b border-wire border-dashed">
               <div class="flex items-center gap-1.5 min-w-0">
                 <span class="w-2 h-2 rounded-full shrink-0 {isActive ? 'animate-pulse' : 'bg-ink-dim'}" style="{isActive ? `background-color: ${aura.accentColor}` : ''}"></span>
-                <span class="truncate {isActive ? 'text-ink font-bold tracking-wider' : 'text-ink-muted'}">
+                <span class="truncate {isActive ? 'text-ink font-bold tracking-wider' : 'text-ink-muted font-medium'}">
                   {artist.analysis?.era || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}
                 </span>
               </div>
@@ -552,7 +552,7 @@
               <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20">
                 <div class="flex items-center gap-1.5 text-[9px] font-mono tracking-widest uppercase mb-0.5">
                   <span style="color: {aura.accentColor}">●</span>
-                  <span class="text-ink-dim truncate">{artist.analysis?.subGenre || artist.analysis?.artistRole || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}</span>
+                  <span class="text-ink-muted truncate font-medium">{artist.analysis?.subGenre || artist.analysis?.artistRole || (artist.status === 'inbox' ? 'AWAITING_SCAN' : 'CONTEMPORARY')}</span>
                 </div>
                 <h3 class="font-sans text-lg text-ink font-black tracking-tight leading-snug truncate drop-shadow-md">
                   {artist.name}
@@ -571,7 +571,7 @@
                 {/if}
                 {#if artist.analysis?.genres && artist.analysis.genres.length > 0}
                   {#each artist.analysis.genres.filter(g => g.toUpperCase() !== artist.analysis?.sector).slice(0, 2) as g}
-                    <span class="px-1.5 py-0.5 bg-void border border-wire text-ink-muted text-[9px]">
+                    <span class="px-1.5 py-0.5 bg-[#0e1015] border border-wire-bright/60 text-ink-muted font-medium text-[9px] rounded-[2px]">
                       {g.toUpperCase()}
                     </span>
                   {/each}
@@ -663,14 +663,14 @@
               <span class="font-dot text-xs tracking-[0.15em] text-ink uppercase">
                 {selectedArtist.originLocation || (selectedArtist.countryCode ? `${selectedArtist.countryCode}_ARCHIVE` : 'ORIGIN_RAW')} // #{selectedArtist.formedYear || (selectedArtist.id ? selectedArtist.id.slice(0, 4).toUpperCase() : '0000')}
               </span>
-              <span class="px-1.5 py-0.5 border border-wire bg-void text-ink-muted text-[9px] uppercase tracking-wider">
+              <span class="px-1.5 py-0.5 border border-wire-bright/70 bg-[#12141a] text-ink-muted font-mono font-medium text-[9px] uppercase tracking-wider rounded-[2px] shadow-sm">
                 {selectedArtist.canonTier || (selectedArtist.status === 'inbox' ? 'UNCLASSIFIED' : 'STUDIO_TIER')}
               </span>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-[9px] text-ink-dim uppercase tracking-wider">
-                {selectedArtist.formation || 'ROSTER_RAW'} // {selectedArtist.analysis?.subGenre ? selectedArtist.analysis.subGenre.replace(/\s+/g, '_') : 'UNMAPPED'}
-              </span>
+            <div class="flex items-center gap-1.5 text-[9px] font-mono tracking-wider">
+              <span class="text-ink-muted font-medium">{selectedArtist.formation || 'ROSTER_RAW'}</span>
+              <span class="text-ink-dim">//</span>
+              <span class="text-ink-dim truncate">{selectedArtist.analysis?.subGenre ? selectedArtist.analysis.subGenre.replace(/\s+/g, '_') : 'UNMAPPED'}</span>
             </div>
           </div>
 
@@ -876,7 +876,7 @@
                         y1={tick.y1}
                         x2={tick.x2}
                         y2={tick.y2}
-                        stroke={isCurrentTarget ? (activeSectorDef?.colorHex || '#FEC486') : tick.isMajor ? '#3B404D' : '#1F2228'}
+                        stroke={isCurrentTarget ? (activeSectorDef?.colorHex || '#FEC486') : tick.isMajor ? '#4e5464' : '#2e323e'}
                         stroke-width={tick.isMajor ? (isCurrentTarget ? 2 : 1.2) : 0.8}
                         stroke-linecap="round"
                         class="transition-colors duration-200"
@@ -931,7 +931,7 @@
                           font-size={isHighlighted ? '9.5' : '8'}
                           font-weight={isHighlighted ? 'bold' : 'normal'}
                           letter-spacing="0.08em"
-                          fill={isHighlighted ? color : '#52565E'}
+                          fill={isHighlighted ? color : '#787f91'}
                           class="transition-all duration-150"
                         >
                           {sector.label}
@@ -947,7 +947,7 @@
                       font-family="monospace"
                       font-size="7"
                       letter-spacing="0.22em"
-                      fill="#8E9298"
+                      fill="#a3a8b8"
                       font-weight="bold"
                     >
                       ACOUSTIC AZIMUTH
@@ -959,7 +959,7 @@
                       font-family="monospace"
                       font-size="5.5"
                       letter-spacing="0.16em"
-                      fill="#404552"
+                      fill="#686e7c"
                     >
                       CHRONOMETER // 8-AXIS
                     </text>
@@ -976,7 +976,7 @@
                         font-family="monospace"
                         font-size="8.5"
                         font-weight="bold"
-                        fill={activeSectorDef ? (activeSectorDef.colorHex || '#FEC486') : '#52565E'}
+                        fill={activeSectorDef ? (activeSectorDef.colorHex || '#FEC486') : '#787f91'}
                       >
                         {activeSectorDef ? `${activeSectorDef.angleDeg}°` : '---'}
                       </text>
@@ -987,7 +987,7 @@
                         dominant-baseline="central"
                         font-family="monospace"
                         font-size="5"
-                        fill="#52565E"
+                        fill="#787f91"
                         letter-spacing="0.1em"
                       >
                         {hoveredSectorId ? 'PREVIEW' : 'BEARING'}

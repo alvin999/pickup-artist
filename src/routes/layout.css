@@ -5,14 +5,14 @@
   --color-chassis: #0a0a0c;
   --color-panel: #101014;
   --color-glass: rgba(18, 18, 22, 0.72);
-  --color-wire: #1f1f24;
-  --color-wire-bright: #383842;
+  --color-wire: #2a2c34;
+  --color-wire-bright: #444856;
   --color-signal: #ff2a3c;
   --color-signal-dim: rgba(255, 42, 60, 0.15);
   --color-phosphor: #00f0ff;
   --color-ink: #f4f4f6;
-  --color-ink-muted: #8e8e99;
-  --color-ink-dim: #4a4a52;
+  --color-ink-muted: #9ca1af;
+  --color-ink-dim: #686e7c;
 
   --color-primary: #fec486;
   --color-primary-container: #e0a96d;
@@ -29,11 +29,11 @@
   --color-surface-raised: #0a0a0c;
   --color-surface-overlay: #101014;
   --color-surface-inset: #050505;
-  --color-surface-border: #1f1f24;
-  --color-surface-border-focused: #383842;
+  --color-surface-border: #2a2c34;
+  --color-surface-border-focused: #444856;
 
   --color-signal-phosphor: #f4f4f6;
-  --color-signal-graphite: #4a4a52;
+  --color-signal-graphite: #686e7c;
 
   --font-serif: "Noto Serif TC", "Noto Serif", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -70,7 +70,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   line-height: 1;
-  color: #4a4a52;
+  color: #686e7c;
   pointer-events: none;
   z-index: 20;
 }
