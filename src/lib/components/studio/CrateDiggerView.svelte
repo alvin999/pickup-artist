@@ -497,8 +497,8 @@
           </div>
         </div>
       {:else}
-        <!-- 採用 1px 裸露網格線連接所有單元 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 bg-wire gap-px border border-wire">
+        <!-- 模組化硬體卡片網格 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {#each processedArtists as artist (artist.id)}
           {@const isActive = selectedArtistId === artist.id}
           {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
