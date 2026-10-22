@@ -8,7 +8,8 @@
     ArrowUpRight,
     Disc3,
     Flame,
-    ExternalLink
+    ExternalLink,
+    PenLine
   } from 'lucide-svelte';
   import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
   import type { QueueState } from '$lib/services/analysisQueue';
@@ -628,7 +629,7 @@
                   >
                     <span class="w-1.5 h-1.5 rounded-full bg-signal group-hover:bg-white animate-pulse"></span>
                     <span>LOGGED</span>
-                    <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+                    <ExternalLink class="w-2.5 h-2.5" />
                   </button>
                 {:else}
                   <button
@@ -641,7 +642,7 @@
                     title="點擊為此藝人開啟第一篇手札"
                   >
                     <span>NO_LOG</span>
-                    <span class="material-symbols-outlined text-[9px]">edit</span>
+                    <PenLine class="w-2.5 h-2.5" />
                   </button>
                 {/if}
               </div>
