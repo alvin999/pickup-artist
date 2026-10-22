@@ -484,9 +484,22 @@
 
     <!-- 左側：裸露網格黑膠櫃 (Exposed Grid Crate) -->
     <main class="flex-1 w-full">
-      <!-- 採用 1px 裸露網格線連接所有單元 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 bg-wire gap-px border border-wire">
-        {#each processedArtists as artist (artist.id)}
+      {#if processedArtists.length === 0}
+        <div class="border border-wire border-dashed bg-void/60 p-16 text-center flex flex-col items-center justify-center gap-4 font-mono">
+          <div class="w-14 h-14 rounded-full border border-wire flex items-center justify-center bg-chassis text-ink-dim shadow-inner">
+            <span class="material-symbols-outlined text-3xl">album</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            <div class="text-sm font-bold text-ink uppercase tracking-wider">黑膠展間尚無藝人收錄 // CRATE_STANDBY</div>
+            <p class="text-xs text-ink-muted max-w-sm leading-relaxed">
+              點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一張聲學發燒友檔案解剖。
+            </p>
+          </div>
+        </div>
+      {:else}
+        <!-- 採用 1px 裸露網格線連接所有單元 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 bg-wire gap-px border border-wire">
+          {#each processedArtists as artist (artist.id)}
           {@const isActive = selectedArtistId === artist.id}
           {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
           {@const isQueued = queueState?.queuedArtistIds?.includes(artist.id)}
@@ -688,6 +701,7 @@
           </div>
         {/each}
       </div>
+      {/if}
     </main>
 
     <!-- 右側：整合式透明硬體解剖艙 (Unified Cyber-Hardware Dossier & Telemetry) -->

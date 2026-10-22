@@ -6,7 +6,6 @@
     quickPickupArtist,
     deleteArtist,
     updateArtist,
-    seedInitialSampleIfEmpty,
     autoHealArtistCovers,
     onDatabaseChange
   } from '$lib/db';
@@ -156,15 +155,13 @@
     });
 
     (async () => {
-      // 1. 【樂觀優先】立即自本機 IndexedDB 載入現有快取資料，達成 0 毫秒首頁秒開
+      // 1. 【樂觀優先】立即自本機 IndexedDB 載入真實快取資料，達成 0 毫秒首頁秒開
       await reloadArtists();
-      if (artists.length === 0) {
-        await seedInitialSampleIfEmpty();
-        await reloadArtists();
-      }
 
       if (artists.length > 0 && !selectedArtistId) {
         selectedArtistId = artists[0].id;
+      } else if (artists.length === 0) {
+        selectedArtistId = null;
       }
 
       // 2. 【背景無感同步】於背景刷新遙測狀態與雲端資料庫（不阻塞 UI 首屏渲染）
