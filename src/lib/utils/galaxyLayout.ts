@@ -22,7 +22,7 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'ROCK',
     name: '搖滾與後搖',
-    shortName: '搖滾',
+    shortName: '搖滾與後搖',
     nameEn: 'Rock & Post-Rock',
     icon: 'Guitar',
     angleDeg: 0,
@@ -32,80 +32,80 @@ export const ACOUSTIC_SECTORS: SectorConfig[] = [
   },
   {
     key: 'METAL',
-    name: '重型與前衛金屬',
-    shortName: '金屬',
-    nameEn: 'Metalcore / Sludge / Extreme',
+    name: '重型與極限金屬',
+    shortName: '重型與極限金屬',
+    nameEn: 'Metal & Heavy',
     icon: 'Flame',
     angleDeg: 45,
     color: '#FA383E',
     secondaryColor: '#9E0A12',
-    description: '超低弦下壓、極限爆發瞬態與密集雙大鼓打擊'
+    description: '重金屬、前衛金屬、金屬核、淤泥與末日金屬等極限重型流派'
   },
   {
     key: 'CLASSICAL',
-    name: '古典版本學與詮釋',
-    shortName: '古典',
-    nameEn: 'Classical / Chamber / Baroque',
+    name: '古典與早期音樂',
+    shortName: '古典與早期音樂',
+    nameEn: 'Classical & Early',
     icon: 'Landmark',
     angleDeg: 90,
     color: '#A0B4D8',
     secondaryColor: '#5C749E',
-    description: '大編制管弦交響、原木廳堂自然殘響與樂派版本考證'
+    description: '以演奏家/指揮為核心，按「時代樂派 ✕ 編制樂器」雙軸展開'
   },
   {
     key: 'JAZZ',
-    name: '當代爵士與融合',
-    shortName: '爵士',
-    nameEn: 'Modern Jazz / Modal / Trio',
+    name: '爵士與融合樂',
+    shortName: '爵士與融合樂',
+    nameEn: 'Jazz & Fusion',
     icon: 'Disc3',
     angleDeg: 135,
     color: '#E8B06C',
     secondaryColor: '#B07530',
-    description: '即興微動態、低音大提琴撥弦空氣感與清脆鈸音'
+    description: '現代爵士、融合爵士、硬咆哮、酷派與當代即興器樂'
   },
   {
     key: 'AMBIENT',
-    name: '氛圍音景與新古典',
-    shortName: '氛圍',
-    nameEn: 'Ambient / Soundscape / Neo-Classical',
+    name: '氛圍音景與實驗',
+    shortName: '氛圍音景與實驗',
+    nameEn: 'Ambient & Drone',
     icon: 'Waves',
     angleDeg: 180,
     color: '#84D2C5',
     secondaryColor: '#3E9687',
-    description: '靜謐水滴共鳴、極低底噪、無邊際殘響與空間沈浸'
+    description: '氛圍音樂、新古典環境音景、無人聲器樂共振與實驗噪音'
   },
   {
     key: 'ELECTRONIC',
     name: '前衛電子與合成',
-    shortName: '電子',
-    nameEn: 'IDM / Glitch / Synthwave',
+    shortName: '前衛電子與合成',
+    nameEn: 'Electronic & Avant',
     icon: 'Cpu',
     angleDeg: 225,
     color: '#BD88EE',
     secondaryColor: '#7A48B2',
-    description: '次低音下潛、精確切片微節奏與類比合成器波形'
+    description: '智能舞曲 (IDM)、微聲音樂 (Glitch)、合成器氛圍波與電氣前衛'
   },
   {
     key: 'GROOVE',
     name: '律動與靈魂樂',
-    shortName: '律動靈魂',
+    shortName: '律動與靈魂樂',
     nameEn: 'Groove & Soul',
     icon: 'Activity',
     angleDeg: 270,
     color: '#FFA552',
     secondaryColor: '#C46A14',
-    description: '有機搖擺 Groove、放克、新靈魂、當代節奏藍調與溫潤貝斯線條'
+    description: '根源律動：放克、靈魂樂、新靈魂、當代節奏藍調與意識嘻哈'
   },
   {
     key: 'WORLD',
-    name: '世界民族與根源',
-    shortName: '世界根源',
-    nameEn: 'World Fusion / Ethno Folk',
+    name: '世界音樂與民族根源',
+    shortName: '世界音樂與民族根源',
+    nameEn: 'World & Roots',
     icon: 'Globe',
     angleDeg: 315,
     color: '#D4B886',
     secondaryColor: '#967A48',
-    description: '傳統原聲打擊、民族樂器泛音與跨界調性織理'
+    description: '跨文化世界音樂、民族傳統器樂、非洲律動、南美探戈與跨界根源聲響'
   }
 ];
 

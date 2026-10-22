@@ -55,7 +55,8 @@
     Waves,
     Cpu,
     Activity,
-    Globe
+    Globe,
+    HelpCircle
   } from 'lucide-svelte';
 
   interface Props {
@@ -82,7 +83,6 @@
 
   // 視圖與畫布狀態
   let showGravityLines = $state(true);
-  let colorByDR = $state(true);
   let activeSectorFilter = $state<AcousticSector | 'all' | 'inbox'>('all');
   let selectedSubGenre = $state<string | null>(null);
   let minWeightFilter = $state<number>(1); // 質量過濾閥 (1 ~ 100)
@@ -100,7 +100,7 @@
   // 側邊欄面板模式：'roster' (類別/子流派藝人名錄) | 'dossier' (單星檔案)
   let panelViewMode = $state<'roster' | 'dossier'>('roster');
   let rosterSearchQuery = $state('');
-  let rosterSortBy = $state<'weight' | 'dr' | 'name'>('weight');
+  let rosterSortBy = $state<'weight' | 'name'>('weight');
   
   // 畫布平移狀態 (Pan)
   let panX = $state(0);
@@ -108,6 +108,14 @@
   let isPanningCanvas = $state(false);
   let startCanvasPanX = $state(0);
   let startCanvasPanY = $state(0);
+  let isSpacePressed = $state(false); // 空白鍵按住狀態 (輔助平移手勢)
+
+  // Google Maps 式平滑滾輪即時縮放狀態 (防止 CSS 過渡造成黏滯感)
+  let isWheelZooming = $state(false);
+  let wheelZoomTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 操作指南彈窗狀態
+  let showGuideModal = $state(false);
 
   // 星體節點拖曳狀態與動態互斥推力 (Interactive Elastic Repulsion)
   let draggingArtistId = $state<string | null>(null);
@@ -154,6 +162,15 @@
       ? ACOUSTIC_SECTORS.find((s) => s.key === activeSectorFilter) || null
       : null
   );
+
+  // 取得大分類完整全名顯示字串 (繁中全名 + 英文全名)
+  function getSectorDisplayName(sectorKey?: string | null): string {
+    if (!sectorKey) return 'RAW INBOX';
+    if (sectorKey === 'inbox' || sectorKey === 'RAW INBOX') return '待探索彗星 (RAW INBOX)';
+    const sec = ACOUSTIC_SECTORS.find((s) => s.key === sectorKey);
+    if (sec) return `${sec.name} (${sec.nameEn})`;
+    return sectorKey;
+  }
 
   // 衍生運算：當前分類名稱與主題色
   const currentCategoryTitle = $derived.by(() => {
@@ -219,8 +236,6 @@
     const sorted = [...list];
     if (rosterSortBy === 'weight') {
       sorted.sort((a, b) => (b.weight ?? 20) - (a.weight ?? 20));
-    } else if (rosterSortBy === 'dr') {
-      sorted.sort((a, b) => (b.dynamicRange ?? 0) - (a.dynamicRange ?? 0));
     } else if (rosterSortBy === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -478,9 +493,10 @@
     return { x, y, w, h };
   });
 
-  // 畫布背景滑鼠按下：準備平移畫布
+  // 畫布背景滑鼠按下：準備平移畫布 (支援空白鍵快捷拖曳)
   function handleCanvasMouseDown(e: MouseEvent) {
-    if ((e.target as HTMLElement).closest('.artist-star-node, .ghost-star-node, .sun-core-node, .subgenre-node, .minimap-radar, .hud-controls, button, a, input')) return;
+    if ((e.target as HTMLElement).closest('.guide-modal-container, input, textarea, button, a')) return;
+    if (!isSpacePressed && (e.target as HTMLElement).closest('.artist-star-node, .ghost-star-node, .sun-core-node, .subgenre-node, .minimap-radar, .hud-controls')) return;
     if (isFlying) isFlying = false;
     isPanningCanvas = true;
     startCanvasPanX = e.clientX - panX;
@@ -573,24 +589,53 @@
     isPanningCanvas = false;
   }
 
-  // 智慧觸控板與滾輪手勢分離
+  // Google Maps 式游標中心智慧滾輪縮放與手勢
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
 
+    // 1. Alt + 滾輪：快速增減選取藝人的引力質量 Weight (±2)
     if (e.altKey && selectedArtist) {
       const delta = e.deltaY < 0 ? 2 : -2;
       changeWeight(selectedArtist.id, (selectedArtist.weight ?? 20) + delta);
       return;
     }
 
-    if (e.ctrlKey || e.metaKey) {
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      zoomLevel = Math.max(30, Math.min(220, Math.round(zoomLevel * zoomFactor)));
+    // 2. Shift + 滾輪：水平平移 (Horizontal Pan)
+    if (e.shiftKey) {
+      panX -= (e.deltaY || e.deltaX) * 0.85;
       return;
     }
 
-    panX -= e.deltaX * 0.9;
-    panY -= e.deltaY * 0.9;
+    // 3. Google Maps 式滾輪縮放：以滑鼠游標位置為中心縮放 (Zoom towards cursor)
+    if (!canvasViewportEl) return;
+    if (isFlying) isFlying = false;
+
+    // 進入即時縮放狀態，連續縮放時暫時關閉 CSS transition 達成 60fps 貼手零延遲
+    isWheelZooming = true;
+    if (wheelZoomTimer) clearTimeout(wheelZoomTimer);
+    wheelZoomTimer = setTimeout(() => {
+      isWheelZooming = false;
+    }, 100);
+
+    // 縮放係數：觸控板捏合手勢 (含 ctrlKey) 使用細緻指數衰減，一般滑鼠滾輪每次縮放約 8%
+    const zoomFactor = e.ctrlKey
+      ? Math.exp(-e.deltaY * 0.005)
+      : e.deltaY < 0 ? 1.08 : 0.92;
+
+    const currentZoom = zoomLevel;
+    const nextZoom = Math.max(30, Math.min(220, Math.round(currentZoom * zoomFactor)));
+    if (nextZoom === currentZoom) return;
+
+    // 計算滑鼠相對於視口中心的偏移量
+    const rect = canvasViewportEl.getBoundingClientRect();
+    const mouseOffsetX = e.clientX - (rect.left + rect.width / 2);
+    const mouseOffsetY = e.clientY - (rect.top + rect.height / 2);
+
+    // Google Maps 游標錨定補償公式：pan_new = pan_old * ratio - mouseOffset * (ratio - 1)
+    const ratio = nextZoom / currentZoom;
+    panX = Math.round(panX * ratio - mouseOffsetX * (ratio - 1));
+    panY = Math.round(panY * ratio - mouseOffsetY * (ratio - 1));
+    zoomLevel = nextZoom;
   }
 
   // 調整 Weight (1 ~ 100) 並觸發引力震盪波與天體頭頂 HUD 即時回饋
@@ -621,12 +666,61 @@
     }
   }
 
-  // 快捷鍵
+  // 全域鍵盤快捷鍵
   function handleKeydown(e: KeyboardEvent) {
     const isInputFocused = ['INPUT', 'TEXTAREA'].includes(
       (document.activeElement?.tagName || '')
     );
     if (isInputFocused) return;
+
+    // 空白鍵按住：啟動畫布抓取平移模式
+    if (e.code === 'Space' && !e.repeat) {
+      e.preventDefault();
+      isSpacePressed = true;
+      return;
+    }
+
+    // 操作指引彈窗開關 (? 鍵或 / 鍵)
+    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      e.preventDefault();
+      showGuideModal = !showGuideModal;
+      return;
+    }
+
+    // Esc 鍵：若指南開啟則關閉指南，否則若有選中藝人則取消選取
+    if (e.key === 'Escape') {
+      if (showGuideModal) {
+        showGuideModal = false;
+        return;
+      }
+      if (selectedArtistId) {
+        selectedArtistId = null;
+        return;
+      }
+    }
+
+    // 方向鍵平移視野 (Pan with Arrow keys)
+    const arrowStep = 60;
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      panY += arrowStep;
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      panY -= arrowStep;
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      panX += arrowStep;
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      panX -= arrowStep;
+      return;
+    }
 
     // 全局導航快捷鍵
     if (e.key.toLowerCase() === 'r' || e.key === 'Home' || e.key === '0') {
@@ -661,6 +755,13 @@
         e.preventDefault();
         zoomLevel = Math.max(30, zoomLevel - 10);
       }
+    }
+  }
+
+  // 鍵盤釋放事件 (釋放空白鍵)
+  function handleKeyup(e: KeyboardEvent) {
+    if (e.code === 'Space') {
+      isSpacePressed = false;
     }
   }
 
@@ -750,6 +851,7 @@
   onmousemove={handleGlobalMouseMove}
   onmouseup={handleGlobalMouseUp}
   onkeydown={handleKeydown}
+  onkeyup={handleKeyup}
 />
 
 {#snippet sectorIcon(iconName: string, className = "w-4 h-4")}
@@ -816,12 +918,12 @@
             type="button"
             onclick={() => navigateToSun(sun)}
             class="px-2.5 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 {activeSectorFilter === sun.key ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-            title="前往【{sun.name}】太陽系 (Google Map 飛行航行)"
+            title="前往【{sun.name}】({sun.nameEn}) 太陽系 (Google Map 飛行航行)"
           >
             <span style="color: {sun.color};">
               {@render sectorIcon(sun.icon, "w-3.5 h-3.5")}
             </span>
-            <span>{sun.shortName}</span>
+            <span>{sun.name}</span>
             {#if sun.artistCount > 0}
               <span class="text-[10px] opacity-70">({sun.artistCount})</span>
             {/if}
@@ -886,23 +988,6 @@
           </span>
         </label>
 
-        <!-- 依 DR 動態著色 -->
-        <label class="flex items-center gap-2 cursor-pointer group select-none">
-          <input
-            type="checkbox"
-            bind:checked={colorByDR}
-            class="hidden"
-          />
-          <span class="w-3.5 h-3.5 bg-[#040405] border border-[#2B2F38] rounded-[2px] flex items-center justify-center {colorByDR ? 'border-[#E0A96D]' : ''}">
-            {#if colorByDR}
-              <span class="w-1.5 h-1.5 bg-[#FEC486]"></span>
-            {/if}
-          </span>
-          <span class="font-mono text-[11px] text-[#8E9298] group-hover:text-[#FEC486] transition-colors">
-            DR 動態範圍著色
-          </span>
-        </label>
-
         <div class="h-3 w-px bg-[#1F2228] hidden md:block"></div>
 
         <!-- 1000 藝人聲學質量門檻滑桿 -->
@@ -946,7 +1031,7 @@
         onmousedown={handleCanvasMouseDown}
         ondblclick={handleCanvasDblClick}
         onwheel={handleWheel}
-        class="relative w-full h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
+        class="relative w-full h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center select-none {isPanningCanvas ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'}"
       >
         <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
         <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>
@@ -993,7 +1078,7 @@
                 style="color: {activeSectorDef.color};"
                 title="返回【{activeSectorDef.name}】"
               >
-                <span>{activeSectorDef.shortName}</span>
+                <span>{activeSectorDef.name}</span>
               </button>
             {/if}
 
@@ -1020,12 +1105,6 @@
                 {selectedArtist.name}
               </button>
             {/if}
-          </div>
-
-          <div class="flex items-center gap-2 text-[10px] text-[#8E9298] px-1 pointer-events-none">
-            <span>PHYSICS: <span class="text-[#FEC486] font-bold">ELASTIC DRAG</span></span>
-            <span class="text-[#52565E]">·</span>
-            <span>空白處雙擊放大 · 滾輪或右下 HUD 縮放</span>
           </div>
         </div>
 
@@ -1090,7 +1169,7 @@
                   background-color: {sun.color};
                   box-shadow: 0 0 {isSunActive ? '8px' : '3px'} {sun.color};
                 "
-                title="前往 {sun.name} ({sun.shortName})"
+                title="前往 {sun.name} ({sun.nameEn})"
               ></button>
             {/each}
 
@@ -1171,6 +1250,19 @@
               <Crosshair class="w-3.5 h-3.5" />
               <span class="hidden sm:inline text-[11px] font-bold">聚焦 [F]</span>
             </button>
+
+            <div class="h-4 w-px bg-[#2B303C] mx-0.5"></div>
+
+            <!-- 操作手冊按鈕 -->
+            <button
+              type="button"
+              onclick={() => (showGuideModal = !showGuideModal)}
+              class="h-7 px-2.5 flex items-center gap-1.5 bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer group {showGuideModal ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10 shadow-[0_0_8px_rgba(254,196,134,0.2)]' : ''}"
+              title="星系導航與操作手冊 (快捷鍵 ? 或 /)"
+            >
+              <HelpCircle class="w-3.5 h-3.5 text-[#FEC486]" />
+              <span class="hidden sm:inline text-[11px] font-bold">指南 [?]</span>
+            </button>
           </div>
         </div>
 
@@ -1184,7 +1276,7 @@
             transform-origin: center center;
             transition: {isFlying
               ? 'transform 650ms cubic-bezier(0.16, 1, 0.3, 1)'
-              : isPanningCanvas || draggingArtistId
+              : isPanningCanvas || draggingArtistId || isWheelZooming
               ? 'none'
               : 'transform 80ms ease-out'};
           "
@@ -1413,16 +1505,16 @@
                   {@render sectorIcon(sun.icon, "w-6 h-6")}
                 </div>
 
-                <!-- 星光蝕刻短標題與代號 -->
-                <div class="flex flex-col items-center pointer-events-none">
-                  <span class="font-serif text-xs font-black text-[#EEF0F2] tracking-tight leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-                    {sun.shortName}
+                <!-- 星光蝕刻全稱標題與英文名 -->
+                <div class="flex flex-col items-center pointer-events-none px-1">
+                  <span class="font-serif text-xs font-black text-[#EEF0F2] tracking-tight leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] text-center">
+                    {sun.name}
                   </span>
                   <span
-                    class="font-mono text-[7px] font-bold tracking-widest uppercase mt-0.5"
+                    class="font-mono text-[7px] font-bold tracking-wider uppercase mt-0.5 text-center truncate max-w-[100px]"
                     style="color: {sun.color};"
                   >
-                    {sun.key}
+                    {sun.nameEn}
                   </span>
                 </div>
 
@@ -1511,7 +1603,6 @@
             {@const isDraggingThis = draggingArtistId === artist.id}
             {@const weight = artist.weight ?? 20}
             {@const isGasGiant = weight >= 70}
-            {@const isDrHigh = (artist.dynamicRange ?? 0) >= 14}
             {@const haloGlow = isSelected
               ? '0 0 16px rgba(254,196,134,0.65), inset 0 0 8px rgba(254,196,134,0.35)'
               : isGasGiant
@@ -1619,14 +1710,11 @@
                       {artist.name}
                     </span>
 
-                    <!-- 規格微標籤 (Weight / Dynamic Range / Inbox) -->
+                    <!-- 規格微標籤 (Weight / Inbox) -->
                     {#if showDetails}
                       <div class="flex items-center gap-1 mt-0.5 font-mono text-[8px] leading-none">
                         <span class="text-[#FEC486] font-bold">W{weight}</span>
-                        {#if artist.dynamicRange && colorByDR}
-                          <span class="text-[#52565E]">·</span>
-                          <span class="{isDrHigh ? 'text-[#63C78B]' : 'text-[#8E9298]'} font-bold">DR{artist.dynamicRange}</span>
-                        {:else if artist.status === 'inbox'}
+                        {#if artist.status === 'inbox'}
                           <span class="text-[#52565E]">·</span>
                           <span class="text-[#FA383E] uppercase font-bold px-1 bg-[#2B0E12] rounded-[2px]">RAW</span>
                         {/if}
@@ -1641,6 +1729,171 @@
             </div>
           {/each}
         </div>
+
+        <!-- 畫布層全螢幕操作手冊彈窗 (HUD Navigation Manual Modal) -->
+        {#if showGuideModal}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="guide-modal-container absolute inset-0 z-40 bg-[#040507]/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-200"
+            onclick={(e) => {
+              if (e.target === e.currentTarget) showGuideModal = false;
+            }}
+          >
+            <div class="relative w-full max-w-2xl bg-[#0B0D12] border border-[#FEC486]/30 rounded-[4px] p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] font-sans flex flex-col gap-5 text-[#EEF0F2] select-none">
+              <!-- 裝飾邊角發光指示 -->
+              <div class="absolute -top-px -left-px w-3 h-3 border-t-2 border-l-2 border-[#FEC486]"></div>
+              <div class="absolute -top-px -right-px w-3 h-3 border-t-2 border-r-2 border-[#FEC486]"></div>
+              <div class="absolute -bottom-px -left-px w-3 h-3 border-b-2 border-l-2 border-[#FEC486]"></div>
+              <div class="absolute -bottom-px -right-px w-3 h-3 border-b-2 border-r-2 border-[#FEC486]"></div>
+
+              <!-- 彈窗頂部標題與關閉按鈕 -->
+              <div class="flex items-center justify-between border-b border-[#1F232E] pb-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-2.5 h-2.5 rounded-full bg-[#FEC486] shadow-[0_0_8px_#FEC486]"></div>
+                  <div>
+                    <h3 class="font-mono text-sm font-bold text-[#FEC486] tracking-wider uppercase">
+                      星系導航與操作手冊 · CELESTIAL NAV MANUAL
+                    </h3>
+                    <p class="font-mono text-[10px] text-[#8E9298]">GOOGLE MAPS 級游標縮放 · 物理引力排斥 · 快捷鍵速查</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onclick={() => (showGuideModal = false)}
+                  class="w-7 h-7 flex items-center justify-center rounded-[3px] bg-[#14161F] hover:bg-[#202430] border border-[#2B303C] text-[#8E9298] hover:text-white transition-colors cursor-pointer"
+                  title="關閉手冊 (快捷鍵 Esc 或 ?)"
+                >
+                  <X class="w-4 h-4" />
+                </button>
+              </div>
+
+              <!-- 快捷鍵與操作網格 (4 大核心互動模組) -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <!-- 1. 地圖航行與視角控制 (Google Maps 級體驗) -->
+                <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
+                  <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#FEC486] border-b border-[#181B22] pb-1.5">
+                    <Compass class="w-3.5 h-3.5 text-[#FEC486]" />
+                    <span>01. 地圖航行與視角導航</span>
+                  </div>
+                  <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">滑鼠滾輪</span>
+                      <span class="text-[#FEC486] font-bold">以游標為中心即時平滑縮放</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">滑鼠左鍵拖曳 / Space + 拖曳</span>
+                      <span>自由平移星系視野</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">畫布空白處雙擊</span>
+                      <span>向游標點平滑拉近</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">方向鍵 ↑ ↓ ← →</span>
+                      <span>平移微調 (Pan)</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">R / Home / 0</span>
+                      <span class="text-[#FEC486]">一鍵復位全宇宙視角</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- 2. 星體與藝人互動動力學 -->
+                <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
+                  <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#84D2C5] border-b border-[#181B22] pb-1.5">
+                    <Orbit class="w-3.5 h-3.5 text-[#84D2C5]" />
+                    <span>02. 星體互動與動態排斥</span>
+                  </div>
+                  <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">單擊藝人行星</span>
+                      <span>選取並開啟單星檔案</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">按住拖曳藝人星體</span>
+                      <span class="text-[#84D2C5] font-bold">自由擺放 + 鄰居連鎖彈性推開</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">F 鍵</span>
+                      <span class="text-[#FEC486]">鏡頭平滑飛航聚焦選中星體</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">Esc 鍵</span>
+                      <span>關閉指南或取消選取藝人</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- 3. 聲學引力質量 Weight 調節 -->
+                <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
+                  <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#FFA552] border-b border-[#181B22] pb-1.5">
+                    <Flame class="w-3.5 h-3.5 text-[#FFA552]" />
+                    <span>03. 聲學引力質量 (Weight)</span>
+                  </div>
+                  <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">Alt + 滾輪</span>
+                      <span class="text-[#FFA552] font-bold">快速增減選取星體質量 (±2)</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">+ / - 或 [ / ]</span>
+                      <span>步長微調質量 (Shift 鍵 ±10)</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">質量 ≥ 70</span>
+                      <span class="text-[#FFA552]">躍遷為「氣態巨行星」輝光巨星</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">引力震盪波</span>
+                      <span>質量更動時釋放天體重力漣漪</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- 4. 雷達與高階巡航 -->
+                <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
+                  <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#A0B4D8] border-b border-[#181B22] pb-1.5">
+                    <Layers class="w-3.5 h-3.5 text-[#A0B4D8]" />
+                    <span>04. 雷達巡航與巨集母星</span>
+                  </div>
+                  <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">點擊左下雷達母星</span>
+                      <span class="text-[#A0B4D8]">相機高速跳躍至指定母星系</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">按住拖曳雷達矩形框</span>
+                      <span>相機視野即時同步航行</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">點擊母星核心或子流派</span>
+                      <span>聚焦母星或篩選該子類別</span>
+                    </li>
+                    <li class="flex items-start justify-between">
+                      <span class="text-[#EEF0F2]">Shift + 滾輪</span>
+                      <span>水平快速平移 (Horizontal Pan)</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- 彈窗底部狀態列 -->
+              <div class="flex items-center justify-between border-t border-[#1F232E] pt-3 font-mono text-[11px] text-[#8E9298]">
+                <span>提示：隨時按下 <kbd class="px-1.5 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> 鍵可開啟或關閉本手冊</span>
+                <button
+                  type="button"
+                  onclick={() => (showGuideModal = false)}
+                  class="px-4 py-1 rounded bg-[#FEC486] hover:bg-[#FFA552] text-[#040507] font-bold transition-colors cursor-pointer"
+                >
+                  開始探索
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -1674,10 +1927,10 @@
           {/if}
         </div>
 
-        <div class="flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full" style="background-color: {currentCategoryColor};"></span>
-          <span class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider">
-            {activeSectorFilter}
+        <div class="flex items-center gap-1.5 max-w-[160px] truncate">
+          <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {currentCategoryColor};"></span>
+          <span class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider truncate">
+            {activeSectorDef ? activeSectorDef.name : activeSectorFilter === 'inbox' ? '待探索彗星' : activeSectorFilter}
           </span>
         </div>
       </div>
@@ -1779,14 +2032,6 @@
               </button>
               <button
                 type="button"
-                onclick={() => (rosterSortBy = 'dr')}
-                title="依動態範圍 DR 排序"
-                class="px-2 py-1 rounded-[2px] font-mono text-[10px] cursor-pointer {rosterSortBy === 'dr' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-              >
-                DR
-              </button>
-              <button
-                type="button"
                 onclick={() => (rosterSortBy = 'name')}
                 title="依名稱字母排序"
                 class="px-2 py-1 rounded-[2px] font-mono text-[10px] cursor-pointer {rosterSortBy === 'name' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
@@ -1809,7 +2054,6 @@
                 {@const isSelected = selectedArtistId === artist.id}
                 {@const weight = artist.weight ?? 20}
                 {@const isGasGiant = weight >= 70}
-                {@const isDrHigh = (artist.dynamicRange ?? 0) >= 14}
                 <div
                   role="button"
                   tabindex="0"
@@ -1858,18 +2102,14 @@
                     </div>
                   </div>
 
-                  <!-- 右側：質量 W 與動態 DR 標籤 -->
+                  <!-- 右側：質量 W 與狀態標籤 -->
                   <div class="flex items-center gap-2 shrink-0 font-mono">
-                    <div class="flex flex-col items-end gap-1">
+                    <div class="flex items-center gap-1.5">
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {isGasGiant ? 'bg-[#2E1E10] text-[#FEC486] border border-[#E0A96D]/40' : 'bg-[#14161A] text-[#CCCFD6] border border-[#1F2228]'}">
                         W{weight}
                       </span>
-                      {#if artist.dynamicRange}
-                        <span class="text-[9px] font-bold {isDrHigh ? 'text-[#63C78B]' : 'text-[#8E9298]'}">
-                          DR{artist.dynamicRange}
-                        </span>
-                      {:else if artist.status === 'inbox'}
-                        <span class="text-[8px] text-[#FA383E] uppercase font-bold px-1 bg-[#2B0E12] rounded">
+                      {#if artist.status === 'inbox'}
+                        <span class="text-[8px] text-[#FA383E] uppercase font-bold px-1.5 py-0.5 bg-[#2B0E12] border border-[#FA383E]/40 rounded">
                           RAW
                         </span>
                       {/if}
@@ -1897,10 +2137,11 @@
               <ArrowLeft class="w-3.5 h-3.5" />
               <span>返回【{currentCategoryTitle}】名錄 ({rosterArtists.length})</span>
             </button>
-            <SpecBadge
-              type="dr"
-              text={selectedArtist.dynamicRange ? `DR${selectedArtist.dynamicRange}` : 'RAW'}
-            />
+            {#if selectedArtist.status === 'inbox'}
+              <SpecBadge type="inbox" text="RAW INBOX" />
+            {:else}
+              <SpecBadge type="analyzed" text="ANALYZED" />
+            {/if}
           </div>
 
           <h3 class="font-serif text-2xl font-bold text-[#EEF0F2] mb-1">
@@ -1929,7 +2170,7 @@
               title="點擊檢視此大類別全部藝人"
             >
               <Sun class="w-3 h-3 text-[#FEC486]" />
-              <span>{selectedArtist.analysis?.sector || selectedArtist.clusterSector || 'RAW INBOX'}</span>
+              <span>{getSectorDisplayName(selectedArtist.analysis?.sector || selectedArtist.clusterSector)}</span>
             </button>
             <span class="text-[#8E9298] font-mono text-xs">➔</span>
             <button
