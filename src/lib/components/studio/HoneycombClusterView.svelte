@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { tsParticles } from '@tsparticles/engine';
+  import { loadSlim } from '@tsparticles/slim';
   import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
   import SpecBadge from '$lib/components/SpecBadge.svelte';
   import TactileButton from '$lib/components/TactileButton.svelte';
@@ -631,6 +633,87 @@
       }
     }
   }
+
+  // 深空星塵粒子引擎狀態與清理
+  let particlesContainer: any = null;
+  const particlesDomId = 'celestial-stardust-particles';
+
+  onMount(() => {
+    let isCancelled = false;
+
+    async function initStardust() {
+      try {
+        await loadSlim(tsParticles);
+        if (isCancelled) return;
+        particlesContainer = await tsParticles.load({
+          id: particlesDomId,
+          options: {
+            fpsLimit: 60,
+            fullScreen: { enable: false },
+            particles: {
+              number: {
+                value: 70,
+                density: {
+                  enable: true,
+                  width: 1200,
+                  height: 750
+                }
+              },
+              color: {
+                value: ['#FEC486', '#A0B4D8', '#E0A96D', '#FFFFFF', '#84D2C5']
+              },
+              shape: {
+                type: 'circle'
+              },
+              opacity: {
+                value: { min: 0.12, max: 0.45 },
+                animation: {
+                  enable: true,
+                  speed: 0.6,
+                  sync: false
+                }
+              },
+              size: {
+                value: { min: 0.8, max: 2.2 }
+              },
+              move: {
+                enable: true,
+                speed: 0.22,
+                direction: 'none',
+                random: true,
+                straight: false,
+                outModes: {
+                  default: 'out'
+                }
+              }
+            },
+            interactivity: {
+              events: {
+                onHover: { enable: false },
+                onClick: { enable: false }
+              }
+            },
+            detectRetina: true,
+            background: {
+              color: 'transparent'
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Stardust particles initialization skipped:', err);
+      }
+    }
+
+    initStardust();
+
+    return () => {
+      isCancelled = true;
+      if (particlesContainer) {
+        particlesContainer.destroy();
+        particlesContainer = null;
+      }
+    };
+  });
 </script>
 
 <svelte:window
@@ -834,6 +917,24 @@
         onwheel={handleWheel}
         class="relative w-full h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
       >
+        <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
+        <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>
+
+        <!-- 深空天文底片微粒噪點層 (Film Grain ISO Texture) -->
+        <svg
+          class="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-30 mix-blend-overlay"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <filter id="celestial-film-grain" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.16 0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#celestial-film-grain)" />
+        </svg>
+
+        <!-- 深空暗角光罩 (Cosmic Vignette) -->
+        <div class="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(4,5,7,0.78)_100%)]"></div>
+
         <!-- 畫布左上角：麵包屑巡航列與狀態 (Cosmic Breadcrumbs) -->
         <div class="absolute top-4 left-4 z-20 flex flex-col gap-1.5 font-mono text-[11px] pointer-events-auto">
           <!-- 麵包屑導航條 -->
@@ -1063,50 +1164,79 @@
             xmlns="http://www.w3.org/2000/svg"
           >
             <defs>
+              <!-- 深空星雲氣體微粒擾動濾鏡 (Nebular Gas Disturbance) -->
+              <filter id="nebula-dust-filter" x="-20%" y="-20%" width="140%" height="140%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G" />
+              </filter>
+
               {#each hierarchicalData.suns as sun}
                 <radialGradient id="sun-glow-{sun.key}" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color={sun.color} stop-opacity="0.38" />
-                  <stop offset="35%" stop-color={sun.secondaryColor} stop-opacity="0.16" />
-                  <stop offset="70%" stop-color={sun.color} stop-opacity="0.05" />
+                  <stop offset="0%" stop-color="#040507" stop-opacity="0" />
+                  <stop offset="12%" stop-color={sun.color} stop-opacity="0.35" />
+                  <stop offset="28%" stop-color={sun.color} stop-opacity="0.16" />
+                  <stop offset="60%" stop-color={sun.secondaryColor} stop-opacity="0.05" />
                   <stop offset="100%" stop-color="#040507" stop-opacity="0" />
                 </radialGradient>
               {/each}
 
               <radialGradient id="nexus-glow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#FA383E" stop-opacity="0.18" />
-                <stop offset="50%" stop-color="#E0A96D" stop-opacity="0.06" />
+                <stop offset="0%" stop-color="#FA383E" stop-opacity="0.15" />
+                <stop offset="45%" stop-color="#E0A96D" stop-opacity="0.05" />
                 <stop offset="100%" stop-color="#040507" stop-opacity="0" />
               </radialGradient>
             </defs>
 
             <!-- 宇宙中央原點 NEXUS 彗星群光環 -->
             <circle cx={GALAXY_CENTER.x} cy={GALAXY_CENTER.y} r="280" fill="url(#nexus-glow)" />
-            <circle cx={GALAXY_CENTER.x} cy={GALAXY_CENTER.y} r="820" fill="none" stroke="#161820" stroke-width="1.5" stroke-dasharray="6 12" />
+            <circle cx={GALAXY_CENTER.x} cy={GALAXY_CENTER.y} r="820" fill="none" stroke="#1F232E" stroke-width="1.2" stroke-dasharray="4 8" />
 
-            <!-- 1. 太陽母星三大層級星雲氣旋與電漿環 (480px 領地輝光) -->
+            <!-- 1. 太陽母星三大層級星雲氣旋與天文星盤軌道環 (480px 領地輝光) -->
             {#each hierarchicalData.suns as sun}
               {@const isSunActive = activeSectorFilter === sun.key || activeSectorFilter === 'all'}
-              <!-- 巨集星雲光暈領地 (Radius 480px) -->
+              <!-- 巨集星雲光暈領地 (Radius 480px) 加上微擾動濾鏡消除純平滑色帶 -->
               <circle
                 cx={sun.x}
                 cy={sun.y}
                 r="480"
                 fill="url(#sun-glow-{sun.key})"
-                opacity={isSunActive ? 1 : 0.18}
+                opacity={isSunActive ? 0.95 : 0.16}
+                filter="url(#nebula-dust-filter)"
                 class="transition-opacity duration-500"
               />
-              <!-- 旋轉電漿能量軌道環 (Radius 140px，自轉動畫) -->
+              <!-- 精密天文度盤外刻度環 (Radius 210px) -->
               <circle
                 cx={sun.x}
                 cy={sun.y}
-                r="140"
+                r="210"
                 fill="none"
                 stroke={sun.color}
-                stroke-width="1.5"
-                stroke-dasharray="5 10"
-                stroke-opacity={isSunActive ? 0.55 : 0.15}
+                stroke-width="0.75"
+                stroke-dasharray="2 12"
+                stroke-opacity={isSunActive ? 0.35 : 0.08}
+              />
+              <!-- 精密象限參考環 (Radius 165px) -->
+              <circle
+                cx={sun.x}
+                cy={sun.y}
+                r="165"
+                fill="none"
+                stroke="#EEF0F2"
+                stroke-width="0.5"
+                stroke-opacity={isSunActive ? 0.22 : 0.06}
+              />
+              <!-- 天文星盤微刻度旋轉軌道 (Radius 135px，深色髮絲線) -->
+              <circle
+                cx={sun.x}
+                cy={sun.y}
+                r="135"
+                fill="none"
+                stroke="#3E4554"
+                stroke-width="0.6"
+                stroke-dasharray="2 8"
+                stroke-opacity={isSunActive ? 0.35 : 0.08}
                 class="animate-spin"
-                style="transform-origin: {sun.x}px {sun.y}px; animation-duration: 60s;"
+                style="transform-origin: {sun.x}px {sun.y}px; animation-duration: 90s;"
               />
             {/each}
 
@@ -1191,53 +1321,85 @@
               class="sun-core-node absolute flex flex-col items-center justify-center cursor-pointer group z-20 transition-transform duration-300 hover:scale-108"
               style="left: {sun.x - sun.size / 2}px; top: {sun.y - sun.size / 2}px; width: {sun.size}px; height: {sun.size}px;"
             >
-              <!-- 電漿日冕旋轉能量環 (Corona Plasma Ring) -->
+              <!-- 1. 【邊旋轉 × 邊呼吸】精密天文星盤複合動態環 (無螢光、純機械工藝) -->
+              <div class="absolute inset-0 pointer-events-none celestial-breathe">
+                <!-- 旋轉刻線環 (以 24s 順時針平穩自轉，刻度線清晰有力) -->
+                <div
+                  class="absolute -inset-4 rounded-full pointer-events-none animate-spin transition-opacity duration-500 {isSunActive ? 'opacity-80' : 'opacity-25'}"
+                  style="
+                    border: 1.2px dashed {sun.color};
+                    border-dasharray: 4 8;
+                    animation-duration: 24s;
+                  "
+                >
+                  <!-- 4 個隨自轉巡航的天文象限微刻點 (Cardinal Tracking Ticks) -->
+                  <span class="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style="background-color: {sun.color};"></span>
+                  <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style="background-color: {sun.color};"></span>
+                  <span class="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style="background-color: {sun.color};"></span>
+                  <span class="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style="background-color: {sun.color};"></span>
+                </div>
+
+                <!-- 靜止天文基準環 (提供相對運動參照系，彰顯自轉機械齒輪感) -->
+                <div
+                  class="absolute -inset-2 rounded-full pointer-events-none transition-opacity duration-500 {isSunActive ? 'opacity-40' : 'opacity-15'}"
+                  style="border: 0.5px solid rgba(255, 255, 255, 0.22);"
+                ></div>
+              </div>
+
+              <!-- 2. 近核微刻度基準環 (Inner Hairline Bezel - 暗色調微勾邊，非螢光) -->
               <div
-                class="absolute -inset-4 rounded-full border border-dashed pointer-events-none transition-opacity duration-500 {isSunActive ? 'opacity-75 animate-spin' : 'opacity-20'}"
+                class="absolute -inset-1 rounded-full pointer-events-none transition-opacity duration-300 {isSunActive ? 'opacity-60' : 'opacity-20'}"
                 style="
-                  border-color: {sun.color};
-                  border-width: 1.5px;
-                  border-dasharray: 6 10;
-                  animation-duration: 40s;
-                  box-shadow: 0 0 30px {sun.color}50;
+                  border: 0.75px solid {sun.color}40;
                 "
               ></div>
 
-              <!-- 太陽母星本體 (雙色熔融球體與強烈自發光) -->
+              <!-- 4. 曜石暗核天體本體 (深邃無反光、黑膠同心暗紋、深碳沉穩質地) -->
               <div
-                class="w-full h-full rounded-full flex flex-col items-center justify-center text-center p-3 shadow-2xl relative transition-all group-hover:scale-105"
+                class="w-full h-full rounded-full flex flex-col items-center justify-center text-center p-3.5 relative transition-all group-hover:scale-105 overflow-hidden z-10"
                 style="
-                  background: radial-gradient(circle at 35% 35%, {sun.color} 0%, {sun.secondaryColor} 60%, #060709 100%);
-                  box-shadow: 0 0 55px {sun.color}99, inset 0 0 25px rgba(255,255,255,0.5), inset 0 0 45px {sun.color};
-                  border: 2.5px solid {sun.color};
+                  background:
+                    repeating-radial-gradient(circle at center, transparent 0px, transparent 1.5px, rgba(255,255,255,0.02) 2px, transparent 2.5px),
+                    radial-gradient(circle at center, #0B0E14 0%, #07080C 70%, #030406 100%);
+                  border: 1px solid rgba(255, 255, 255, 0.16);
+                  box-shadow:
+                    inset 0 1px 1px rgba(255, 255, 255, 0.14),
+                    inset 0 0 22px rgba(0, 0, 0, 0.98),
+                    0 2px 8px rgba(0, 0, 0, 0.5);
                 "
               >
-                <!-- 恆星呼吸脈衝 -->
+                <!-- 曜石深空微光呼吸 -->
                 <div
-                  class="absolute inset-0 rounded-full border border-white/60 animate-ping opacity-25 pointer-events-none"
-                  style="animation-duration: 4s;"
+                  class="absolute inset-0 rounded-full border border-white/20 animate-pulse opacity-15 pointer-events-none"
+                  style="animation-duration: 5s;"
                 ></div>
 
-                <!-- 流派專屬具象圖示 (8 大分類個性彰顯) -->
-                <div class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] mb-1 group-hover:scale-115 transition-transform duration-300">
-                  {@render sectorIcon(sun.icon, "w-7 h-7")}
+                <!-- 星光雷射蝕刻流派圖示 -->
+                <div
+                  class="mb-1 transition-transform duration-300 group-hover:scale-110"
+                  style="color: {sun.color}; filter: drop-shadow(0 0 6px {sun.color}bb);"
+                >
+                  {@render sectorIcon(sun.icon, "w-6 h-6")}
                 </div>
 
-                <!-- 流派中文短標題與英文代號 -->
+                <!-- 星光蝕刻短標題與代號 -->
                 <div class="flex flex-col items-center pointer-events-none">
-                  <span class="font-serif text-xs font-black text-white leading-tight drop-shadow tracking-tight">
+                  <span class="font-serif text-xs font-black text-[#EEF0F2] tracking-tight leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                     {sun.shortName}
                   </span>
-                  <span class="font-mono text-[7px] text-white/80 font-bold tracking-widest uppercase mt-0.5">
+                  <span
+                    class="font-mono text-[7px] font-bold tracking-widest uppercase mt-0.5"
+                    style="color: {sun.color};"
+                  >
                     {sun.key}
                   </span>
                 </div>
 
-                <!-- 天體藝人數量膠囊 -->
-                <div class="mt-1 px-2 py-0.5 rounded-full bg-[#050608]/75 border border-white/20 backdrop-blur-sm pointer-events-none shadow-sm">
-                  <span class="font-mono text-[8px] text-[#FEC486] font-black tracking-wider">
-                    {sun.artistCount} 星體
-                  </span>
+                <!-- 精密天文天體計數刻度 -->
+                <div class="mt-1.5 flex items-center gap-1 font-mono text-[8px] text-[#8E9298] tracking-widest uppercase pointer-events-none">
+                  <span class="w-1 h-1 rounded-full" style="background-color: {sun.color};"></span>
+                  <span class="font-bold text-[#EEF0F2]">{sun.artistCount}</span>
+                  <span class="text-[7px] text-[#52565E]">STARS</span>
                 </div>
               </div>
             </div>
@@ -1313,9 +1475,9 @@
             {@const isGasGiant = weight >= 70}
             {@const isDrHigh = (artist.dynamicRange ?? 0) >= 14}
             {@const haloGlow = isSelected
-              ? '0 0 28px rgba(254,196,134,0.75)'
+              ? '0 0 16px rgba(254,196,134,0.65), inset 0 0 8px rgba(254,196,134,0.35)'
               : isGasGiant
-              ? '0 0 22px rgba(224,169,109,0.5)'
+              ? '0 0 14px rgba(224,169,109,0.38)'
               : 'none'}
             {@const showLabel = zoomLevel >= 55 || isSelected}
             {@const showDetails = zoomLevel >= 85 || isSelected}
@@ -1334,23 +1496,35 @@
                 transition: {isDraggingThis ? 'none' : 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, left 0.1s ease-out, top 0.1s ease-out'};
               "
             >
-              <!-- 行星外環 -->
+              <!-- 行星外環 (拉絲金屬與真空管琥珀收斂環) -->
               <div
                 class="w-full h-full rounded-full p-1 transition-all flex items-center justify-center {isSelected
-                  ? 'bg-gradient-to-tr from-[#FA383E] via-[#FEC486] to-[#FA383E] ring-2 ring-[#FEC486]'
+                  ? 'bg-gradient-to-tr from-[#FA383E] via-[#FEC486] to-[#FA383E] ring-1 ring-[#FEC486]/80'
                   : isGasGiant
-                  ? 'bg-gradient-to-tr from-[#E0A96D] via-[#1C1F26] to-[#E0A96D] border-2 border-[#E0A96D]'
+                  ? 'bg-gradient-to-tr from-[#E0A96D] via-[#1C1F26] to-[#E0A96D] border border-[#E0A96D]/80'
                   : 'bg-[#15171C] border border-[#2C313B] hover:border-[#E0A96D]'}"
                 style="box-shadow: {haloGlow};"
               >
-                <!-- 行星黑膠/肖像鏡面載體 -->
-                <div class="w-full h-full rounded-full bg-[#08090C] overflow-hidden relative flex flex-col items-center justify-center p-1 text-center shadow-inner">
+                <!-- 行星黑膠/肖像鏡面載體 (帶黑膠微刻槽與底片暗角) -->
+                <div
+                  class="w-full h-full rounded-full bg-[#08090C] overflow-hidden relative flex flex-col items-center justify-center p-1 text-center shadow-inner"
+                  style="
+                    background-image:
+                      repeating-radial-gradient(circle at center, transparent 0px, transparent 1.5px, rgba(255,255,255,0.035) 2px, transparent 2.5px),
+                      radial-gradient(circle at center, #11141A 0%, #050608 100%);
+                  "
+                >
                   {#if artist.coverImage}
                     <img
                       src={artist.coverImage}
                       alt={artist.name}
-                      class="absolute inset-0 w-full h-full object-cover {isSelected ? 'opacity-75' : 'opacity-40 group-hover:opacity-70'} transition-opacity pointer-events-none"
+                      class="absolute inset-0 w-full h-full object-cover {isSelected ? 'opacity-80' : 'opacity-45 group-hover:opacity-75'} transition-opacity pointer-events-none"
                     />
+                    <!-- 黑膠同心刻紋覆蓋層 -->
+                    <div
+                      class="absolute inset-0 pointer-events-none opacity-25 mix-blend-overlay"
+                      style="background-image: repeating-radial-gradient(circle at center, transparent 0px, transparent 2px, rgba(255,255,255,0.12) 3px);"
+                    ></div>
                   {/if}
 
                   <!-- 語意縮放：宏觀模式下微星光點，中微觀模式展開文字資訊 -->
@@ -1907,3 +2081,21 @@
     </div>
   </div>
 </div>
+
+<style>
+  @keyframes celestialBreathe {
+    0%, 100% {
+      transform: scale(0.96);
+      opacity: 0.5;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 0.95;
+    }
+  }
+
+  .celestial-breathe {
+    animation: celestialBreathe 4.5s ease-in-out infinite;
+  }
+</style>
+
