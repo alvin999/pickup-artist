@@ -133,3 +133,13 @@
     font-feature-settings: "tnum" 1, "zero" 1;
   }
 }
+
+/* 全域修復原生表單控制元件在暗色調性下的白色破版問題 */
+select, input, textarea {
+  color-scheme: dark;
+}
+
+option {
+  background-color: #0a0a0c;
+  color: #f4f4f6;
+}

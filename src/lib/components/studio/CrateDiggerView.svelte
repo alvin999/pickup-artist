@@ -445,17 +445,21 @@
 
     <!-- 排序選單 -->
     <div class="flex items-center gap-3 shrink-0 text-[10px] self-end xl:self-auto">
-      <div class="flex items-center gap-2 bg-void border border-wire px-2.5 py-1">
+      <div class="flex items-center gap-2 bg-void border px-2.5 py-1 transition-all {sortBy === 'recent' ? 'border-signal/50 shadow-[0_0_10px_rgba(255,42,60,0.15)]' : 'border-wire hover:border-wire-bright'}">
         <span class="text-ink-dim">SORT_BY:</span>
+        {#if sortBy === 'recent'}
+          <span class="w-1.5 h-1.5 rounded-full bg-signal shrink-0 animate-pulse"></span>
+        {/if}
         <select
           bind:value={sortBy}
-          class="bg-transparent text-ink font-mono text-[10px] focus:outline-none cursor-pointer uppercase"
+          style="color-scheme: dark;"
+          class="bg-transparent {sortBy === 'recent' ? 'text-signal font-bold' : 'text-ink'} font-mono text-[10px] focus:outline-none cursor-pointer uppercase [color-scheme:dark]"
         >
-          <option value="recent">RECENT_PLAY 最近聆聽</option>
-          <option value="weight">GRAVITY_WEIGHT 引力權重 (1-100)</option>
-          <option value="cat">CAT# 矩陣刻號</option>
-          <option value="dr">DYNAMIC_RANGE 動態值</option>
-          <option value="audiophile">AUDIOPHILE 發燒等級</option>
+          <option value="recent" class="bg-[#0a0a0c] text-signal font-bold">RECENT_PLAY 最近聆聽</option>
+          <option value="weight" class="bg-[#0a0a0c] text-ink">GRAVITY_WEIGHT 引力權重 (1-100)</option>
+          <option value="cat" class="bg-[#0a0a0c] text-ink">CAT# 矩陣刻號</option>
+          <option value="dr" class="bg-[#0a0a0c] text-ink">DYNAMIC_RANGE 動態值</option>
+          <option value="audiophile" class="bg-[#0a0a0c] text-ink">AUDIOPHILE 發燒等級</option>
         </select>
       </div>
     </div>
