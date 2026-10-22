@@ -59,6 +59,15 @@
   let queueState = $state<QueueState>(analysisQueue.getState());
   let isReauthenticating = $state(false);
   let targetLogArtistId = $state<string | null>(null);
+  let isSidebarCollapsed = $state(false);
+
+  // 切換側邊欄展開/Mini Rail 收折模式並持久化
+  function toggleSidebar() {
+    isSidebarCollapsed = !isSidebarCollapsed;
+    try {
+      localStorage.setItem('pua_sidebar_collapsed', String(isSidebarCollapsed));
+    } catch {}
+  }
 
   // 跨視圖跳轉：自展間或外部節點跳轉至聆賞日誌並聚焦該藝人
   function handleOpenInLog(artistId: string) {
@@ -117,6 +126,14 @@
   );
 
   onMount(() => {
+    // 0. 自 localStorage 恢復側邊欄收折偏好
+    try {
+      const savedCollapsed = localStorage.getItem('pua_sidebar_collapsed');
+      if (savedCollapsed !== null) {
+        isSidebarCollapsed = savedCollapsed === 'true';
+      }
+    } catch {}
+
     // 訂閱雲端即時同步狀態
     const unsubSync = subscribeSyncState((st) => {
       cloudSyncState = st;
@@ -511,6 +528,9 @@
       e.preventDefault();
       const searchInput = document.querySelector('header input') as HTMLInputElement | null;
       searchInput?.focus();
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      toggleSidebar();
     }
   }
 </script>
@@ -583,6 +603,8 @@
       {inboxCount}
       {artists}
       {showToast}
+      isCollapsed={isSidebarCollapsed}
+      ontoggleCollapse={toggleSidebar}
     />
   </div>
 
@@ -597,10 +619,12 @@
     {isAiConfigured}
     syncStatus={cloudSyncState.status}
     lastSyncedAt={cloudSyncState.lastSyncedAt}
+    {isSidebarCollapsed}
+    ontoggleSidebar={toggleSidebar}
   />
 
-  <!-- Studio 主畫布內容區 (帶左側 60 欄位位移與頂部 16 欄位位移) -->
-  <div class="lg:pl-60 pt-16 flex-1 flex flex-col">
+  <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移) -->
+  <div class="{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out">
     <main class="flex-1 p-4 md:p-6 w-full">
       <!-- Session 過期引導橫幅 (Local-First Fallback & One-Click Re-Auth) -->
       {#if cloudSyncState.status === 'session_expired'}

@@ -13,6 +13,8 @@
     isAiConfigured?: boolean;
     syncStatus?: SyncStatus;
     lastSyncedAt?: number | null;
+    isSidebarCollapsed?: boolean;
+    ontoggleSidebar?: () => void;
   }
 
   let {
@@ -24,7 +26,9 @@
     isOneDriveConnected = false,
     isAiConfigured = false,
     syncStatus = 'idle',
-    lastSyncedAt = null
+    lastSyncedAt = null,
+    isSidebarCollapsed = false,
+    ontoggleSidebar
   }: Props = $props();
 
   const syncLabel = $derived.by(() => {
@@ -37,7 +41,7 @@
   });
 </script>
 
-<header class="fixed top-0 left-0 lg:left-60 right-0 h-16 z-30 bg-void/90 backdrop-blur-md border-b border-wire flex items-center justify-between px-4 sm:px-6">
+<header class="fixed top-0 left-0 {isSidebarCollapsed ? 'lg:left-16' : 'lg:left-60'} right-0 h-16 z-30 bg-void/90 backdrop-blur-md border-b border-wire flex items-center justify-between px-4 sm:px-6 transition-[left] duration-300 ease-in-out">
   <!-- 品牌銘牌 -->
   <div class="flex items-center gap-4 sm:gap-6 shrink-0">
     <div class="flex items-baseline gap-3">
