@@ -12,6 +12,7 @@ export default defineConfig({
 			$types: path.resolve('./src/lib/types')
 		}
 	},
+	envPrefix: ['VITE_', 'PUBLIC_'],
 	plugins: [
 		tailwindcss(),
 		sveltekit({

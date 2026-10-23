@@ -34,6 +34,11 @@
     reauthenticateAndSync,
     type CloudSyncState
   } from '$lib/services/onedrive';
+  import {
+    getStoredGoogleToken,
+    restoreBackupFromGoogleDrive,
+    subscribeGoogleDriveSyncState
+  } from '$lib/services/googledrive';
   import { CheckCircle2 } from 'lucide-svelte';
 
   // 狀態管理 (Svelte 5 Runes)
@@ -94,7 +99,8 @@
   async function refreshTelemetryStatus() {
     try {
       const account = await getActiveAccount();
-      isOneDriveConnected = !!account;
+      const gToken = getStoredGoogleToken();
+      isOneDriveConnected = !!account || !!gToken;
     } catch {
       isOneDriveConnected = false;
     }
@@ -133,9 +139,19 @@
       }
     } catch {}
 
-    // 訂閱雲端即時同步狀態
+    // 訂閱雲端即時同步狀態 (OneDrive 與 Google Drive)
     const unsubSync = subscribeSyncState((st) => {
-      cloudSyncState = st;
+      if (st.status === 'syncing' || !cloudSyncState || cloudSyncState.status === 'idle') {
+        cloudSyncState = st;
+      }
+    });
+
+    const unsubGDriveSync = subscribeGoogleDriveSyncState((st) => {
+      if (st.status === 'syncing') {
+        cloudSyncState = { status: 'syncing', lastSyncedAt: st.lastSyncedAt };
+      } else if (st.lastSyncedAt && (!cloudSyncState.lastSyncedAt || st.lastSyncedAt > cloudSyncState.lastSyncedAt)) {
+        cloudSyncState = { status: st.status, lastSyncedAt: st.lastSyncedAt };
+      }
     });
 
     // 訂閱 AI 背景批次分析佇列
@@ -167,12 +183,28 @@
       // 2. 【背景無感同步】於背景刷新遙測狀態與雲端資料庫（不阻塞 UI 首屏渲染）
       refreshTelemetryStatus().catch(console.warn);
 
-      // 若已連結 OneDrive，於背景自雲端同步最新狀態（以雲端為單一真實來源進行雙向時間戳合併）
-      syncFromCloudOnStartup()
-        .then(async (didRestoreFromCloud) => {
-          if (didRestoreFromCloud) {
+      // 3. 若已連結 OneDrive 或 Google Drive，於背景自雲端同步最新狀態
+      const startupSyncTasks: Promise<boolean>[] = [];
+
+      // A: OneDrive 同步
+      startupSyncTasks.push(syncFromCloudOnStartup());
+
+      // B: Google Drive 同步
+      if (getStoredGoogleToken()) {
+        startupSyncTasks.push(
+          restoreBackupFromGoogleDrive()
+            .then((res) => !!res)
+            .catch((err) => {
+              console.warn('[GoogleDrive] 背景啟動同步失敗:', err);
+              return false;
+            })
+        );
+      }
+
+      Promise.all(startupSyncTasks)
+        .then(async (results) => {
+          if (results.some(Boolean)) {
             await reloadArtists();
-            // 確保原本已選中的藝人不會被意外重置
             if (!artists.some((a) => a.id === selectedArtistId)) {
               selectedArtistId = artists[0]?.id || null;
             }
