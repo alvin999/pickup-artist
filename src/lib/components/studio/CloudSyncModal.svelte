@@ -563,7 +563,16 @@
       <!-- 底部安全與雙向同步說明 -->
       <div class="text-[10px] text-ink-dim border-t border-wire pt-3 flex items-center justify-between">
         <span>雙向時間戳比對 (Last-Write-Wins) 啟用中 · 支援雙雲端同時或獨立同步</span>
-        <span class="text-ink-muted">CLOUD_VAULT // v2.0</span>
+        <div class="flex items-center gap-3">
+          <a
+            href="/privacy"
+            class="text-ink-muted hover:text-signal transition-colors underline"
+            title="檢視隱私權政策 (Privacy Policy)"
+          >
+            隱私權政策 (Privacy Policy)
+          </a>
+          <span class="text-ink-muted">CLOUD_VAULT // v2.0</span>
+        </div>
       </div>
 
     </div>

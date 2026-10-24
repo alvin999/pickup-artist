@@ -404,7 +404,7 @@
 
   <!-- 底部資料庫狀態與硬體銘牌 -->
   {#if isCollapsed}
-    <div class="p-2 border-t border-wire bg-void/80 flex flex-col items-center justify-center">
+    <div class="p-2 border-t border-wire bg-void/80 flex flex-col items-center justify-center gap-2">
       <button
         type="button"
         onclick={exportDatabase}
@@ -414,6 +414,13 @@
         <span class="material-symbols-outlined text-[18px]">hard_drive</span>
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] absolute top-1 right-1"></span>
       </button>
+      <a
+        href="/privacy"
+        class="p-1 text-ink-dim hover:text-signal transition-colors flex items-center justify-center"
+        title="隱私權政策與服務條款 (Privacy Policy & Terms)"
+      >
+        <span class="material-symbols-outlined text-[15px]">policy</span>
+      </a>
     </div>
   {:else}
     <div class="p-4 border-t border-wire bg-void/80 font-mono">
@@ -441,6 +448,17 @@
           >
             SHA-256
           </button>
+        </div>
+        <div class="mt-2 pt-1.5 border-t border-wire/60 text-[9px] text-ink-muted flex items-center justify-between">
+          <a
+            href="/privacy"
+            class="hover:text-signal transition-colors flex items-center gap-1 font-mono tracking-wider"
+            title="檢視隱私權政策與服務條款 (Privacy Policy & Terms)"
+          >
+            <span class="material-symbols-outlined text-[11px]">policy</span>
+            <span>PRIVACY & TERMS</span>
+          </a>
+          <span class="text-[8px] text-ink-dim">PUA v0.0.1</span>
         </div>
       </div>
     </div>
