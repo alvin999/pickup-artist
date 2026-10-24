@@ -1,9 +1,32 @@
 <script lang="ts">
   import { t } from '$lib/i18n/index.svelte';
-  import { X, Radio, ArrowLeft, Disc3, Check, Loader2, Smartphone, Copy, CheckCheck, AlertTriangle, ExternalLink } from 'lucide-svelte';
+  import {
+    X,
+    Radio,
+    ArrowLeft,
+    Disc3,
+    Check,
+    Loader2,
+    Smartphone,
+    Copy,
+    CheckCheck,
+    AlertTriangle,
+    ExternalLink,
+    Sparkles,
+    RefreshCw,
+    Compass
+  } from 'lucide-svelte';
   import { searchAppleMusicCandidates, buildAppleMusicSearchUrl, type ArtistCandidate } from '$lib/utils/appleMusic';
-  import type { ArtistEntry } from '$lib/types/artist';
+  import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
   import { checkDuplicateArtist } from '$lib/db';
+  import { SECTOR_LIST } from '$lib/constants/sectors';
+  import {
+    pickLuckyFromLocal,
+    pickLuckyFromAI,
+    pickLuckyFromCurated,
+    type LuckySectorOption,
+    type LuckyCandidateResult
+  } from '$lib/services/luckySerendipity';
 
   interface Props {
     open: boolean;
@@ -32,6 +55,21 @@
   let step = $state<'input' | 'disambiguation' | 'duplicate_alert'>('input');
   let showMobileGuide = $state(false);
   let copiedUrl = $state(false);
+
+  // 好手氣 (Acoustic Serendipity) 狀態
+  let activeTab = $state<'input' | 'lucky'>('input');
+  let selectedLuckySector = $state<LuckySectorOption>('ALL');
+  let isRollingLucky = $state(false);
+  let luckyResult = $state<{
+    name: string;
+    sourceType: 'local-ghost' | 'ai-seed' | 'curated-seed';
+    sourceArtists: string[];
+    sector?: AcousticSector;
+    subGenre?: string;
+    candidate?: ArtistCandidate;
+  } | null>(null);
+  let luckyRollHistory = $state<string[]>([]);
+  let luckyFeedbackMsg = $state<string | null>(null);
 
   // 當外部傳入候選人時，直接開啟排歧選單，無須重複搜尋
   $effect(() => {
@@ -77,6 +115,62 @@
     showMobileGuide = false;
     copiedUrl = false;
     duplicateMatch = null;
+    activeTab = 'input';
+    isRollingLucky = false;
+    luckyResult = null;
+    luckyFeedbackMsg = null;
+  }
+
+  async function handleRollLucky(forceAI = false) {
+    if (isRollingLucky) return;
+    isRollingLucky = true;
+    luckyFeedbackMsg = null;
+
+    try {
+      let result: LuckyCandidateResult | null = null;
+
+      if (!forceAI) {
+        // 優先從本地已分析藝人的 AI 相似名單中挑選（零 Token、零等待、混合加權隨機）
+        result = pickLuckyFromLocal(selectedLuckySector, existingArtists, luckyRollHistory);
+      }
+
+      // 若本地池為空或使用者強制指定深空 AI 探勘
+      if (!result) {
+        result = await pickLuckyFromAI(selectedLuckySector, existingArtists, luckyRollHistory);
+      }
+
+      // 若 AI 連線不順，退回發燒友保底種子庫
+      if (!result) {
+        result = pickLuckyFromCurated(selectedLuckySector, existingArtists, luckyRollHistory);
+      }
+
+      if (result) {
+        // 加入近期抽取紀錄避免連續換一位時重複
+        luckyRollHistory = [...luckyRollHistory.slice(-15), result.name];
+
+        // 嘗試抓取 Apple Music 封面與元資料以供預覽
+        let candidate: ArtistCandidate | undefined;
+        try {
+          const appleCandidates = await searchAppleMusicCandidates(result.name);
+          if (appleCandidates.length > 0) {
+            candidate = appleCandidates[0];
+          }
+        } catch (err) {
+          console.warn('[LuckyRoll] Apple Music 預覽檢索略過:', err);
+        }
+
+        luckyResult = {
+          ...result,
+          candidate
+        };
+      } else {
+        luckyFeedbackMsg = '此分類下的探索名單皆已悉數收錄，可切換至「全域隨緣」或探索其他星系板塊！';
+      }
+    } catch (err: any) {
+      luckyFeedbackMsg = err?.message || '好手氣探勘失敗，請稍後再試';
+    } finally {
+      isRollingLucky = false;
+    }
   }
 
   function getDynamicEndpoint() {
@@ -203,65 +297,247 @@
       </button>
 
       {#if step === 'input'}
-        <!-- 第一階段：輸入藝人或連結 -->
-        <div class="flex items-center gap-2 text-xs text-signal">
-          <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
-          <span class="font-dot text-sm font-bold tracking-widest uppercase">FAST ACK // 藝人知悉終端</span>
-        </div>
-
-        <p class="font-sans text-xs text-[#8e929d] leading-relaxed">
-          輸入音樂人、樂團名稱，或直接貼上 Apple Music 分享連結。系統將自動比對藝人脈絡並等候聲學深度解剖。
-        </p>
-
-        <!-- 終端輸入框 -->
-        <div class="flex items-center px-3.5 py-2.5 bg-[#121318] border border-[#2b2d36] hover:border-[#434755] focus-within:border-signal focus-within:ring-1 focus-within:ring-signal/30 transition-all font-mono rounded-[2px]">
-          <span class="text-signal text-xs mr-2 font-bold select-none">&gt;_</span>
-          <input
-            type="text"
-            bind:value={pickupInput}
-            onkeydown={(e) => e.key === 'Enter' && !isSearching && handleSubmit()}
-            disabled={isSearching}
-            placeholder="輸入音樂人名稱（如 Oasis、落日飛車...）"
-            class="bg-transparent text-xs text-[#f4f4f6] placeholder-[#8e929d] focus:outline-none w-full font-mono tracking-wide disabled:opacity-50"
-          />
-        </div>
-
-        <!-- 動作列 -->
-        <div class="flex items-center justify-between gap-3 pt-2">
-          <!-- 輕量手機聽音/快捷收錄折疊按鈕（僅行動裝置/小螢幕顯示，電腦版完全隱藏） -->
+        <!-- 分頁切換 (Studio Style) -->
+        <div class="flex items-center gap-1.5 border-b border-[#262832] pb-2.5">
           <button
             type="button"
-            onclick={() => (showMobileGuide = !showMobileGuide)}
-            class="flex sm:hidden items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
+            onclick={() => (activeTab = 'input')}
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold tracking-wider uppercase transition-all rounded-[2px] cursor-pointer {activeTab === 'input' ? 'bg-[#1e2029] text-signal border border-signal/40 shadow-[0_0_10px_rgba(255,42,60,0.2)]' : 'text-[#8e929d] hover:text-[#f4f4f6]'}"
           >
-            <Smartphone class="w-3.5 h-3.5 text-signal" />
-            <span>{showMobileGuide ? '收起手機串接' : '手機聽音收錄'}</span>
+            <Radio class="w-3.5 h-3.5" />
+            <span>FAST ACK // 鍵盤知悉</span>
           </button>
 
-          <div class="flex items-center gap-3 sm:ml-auto">
-            <button
-              type="button"
-              onclick={handleClose}
-              class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
-            >
-              [ESC] 取消
-            </button>
-            <button
-              type="button"
-              onclick={handleSubmit}
-              disabled={isSearching || !pickupInput.trim()}
-              class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {#if isSearching}
-                <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                <span>比對脈絡中...</span>
-              {:else}
-                <Radio class="w-3.5 h-3.5" />
-                <span>立即知悉入庫</span>
-              {/if}
-            </button>
-          </div>
+          <button
+            type="button"
+            onclick={() => {
+              activeTab = 'lucky';
+              if (!luckyResult && !isRollingLucky) {
+                handleRollLucky();
+              }
+            }}
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold tracking-wider uppercase transition-all rounded-[2px] cursor-pointer {activeTab === 'lucky' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'text-[#8e929d] hover:text-amber-300'}"
+          >
+            <Sparkles class="w-3.5 h-3.5 text-amber-400" />
+            <span>🎲 聲學好手氣</span>
+          </button>
         </div>
+
+        {#if activeTab === 'input'}
+          <!-- 鍵盤知悉模式 -->
+          <p class="font-sans text-xs text-[#8e929d] leading-relaxed">
+            輸入音樂人、樂團名稱，或直接貼上 Apple Music 分享連結。系統將自動比對藝人脈絡並等候聲學深度解剖。
+          </p>
+
+          <!-- 終端輸入框（已去除具體藝人舉例） -->
+          <div class="flex items-center px-3.5 py-2.5 bg-[#121318] border border-[#2b2d36] hover:border-[#434755] focus-within:border-signal focus-within:ring-1 focus-within:ring-signal/30 transition-all font-mono rounded-[2px]">
+            <span class="text-signal text-xs mr-2 font-bold select-none">&gt;_</span>
+            <input
+              type="text"
+              bind:value={pickupInput}
+              onkeydown={(e) => e.key === 'Enter' && !isSearching && handleSubmit()}
+              disabled={isSearching}
+              placeholder="輸入音樂人名稱或貼上 Apple Music 連結..."
+              class="bg-transparent text-xs text-[#f4f4f6] placeholder-[#8e929d] focus:outline-none w-full font-mono tracking-wide disabled:opacity-50"
+            />
+          </div>
+
+          <!-- 動作列 -->
+          <div class="flex items-center justify-between gap-3 pt-2">
+            <!-- 輕量手機聽音/快捷收錄折疊按鈕（僅行動裝置/小螢幕顯示，電腦版完全隱藏） -->
+            <button
+              type="button"
+              onclick={() => (showMobileGuide = !showMobileGuide)}
+              class="flex sm:hidden items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
+            >
+              <Smartphone class="w-3.5 h-3.5 text-signal" />
+              <span>{showMobileGuide ? '收起手機串接' : '手機聽音收錄'}</span>
+            </button>
+
+            <div class="flex items-center gap-3 sm:ml-auto">
+              <button
+                type="button"
+                onclick={handleClose}
+                class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
+              >
+                [ESC] 取消
+              </button>
+              <button
+                type="button"
+                onclick={handleSubmit}
+                disabled={isSearching || !pickupInput.trim()}
+                class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {#if isSearching}
+                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                  <span>比對脈絡中...</span>
+                {:else}
+                  <Radio class="w-3.5 h-3.5" />
+                  <span>立即知悉入庫</span>
+                {/if}
+              </button>
+            </div>
+          </div>
+        {:else}
+          <!-- 聲學好手氣模式 (Acoustic Serendipity) -->
+          <div class="space-y-3.5">
+            <!-- 自選分類標籤列 -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] text-[#8e929d] font-mono">
+                <span class="flex items-center gap-1">
+                  <Compass class="w-3 h-3 text-amber-400" />
+                  <span>探索星系板塊 (按風格鎖定)：</span>
+                </span>
+                <span class="text-[10px] text-neutral-500">
+                  {selectedLuckySector === 'ALL' ? '全域隨機' : selectedLuckySector}
+                </span>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onclick={() => {
+                    selectedLuckySector = 'ALL';
+                    handleRollLucky();
+                  }}
+                  class="px-2.5 py-1 text-[11px] font-mono font-bold rounded-[2px] border transition-all cursor-pointer {selectedLuckySector === 'ALL' ? 'bg-amber-500/20 text-amber-300 border-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.25)]' : 'bg-[#121318] text-[#8e929d] border-[#262832] hover:border-[#434755] hover:text-[#f4f4f6]'}"
+                >
+                  🎲 全域隨緣
+                </button>
+                {#each SECTOR_LIST as sec}
+                  <button
+                    type="button"
+                    onclick={() => {
+                      selectedLuckySector = sec.id;
+                      handleRollLucky();
+                    }}
+                    class="px-2 py-1 text-[11px] font-mono rounded-[2px] border transition-all cursor-pointer {selectedLuckySector === sec.id ? 'font-bold border-current shadow-[0_0_8px_rgba(255,255,255,0.15)]' : 'bg-[#121318] text-[#8e929d] border-[#262832] hover:border-[#434755] hover:text-[#f4f4f6]'}"
+                    style={selectedLuckySector === sec.id ? `color: ${sec.colorHex}; background-color: ${sec.colorHex}18; border-color: ${sec.colorHex}80;` : ''}
+                  >
+                    {sec.nameTw}
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- 開箱預覽區 (Reveal Card) -->
+            {#if isRollingLucky}
+              <div class="p-6 bg-[#121318] border border-[#2b2d36] rounded-[2px] flex flex-col items-center justify-center gap-2.5 min-h-[140px] animate-pulse">
+                <RefreshCw class="w-6 h-6 text-amber-400 animate-spin" />
+                <span class="text-xs text-[#8e929d] font-mono tracking-widest uppercase">
+                  正在比對聲學頻率共振...
+                </span>
+              </div>
+            {:else if luckyResult}
+              <div class="p-4 bg-[#121318] border border-[#2b2d36] rounded-[2px] space-y-3 relative overflow-hidden">
+                <div class="flex items-start gap-3.5 relative z-10">
+                  <!-- 藝人頭像/封面 -->
+                  {#if luckyResult.candidate?.coverImage}
+                    <img
+                      src={luckyResult.candidate.coverImage}
+                      alt={luckyResult.name}
+                      class="w-16 h-16 rounded-[2px] object-cover border border-[#3b3e4d] shadow-md shrink-0"
+                    />
+                  {:else}
+                    <div class="w-16 h-16 rounded-[2px] bg-[#1a1c24] border border-[#262832] flex items-center justify-center shrink-0 text-neutral-500">
+                      <Disc3 class="w-7 h-7 text-amber-400/60 animate-[spin_8s_linear_infinite]" />
+                    </div>
+                  {/if}
+
+                  <!-- 藝人資訊 -->
+                  <div class="flex-1 min-w-0 space-y-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <h3 class="text-sm sm:text-base font-bold text-white font-mono tracking-wide truncate">
+                        {luckyResult.name}
+                      </h3>
+                      {#if luckyResult.sourceType === 'local-ghost'}
+                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          本地 AI 頻率共振
+                        </span>
+                      {:else if luckyResult.sourceType === 'ai-seed'}
+                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                          AI 微種子啟發
+                        </span>
+                      {:else}
+                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          時代基石
+                        </span>
+                      {/if}
+                    </div>
+
+                    {#if luckyResult.candidate?.primaryGenre}
+                      <p class="text-[11px] text-[#8e929d] font-mono">
+                        {luckyResult.candidate.primaryGenre}
+                      </p>
+                    {/if}
+
+                    <!-- 推薦溯源 (Lineage) -->
+                    {#if luckyResult.sourceArtists && luckyResult.sourceArtists.length > 0}
+                      <p class="text-[11px] text-amber-300/80 font-mono leading-tight pt-0.5">
+                        💡 聲學溯源：源自庫中 <span class="text-white font-bold">{luckyResult.sourceArtists.join('、')}</span> 的交集推薦
+                      </p>
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- 動作列 -->
+                <div class="flex items-center justify-between gap-2 pt-2 border-t border-[#1e2029]">
+                  <button
+                    type="button"
+                    onclick={() => handleRollLucky(false)}
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#8e929d] hover:text-white font-mono bg-[#181a22] hover:bg-[#222530] border border-[#2b2d36] rounded-[2px] transition-colors cursor-pointer"
+                  >
+                    <RefreshCw class="w-3.5 h-3.5" />
+                    <span>換一位 (Re-roll)</span>
+                  </button>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onclick={() => handleRollLucky(true)}
+                      title="略過本地庫存，以微種子向 AI 發起深度探索"
+                      class="hidden sm:flex items-center gap-1 text-[11px] text-[#8e929d] hover:text-indigo-300 font-mono cursor-pointer transition-colors"
+                    >
+                      <Sparkles class="w-3 h-3 text-indigo-400" />
+                      <span>AI 深空探勘</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onclick={() => commitPickup(luckyResult!.name, luckyResult!.candidate)}
+                      class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
+                    >
+                      <Radio class="w-3.5 h-3.5" />
+                      <span>立即知悉入庫</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <!-- 初始未抽取狀態 -->
+              <div class="p-5 bg-[#121318] border border-[#2b2d36] rounded-[2px] text-center space-y-3">
+                <p class="text-xs text-[#8e929d] font-mono leading-relaxed">
+                  優先自本地 AI 相似星網中採掘尚未收錄之藝人，零 Token 消耗、零等待。<br>
+                  結合引力權重與隨機採樣，每次點擊皆是一場全新的聲學邂逅。
+                </p>
+                <button
+                  type="button"
+                  onclick={() => handleRollLucky(false)}
+                  class="inline-flex items-center gap-2 px-5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-[2px] font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                >
+                  <Sparkles class="w-4 h-4 text-amber-400" />
+                  <span>🎲 啟動聲學好手氣</span>
+                </button>
+              </div>
+            {/if}
+
+            {#if luckyFeedbackMsg}
+              <p class="text-[11px] text-amber-400 font-mono bg-amber-500/10 border border-amber-500/20 p-2 rounded-[2px]">
+                {luckyFeedbackMsg}
+              </p>
+            {/if}
+          </div>
+        {/if}
 
         <!-- 手機聽音收錄極簡引導面板（展開時僅在行動端顯示） -->
         {#if showMobileGuide}
