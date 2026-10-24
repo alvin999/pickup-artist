@@ -5,6 +5,7 @@
   import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
   import SpecBadge from '$lib/components/SpecBadge.svelte';
   import TactileButton from '$lib/components/TactileButton.svelte';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
   import {
     ACOUSTIC_SECTORS,
     GALAXY_CANVAS_SIZE,
@@ -2261,17 +2262,12 @@
 
           <!-- 操作按鈕列 -->
           <div class="flex items-center gap-2 mt-3">
-            {#if selectedArtist.appleMusicUrl}
-              <a
-                href={selectedArtist.appleMusicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex-1 inline-flex items-center justify-center gap-1.5 font-mono text-xs bg-[#FA383E] text-white py-2 px-3 rounded-[3px] font-semibold hover:bg-[#E0262C] shadow-[0_0_12px_rgba(250,56,62,0.3)]"
-              >
-                <Music class="w-3.5 h-3.5" />
-                <span>Apple Music</span>
-              </a>
-            {/if}
+            <StreamingTrigger
+              artistName={selectedArtist.name}
+              appleMusicUrl={selectedArtist.appleMusicUrl}
+              variant="compact"
+              className="flex-1"
+            />
 
             <TactileButton
               variant="amber"

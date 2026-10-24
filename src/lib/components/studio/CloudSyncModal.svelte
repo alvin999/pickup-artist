@@ -16,6 +16,7 @@
     GOOGLE_CLIENT_ID,
     getStoredGoogleToken,
     getStoredGoogleUserInfo,
+    isGoogleDriveConnected,
     loginToGoogleDrive,
     logoutGoogleDrive,
     uploadBackupToGoogleDrive,
@@ -71,8 +72,7 @@
       }
 
       // 2. 刷新 Google Drive
-      const gToken = getStoredGoogleToken();
-      if (gToken) {
+      if (isGoogleDriveConnected()) {
         googleUser = getStoredGoogleUserInfo();
         googleMeta = await getGoogleDriveBackupMetadata();
       } else {

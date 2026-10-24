@@ -6,6 +6,7 @@
     type MatrixSortMode,
     type MatrixSectorGroup
   } from '$lib/utils/matrixGrouping';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
 
   interface Props {
     artists: ArtistEntry[];
@@ -486,18 +487,12 @@
 
                 <!-- 卡片底座工具列 (Action Hub) -->
                 <div class="pt-2 border-t border-wire flex items-center justify-between gap-1 text-[10px] font-mono">
-                  <!-- Apple Music 直通按鈕 -->
-                  <a
-                    href={getAppleMusicUrl(artist)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onclick={(e) => e.stopPropagation()}
-                    class="px-2 py-1 rounded bg-void hover:bg-panel border border-wire hover:border-wire-bright text-ink-muted hover:text-primary transition-all flex items-center gap-1"
-                    title="在 Apple Music 中聆賞"
-                  >
-                    <span class="material-symbols-outlined text-[13px] text-signal">play_circle</span>
-                    <span>試聽</span>
-                  </a>
+                  <!-- 串流直通觸發器 -->
+                  <StreamingTrigger
+                    artistName={artist.name}
+                    appleMusicUrl={artist.appleMusicUrl}
+                    variant="subtle"
+                  />
 
                   <div class="flex items-center gap-1">
                     {#if isInbox}

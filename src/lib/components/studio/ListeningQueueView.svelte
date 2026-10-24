@@ -6,6 +6,7 @@
     type QueueItemStatus
   } from '$lib/services/listeningQueue';
   import { ArrowUpRight, Trash2, CheckCircle2, Play, Music, Sparkles } from 'lucide-svelte';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
 
   interface Props {
     artists: ArtistEntry[];
@@ -407,18 +408,12 @@
                     <span>{isCompleted ? '已完播' : '標為完成'}</span>
                   </button>
 
-                  {#if item.appleMusicUrl}
-                    <button
-                      type="button"
-                      onclick={() => handlePlayItem(item)}
-                      class="px-3 py-1 text-xs font-bold border border-wire bg-ink text-void hover:bg-signal hover:text-void flex items-center gap-1 transition-colors cursor-pointer"
-                      title="在 Apple Music 啟動聆賞"
-                    >
-                      <Play class="w-3.5 h-3.5 fill-current" />
-                      <span>串流聆賞</span>
-                      <ArrowUpRight class="w-3 h-3 ml-0.5" />
-                    </button>
-                  {/if}
+                  <StreamingTrigger
+                    artistName={item.artistName}
+                    albumTitle={item.albumTitle}
+                    appleMusicUrl={item.appleMusicUrl}
+                    variant="compact"
+                  />
                 </div>
               </div>
 

@@ -117,6 +117,120 @@ export function getStoredGoogleUserInfo(): GoogleUserInfo | null {
   }
 }
 
+/**
+ * 檢查是否已連結 Google Drive 帳號（即使 Token 暫時過期，使用者帳戶仍保留）
+ */
+export function isGoogleDriveConnected(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem(USERINFO_KEY) || !!localStorage.getItem(TOKEN_KEY);
+}
+
+/**
+ * 嘗試靜默刷新 Google Access Token（無彈窗，需使用者在瀏覽器已登入 Google 帳號）
+ */
+export async function refreshGoogleTokenSilent(): Promise<string> {
+  await waitForGoogleScript();
+
+  if (!GOOGLE_CLIENT_ID) {
+    throw new Error('缺少環境變數 PUBLIC_GOOGLE_CLIENT_ID，請確認 .env 設定。');
+  }
+
+  const user = getStoredGoogleUserInfo();
+  const hint = user?.email || undefined;
+
+  return new Promise((resolve, reject) => {
+    let timeoutId: any = null;
+
+    try {
+      const client = window.google!.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: `${DRIVE_APPDATA_SCOPE} https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile`,
+        prompt: '',
+        hint,
+        callback: async (resp: any) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          if (resp.error) {
+            return reject(new Error(`Google 靜默授權失敗: ${resp.error}`));
+          }
+          if (!resp.access_token) {
+            return reject(new Error('未能取得 Google 存取憑證 (Access Token)'));
+          }
+
+          const token = resp.access_token;
+          const expiresInSec = Number(resp.expires_in) || 3600;
+          const expiresAt = Date.now() + expiresInSec * 1000;
+
+          localStorage.setItem(TOKEN_KEY, token);
+          localStorage.setItem(EXPIRES_KEY, expiresAt.toString());
+
+          // 若快取無使用者資訊，背景嘗試補充
+          if (!getStoredGoogleUserInfo()) {
+            fetchGoogleUserInfo(token)
+              .then((u) => {
+                localStorage.setItem(USERINFO_KEY, JSON.stringify(u));
+                updateSyncState({ connectedAccount: u });
+              })
+              .catch(() => {});
+          }
+
+          resolve(token);
+        },
+        error_callback: (err: any) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          reject(new Error(err?.message || 'Google 靜默授權錯誤'));
+        }
+      });
+
+      // 設定 8 秒逾時防護
+      timeoutId = setTimeout(() => {
+        reject(new Error('Google 靜默刷新逾時'));
+      }, 8000);
+
+      client.requestAccessToken({ prompt: '', hint });
+    } catch (err: any) {
+      if (timeoutId) clearTimeout(timeoutId);
+      reject(new Error(`初始化靜默認證失敗: ${err.message}`));
+    }
+  });
+}
+
+/**
+ * 取得有效的 Google Access Token
+ * 優先從快取取得；若過期先嘗試靜默刷新；若失敗且允許互動才喚起彈窗
+ */
+export async function getValidGoogleToken(allowInteractive = false): Promise<string> {
+  const currentToken = getStoredGoogleToken();
+  if (currentToken) return currentToken;
+
+  if (!isGoogleDriveConnected()) {
+    if (allowInteractive) {
+      const res = await loginToGoogleDrive();
+      return res.token;
+    }
+    throw new Error('未登入 Google Drive');
+  }
+
+  // 優先嘗試靜默刷新
+  try {
+    const freshToken = await refreshGoogleTokenSilent();
+    return freshToken;
+  } catch (err: any) {
+    console.warn('[GoogleDrive] 靜默更新 Token 失敗:', err?.message || err);
+
+    if (!allowInteractive) {
+      updateSyncState({
+        status: 'session_expired',
+        errorMessage: 'Google 登入已過期，請重新驗證以繼續同步。'
+      });
+      throw new Error('SESSION_EXPIRED');
+    }
+
+    // 手動操作時喚起互動彈窗
+    const res = await loginToGoogleDrive();
+    return res.token;
+  }
+}
+
 export async function loginToGoogleDrive(): Promise<{ token: string; user: GoogleUserInfo; grantedScope: string }> {
   await waitForGoogleScript();
 
@@ -129,7 +243,7 @@ export async function loginToGoogleDrive(): Promise<{ token: string; user: Googl
       tokenClient = window.google!.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: `${DRIVE_APPDATA_SCOPE} https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile`,
-        prompt: 'consent',
+        prompt: 'select_account',
         callback: async (resp) => {
           if (resp.error) {
             return reject(new Error(`Google 登入失敗: ${resp.error}`));
@@ -164,7 +278,7 @@ export async function loginToGoogleDrive(): Promise<{ token: string; user: Googl
         }
       });
 
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
     } catch (err: any) {
       reject(new Error(`初始化 Google 認證客戶端失敗: ${err.message}`));
     }
@@ -209,11 +323,8 @@ export async function logoutGoogleDrive(): Promise<void> {
   });
 }
 
-async function getOrRequireValidToken(): Promise<string> {
-  const token = getStoredGoogleToken();
-  if (token) return token;
-  const res = await loginToGoogleDrive();
-  return res.token;
+async function getOrRequireValidToken(allowInteractive = false): Promise<string> {
+  return await getValidGoogleToken(allowInteractive);
 }
 
 // ----------------------------------------------------
@@ -391,8 +502,7 @@ export interface BackupDataStructure {
 }
 
 export async function getGoogleDriveBackupMetadata(): Promise<GoogleDriveMetadata | null> {
-  const token = getStoredGoogleToken();
-  if (!token) return null;
+  if (!isGoogleDriveConnected()) return null;
 
   try {
     const gz = await findGoogleDriveFileByName(SNAPSHOT_GZ_NAME);
@@ -681,8 +791,7 @@ let isSyncInProgress = false;
 
 export function triggerGoogleDriveAutoSync(delayMs = 1500): void {
   if (typeof window === 'undefined' || isRestoring) return;
-  const token = getStoredGoogleToken();
-  if (!token) return;
+  if (!isGoogleDriveConnected()) return;
 
   if (debounceTimer) clearTimeout(debounceTimer);
 
@@ -698,8 +807,7 @@ export function triggerGoogleDriveAutoSync(delayMs = 1500): void {
 }
 
 async function executeGoogleDriveSync(): Promise<void> {
-  const token = getStoredGoogleToken();
-  if (!token) return;
+  if (!isGoogleDriveConnected()) return;
 
   if (isSyncInProgress) return;
   isSyncInProgress = true;
@@ -736,7 +844,11 @@ async function executeGoogleDriveSync(): Promise<void> {
     }
   } catch (err: any) {
     console.error('[GoogleDrive AutoSync] 同步上傳失敗:', err);
-    updateSyncState({ status: 'error', errorMessage: err?.message || '同步失敗' });
+    if (err?.message === 'SESSION_EXPIRED') {
+      updateSyncState({ status: 'session_expired', errorMessage: 'Google 登入已過期，請重新驗證以繼續同步。' });
+    } else {
+      updateSyncState({ status: 'error', errorMessage: err?.message || '同步失敗' });
+    }
   } finally {
     isSyncInProgress = false;
   }
@@ -745,8 +857,7 @@ async function executeGoogleDriveSync(): Promise<void> {
 // 監聽本機資料庫變更以觸發自動同步
 if (typeof window !== 'undefined') {
   onDatabaseChange((event) => {
-    const token = getStoredGoogleToken();
-    if (!token) return;
+    if (!isGoogleDriveConnected()) return;
 
     if (!event || event.type === 'batch') {
       needsFullCompaction = true;

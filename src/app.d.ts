@@ -24,8 +24,9 @@ declare global {
 						}) => void;
 						error_callback?: (err: any) => void;
 						prompt?: string;
+						hint?: string;
 					}): {
-						requestAccessToken(overrideConfig?: { prompt?: string }): void;
+						requestAccessToken(overrideConfig?: { prompt?: string; hint?: string }): void;
 					};
 					revoke(accessToken: string, done: () => void): void;
 				};

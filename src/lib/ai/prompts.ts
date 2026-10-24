@@ -59,7 +59,8 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 4. notableAlbums: 推薦 2 張代表性專輯：
    - tier "milestone": 生涯藝術精神巔峰代表作（理解其哲學的基石）。
    - tier "hidden-treasure": 具備深刻人文意境或獨特演奏神采之作（含 rarityReason 藝術堅持與背景、audiophileHighlight 演奏神髓或曲義精華）。
-5. Output MUST be a single strictly valid JSON object matching the requested keys without markdown fences.`;
+5. aliases: 客觀收錄該音樂人所有正式的多語異名（包含本國母語原生書寫表記、國際通用標準羅馬化表記、官方英文藝名或代表性稱號）。
+6. Output MUST be a single strictly valid JSON object matching the requested keys without markdown fences.`;
 
   // 構造同名消歧義錨點提示
   let disambiguationNotice = '';
@@ -77,7 +78,7 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 嚴格輸出符合下列結構的單一 JSON：
 {
   "name": "${artistName}",
-  "aliases": [],
+  "aliases": ["本國母語原生表記", "國際標準羅馬化表記", "官方英文藝名或代表性稱號"],
   "sector": "8 軸板塊選一：CLASSICAL | JAZZ | ROCK | METAL | AMBIENT | ELECTRONIC | GROOVE | WORLD",
   "subGenre": "代表性二級風格子流派",
   "originLocation": "發跡城市與國碼（格式：CITY_COUNTRYCODE）",

@@ -12,8 +12,16 @@
     Eye,
     EyeOff,
     Zap,
-    Lock
+    Lock,
+    Music,
+    Radio
   } from 'lucide-svelte';
+  import {
+    STREAMING_PLATFORMS,
+    type StreamingPlatform,
+    getPreferredStreamingPlatform,
+    setPreferredStreamingPlatform
+  } from '$lib/utils/streaming';
   import {
     type AISettings,
     DEFAULT_GROQ_MODEL,
@@ -60,6 +68,7 @@
   let groqModelsList = $state<string[]>([DEFAULT_GROQ_MODEL]);
   let geminiModelsList = $state<string[]>([DEFAULT_GEMINI_MODEL]);
 
+  let preferredPlatform = $state<StreamingPlatform>('apple_music');
   let statusMessage = $state<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   let isVaultLocked = $state(false);
 
@@ -73,6 +82,7 @@
     statusMessage = null;
     encryptionMode = getStoredEncryptionMode();
     isVaultLocked = isMasterPasswordLocked();
+    preferredPlatform = getPreferredStreamingPlatform();
 
     try {
       const secure = await loadSecureAISettings();
@@ -181,7 +191,8 @@
       };
 
       await saveSecureAISettings(settingsPayload, encryptionMode, masterPassword || undefined);
-      statusMessage = { text: '發燒友金鑰與安全保管庫設定已成功儲存！', type: 'success' };
+      setPreferredStreamingPlatform(preferredPlatform);
+      statusMessage = { text: '系統設定與安全保管庫已成功儲存！', type: 'success' };
       masterPassword = '';
       masterPasswordConfirm = '';
       onsettingsSaved?.();
@@ -475,6 +486,37 @@
         </div>
 
       {/if}
+
+      <!-- 串流播放跳轉偏好 (Default Streaming Target) -->
+      <div class="border border-wire bg-surface/40 p-3 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Radio class="w-4 h-4 text-signal" />
+            <span class="text-xs font-bold text-ink uppercase tracking-wider font-mono">// 預設串流播放器 (Streaming Target)</span>
+          </div>
+          <span class="text-[9px] text-ink-dim font-mono">外連跳轉出口</span>
+        </div>
+        <p class="text-[10px] text-ink-muted leading-relaxed font-sans">
+          探索或檢索藝人時，主要播放按鈕將直通此服務進行線上聆賞：
+        </p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          {#each Object.values(STREAMING_PLATFORMS) as platform}
+            <button
+              type="button"
+              onclick={() => (preferredPlatform = platform.id)}
+              class="p-2 border text-left flex flex-col justify-between gap-1 cursor-pointer transition-all {preferredPlatform === platform.id ? 'border-signal bg-panel text-ink shadow-[0_0_10px_rgba(250,56,62,0.2)]' : 'border-wire bg-void text-ink-dim hover:text-ink'}"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold font-mono">{platform.label}</span>
+                {#if preferredPlatform === platform.id}
+                  <span class="w-1.5 h-1.5 rounded-full bg-signal"></span>
+                {/if}
+              </div>
+              <span class="text-[9px] text-ink-muted truncate font-sans">{platform.description}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
 
       <!-- 狀態提示列 -->
       {#if statusMessage}

@@ -36,6 +36,7 @@
   } from '$lib/services/onedrive';
   import {
     getStoredGoogleToken,
+    isGoogleDriveConnected,
     restoreBackupFromGoogleDrive,
     subscribeGoogleDriveSyncState
   } from '$lib/services/googledrive';
@@ -99,8 +100,8 @@
   async function refreshTelemetryStatus() {
     try {
       const account = await getActiveAccount();
-      const gToken = getStoredGoogleToken();
-      isOneDriveConnected = !!account || !!gToken;
+      const isGoogleActive = isGoogleDriveConnected();
+      isOneDriveConnected = !!account || isGoogleActive;
     } catch {
       isOneDriveConnected = false;
     }
@@ -190,7 +191,7 @@
       startupSyncTasks.push(syncFromCloudOnStartup());
 
       // B: Google Drive 同步
-      if (getStoredGoogleToken()) {
+      if (isGoogleDriveConnected()) {
         startupSyncTasks.push(
           restoreBackupFromGoogleDrive()
             .then((res) => !!res)

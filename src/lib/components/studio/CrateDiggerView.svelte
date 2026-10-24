@@ -11,6 +11,7 @@
     ExternalLink,
     PenLine
   } from 'lucide-svelte';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
   import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
   import type { QueueState } from '$lib/services/analysisQueue';
 
@@ -922,20 +923,12 @@
               {/if}
 
               <!-- 外部串流觸發器 -->
-              {#if selectedArtist.appleMusicUrl}
-                <a
-                  href={selectedArtist.appleMusicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="corner-cut flex items-center justify-between px-4 py-2 bg-ink hover:bg-signal text-void hover:text-white font-mono text-[11px] font-bold uppercase tracking-widest transition-all"
-                >
-                  <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[14px]">play_arrow</span>
-                    <span>LAUNCH_APPLE_MUSIC_STREAM</span>
-                  </div>
-                  <span class="text-[10px]">[EXT ↗]</span>
-                </a>
-              {/if}
+              <StreamingTrigger
+                artistName={selectedArtist.name}
+                appleMusicUrl={selectedArtist.appleMusicUrl}
+                variant="full"
+                className="w-full"
+              />
             </div>
 
             <!-- 聲學極簡腕錶指針羅盤 (Acoustic Minimalist Chrono Dial) -->
@@ -1365,17 +1358,12 @@
                               <span class="material-symbols-outlined text-[11px]">queue_music</span>
                               <span>+ 聆賞</span>
                             </button>
-                            {#if alb.appleMusicSearchUrl}
-                              <a
-                                href={alb.appleMusicSearchUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-ink-dim hover:text-signal p-0.5"
-                                title="在 Apple Music 開啟"
-                              >
-                                <ArrowUpRight class="w-3.5 h-3.5" />
-                              </a>
-                            {/if}
+                            <StreamingTrigger
+                              artistName={selectedArtist.name}
+                              albumTitle={alb.title}
+                              appleMusicUrl={alb.appleMusicSearchUrl}
+                              variant="subtle"
+                            />
                           </div>
                         </div>
 
