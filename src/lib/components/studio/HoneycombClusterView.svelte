@@ -1032,7 +1032,7 @@
         onmousedown={handleCanvasMouseDown}
         ondblclick={handleCanvasDblClick}
         onwheel={handleWheel}
-        class="relative w-full h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center select-none {isPanningCanvas ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'}"
+        class="relative w-full h-[480px] sm:h-[600px] xl:h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center select-none {isPanningCanvas ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'}"
       >
         <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
         <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>

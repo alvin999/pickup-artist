@@ -86,15 +86,20 @@
     }
   });
 
-  // 切換大分類時，自動重設子流派為全部
+  // 小螢幕階層式下鑽分頁狀態 ('sectors' | 'subgenres' | 'artists')
+  let mobileActiveTab = $state<'sectors' | 'subgenres' | 'artists'>('sectors');
+
+  // 切換大分類時，自動重設子流派為全部，並在小螢幕自動推進至子流派清單
   function handleSelectSector(sectorId: AcousticSector | 'INBOX') {
     activeSectorId = sectorId;
     activeSubGenreName = '__ALL__';
+    mobileActiveTab = 'subgenres';
   }
 
-  // 切換子分類
+  // 切換子分類，並在小螢幕自動推進至藝人清單
   function handleSelectSubGenre(subName: string) {
     activeSubGenreName = subName;
+    mobileActiveTab = 'artists';
   }
 
   // 點擊藝人卡片
@@ -181,12 +186,41 @@
     </div>
   </header>
 
+  <!-- 小螢幕階層式下鑽導航列 (僅在寬度小於 lg 時呈現) -->
+  <div class="lg:hidden flex items-center justify-between bg-chassis border-b border-wire px-3 py-2 text-[11px] font-mono">
+    <div class="flex items-center gap-1.5 overflow-x-auto">
+      <button
+        type="button"
+        onclick={() => (mobileActiveTab = 'sectors')}
+        class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'sectors' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
+      >
+        <span>1. 大分類</span>
+      </button>
+      <span class="text-wire-bright">&gt;</span>
+      <button
+        type="button"
+        onclick={() => (mobileActiveTab = 'subgenres')}
+        class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'subgenres' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
+      >
+        <span>2. 子流派</span>
+      </button>
+      <span class="text-wire-bright">&gt;</span>
+      <button
+        type="button"
+        onclick={() => (mobileActiveTab = 'artists')}
+        class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'artists' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
+      >
+        <span>3. 藝人 ({displayedArtists.length})</span>
+      </button>
+    </div>
+  </div>
+
   <!-- 核心階層下鑽視圖 (3-Column Cascading Workspace) -->
   <div class="flex-1 flex overflow-hidden">
     <!-- ========================================== -->
     <!-- COLUMN 1: 大分類 (Level 1: 8 軸扇區 + INBOX) -->
     <!-- ========================================== -->
-    <aside class="w-56 sm:w-64 flex-none border-r border-wire bg-chassis/80 flex flex-col overflow-y-auto">
+    <aside class="{mobileActiveTab === 'sectors' ? 'flex' : 'hidden'} lg:flex w-full lg:w-56 xl:w-64 flex-none border-r border-wire bg-chassis/80 flex-col overflow-y-auto">
       <div class="p-3 border-b border-wire flex items-center justify-between">
         <div class="font-mono text-[10px] text-ink-muted uppercase tracking-wider flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[14px] text-signal">pie_chart</span>
@@ -250,9 +284,18 @@
     <!-- ========================================== -->
     <!-- COLUMN 2: 子分類 (Level 2: AI 解剖子流派)   -->
     <!-- ========================================== -->
-    <section class="w-52 sm:w-60 flex-none border-r border-wire bg-panel/30 flex flex-col overflow-y-auto">
+    <section class="{mobileActiveTab === 'subgenres' ? 'flex' : 'hidden'} lg:flex w-full lg:w-52 xl:w-60 flex-none border-r border-wire bg-panel/30 flex-col overflow-y-auto">
       <div class="p-3 border-b border-wire flex items-center justify-between">
         <div class="font-mono text-[10px] text-ink-muted uppercase tracking-wider flex items-center gap-1.5">
+          <!-- 小螢幕返回上一層按鈕 -->
+          <button
+            type="button"
+            onclick={() => (mobileActiveTab = 'sectors')}
+            class="lg:hidden p-0.5 text-ink-muted hover:text-signal"
+            title="返回大分類"
+          >
+            <span class="material-symbols-outlined text-[15px]">arrow_back</span>
+          </button>
           <span class="material-symbols-outlined text-[14px] text-primary">category</span>
           <span>LEVEL 2 // 子分類</span>
         </div>
@@ -309,12 +352,21 @@
     <!-- ========================================== -->
     <!-- COLUMN 3: 藝人矩陣 (Level 3: 藝人卡片與作品) -->
     <!-- ========================================== -->
-    <main class="flex-1 flex flex-col bg-void overflow-y-auto">
+    <main class="{mobileActiveTab === 'artists' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col bg-void overflow-y-auto min-w-0">
       <!-- 導航路徑與快捷資訊 (Breadcrumb Bar) -->
       <div class="flex-none px-4 py-2.5 border-b border-wire bg-chassis/40 flex items-center justify-between text-xs">
         <div class="flex items-center gap-2 font-mono text-[11px] truncate">
-          <span class="text-ink-dim">MATRIX</span>
-          <span class="text-wire-bright">&gt;</span>
+          <!-- 小螢幕返回子流派按鈕 -->
+          <button
+            type="button"
+            onclick={() => (mobileActiveTab = 'subgenres')}
+            class="lg:hidden p-0.5 text-ink-muted hover:text-signal shrink-0"
+            title="返回子流派選單"
+          >
+            <span class="material-symbols-outlined text-[15px]">arrow_back</span>
+          </button>
+          <span class="text-ink-dim hidden sm:inline">MATRIX</span>
+          <span class="text-wire-bright hidden sm:inline">&gt;</span>
           <span class="text-ink font-bold" style="color: {currentSector.colorHex}">
             {currentSector.nameTw}
           </span>

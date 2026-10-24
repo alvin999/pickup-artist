@@ -12,6 +12,7 @@
   import type { ArtistEntry } from '$lib/types/artist';
   import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
   import StudioSidebar from '$lib/components/studio/StudioSidebar.svelte';
+  import StudioMobileNav from '$lib/components/studio/StudioMobileNav.svelte';
   import StudioTopBar from '$lib/components/studio/StudioTopBar.svelte';
   import CrateDiggerView from '$lib/components/studio/CrateDiggerView.svelte';
   import HoneycombClusterView from '$lib/components/studio/HoneycombClusterView.svelte';
@@ -655,7 +656,7 @@
 
   <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移) -->
   <div class="{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out">
-    <main class="flex-1 p-4 md:p-6 w-full">
+    <main class="flex-1 p-3 sm:p-4 md:p-6 pb-20 lg:pb-6 w-full">
       <!-- Session 過期引導橫幅 (Local-First Fallback & One-Click Re-Auth) -->
       {#if cloudSyncState.status === 'session_expired'}
         <div class="mb-4 p-3.5 bg-[#1a150e]/95 border border-amber-500/50 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 font-mono text-xs shadow-lg backdrop-blur-sm animate-fadeIn">
@@ -772,4 +773,11 @@
       {/if}
     </main>
   </div>
+
+  <!-- 行動端底部發燒友機架導航 (螢幕寬度小於 1024px 時常駐) -->
+  <StudioMobileNav
+    activeView={activeStudioView}
+    onselectView={(v) => (activeStudioView = v)}
+    {artists}
+  />
 </div>

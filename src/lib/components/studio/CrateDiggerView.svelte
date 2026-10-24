@@ -481,10 +481,10 @@
   </div>
 
   <!-- 主工作區：裸露網格黑膠櫃 + 右側透明硬體解剖艙 -->
-  <div class="flex-1 flex flex-col 2xl:flex-row items-start gap-6">
+  <div class="flex-1 flex flex-col xl:flex-row items-start gap-6">
 
     <!-- 左側：裸露網格黑膠櫃 (Exposed Grid Crate) -->
-    <main class="flex-1 w-full">
+    <main class="flex-1 w-full min-w-0">
       {#if processedArtists.length === 0}
         <div class="border border-wire border-dashed bg-void/60 p-16 text-center flex flex-col items-center justify-center gap-4 font-mono">
           <div class="w-14 h-14 rounded-full border border-wire flex items-center justify-center bg-chassis text-ink-dim shadow-inner">
@@ -498,8 +498,29 @@
           </div>
         </div>
       {:else}
+        <!-- 小螢幕解剖面板快速跳轉通知 (僅在寬度小於 xl 且已有選取藝人時顯現) -->
+        {#if selectedArtist}
+          <div class="xl:hidden mb-3 p-2 bg-[#101218] border border-signal/40 flex items-center justify-between text-xs font-mono rounded-[2px] shadow-sm animate-in fade-in">
+            <div class="flex items-center gap-2 truncate">
+              <span class="w-2 h-2 rounded-full bg-signal shrink-0 animate-pulse"></span>
+              <span class="text-ink truncate">已選取：<strong class="text-signal">{selectedArtist.name}</strong></span>
+            </div>
+            <button
+              type="button"
+              onclick={() => {
+                const el = document.getElementById('artist-dossier-panel');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              class="shrink-0 px-2.5 py-1 bg-signal text-white font-bold text-[10px] uppercase tracking-wider rounded-[2px] hover:bg-white hover:text-void transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>查看解剖</span>
+              <span class="material-symbols-outlined text-[13px]">arrow_downward</span>
+            </button>
+          </div>
+        {/if}
+
         <!-- 模組化硬體卡片網格 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
           {#each processedArtists as artist (artist.id)}
           {@const isActive = selectedArtistId === artist.id}
           {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
@@ -706,12 +727,28 @@
     </main>
 
     <!-- 右側：整合式透明硬體解剖艙 (Unified Cyber-Hardware Dossier & Telemetry) -->
-    <aside class="w-full 2xl:w-[460px] shrink-0 bg-chassis/95 backdrop-blur-xl border border-wire 2xl:border-l 2xl:border-t-0 2xl:border-r-0 2xl:border-b-0 flex flex-col justify-between sticky top-20">
+    <aside id="artist-dossier-panel" class="w-full xl:w-[420px] 2xl:w-[460px] shrink-0 bg-chassis/95 backdrop-blur-xl border border-wire xl:border-l xl:border-t-0 xl:border-r-0 xl:border-b-0 flex flex-col justify-between sticky top-20">
       {#if selectedArtist}
-        <div class="p-5 flex flex-col gap-5">
+        <div class="p-4 sm:p-5 flex flex-col gap-5">
+
+          <!-- 小螢幕頂部返回卡片網格按鈕 (僅在寬度小於 xl 時呈現) -->
+          <div class="xl:hidden pb-3 border-b border-wire flex items-center justify-between">
+            <span class="font-mono text-xs text-signal font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
+              <span>藝人發燒解剖艙 // DOSSIER</span>
+            </span>
+            <button
+              type="button"
+              onclick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              class="px-2 py-1 bg-void hover:bg-panel border border-wire text-ink-muted hover:text-ink font-mono text-[10px] rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span class="material-symbols-outlined text-[13px]">arrow_upward</span>
+              <span>返回卡片網格</span>
+            </button>
+          </div>
 
           <!-- 艙門頂部狀態列：發跡時空 ✕ 音樂史定位 ✕ 編制與風格 (去識別化預設值) -->
-          <div class="flex items-center justify-between border-b border-wire pb-3 font-mono">
+          <div class="flex items-center justify-between border-b border-wire pb-3 font-mono flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 bg-signal"></span>
               <span class="font-dot text-xs tracking-[0.15em] text-ink uppercase">

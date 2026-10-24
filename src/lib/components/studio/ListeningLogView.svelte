@@ -362,10 +362,10 @@
   }
 </script>
 
-<div class="flex flex-col gap-6 p-6 bg-chassis min-h-screen text-ink font-sans pb-24">
+<div class="flex flex-col gap-4 sm:gap-6 p-3 sm:p-6 bg-chassis min-h-screen text-ink font-sans pb-24">
   <!-- 頂部人文書卷導航銘板 (Humanist Journal Header) -->
-  <header class="border border-wire bg-void p-5 shadow-2xl relative overflow-hidden">
-    <div class="absolute right-4 top-2 text-[64px] font-mono font-black text-panel/30 select-none pointer-events-none">
+  <header class="border border-wire bg-void p-4 sm:p-5 shadow-2xl relative overflow-hidden">
+    <div class="absolute right-4 top-2 text-[52px] sm:text-[64px] font-mono font-black text-panel/30 select-none pointer-events-none">
       LOG_05
     </div>
 
@@ -610,12 +610,12 @@
 <!-- 手札添加 / 編輯專屬 Modal 彈窗 (支援點選與手動填寫專輯) -->
 <!-- ======================================================== -->
 {#if isModalOpen}
-  <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4">
     <div
-      class="bg-chassis border border-wire w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+      class="bg-chassis border border-wire w-full max-w-2xl max-h-[92dvh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
     >
       <!-- Modal 標題列 -->
-      <div class="p-4 border-b border-wire flex items-center justify-between bg-void">
+      <div class="p-3.5 sm:p-4 border-b border-wire flex items-center justify-between bg-void">
         <div class="flex items-center gap-2">
           <Feather class="w-4 h-4 text-signal" />
           <span class="font-serif font-bold text-sm text-ink">
@@ -632,7 +632,7 @@
       </div>
 
       <!-- Modal 滾動內容區 -->
-      <div class="p-6 overflow-y-auto flex flex-col gap-5 text-ink font-sans">
+      <div class="p-4 sm:p-6 overflow-y-auto flex flex-col gap-5 text-ink font-sans">
         <!-- 步驟 1: 選擇目標藝人 (若新建可搜尋選取，編輯時鎖定) -->
         <div>
           <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider block mb-1.5">

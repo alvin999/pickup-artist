@@ -160,11 +160,11 @@
   }
 </script>
 
-<div class="flex flex-col gap-5 p-6 bg-chassis min-h-screen text-ink font-sans">
+<div class="flex flex-col gap-4 sm:gap-5 p-3 sm:p-6 bg-chassis min-h-screen text-ink font-sans">
   <!-- 頂部發燒友機架遙測儀表 (Telemetry Console Header) -->
-  <div class="border border-wire bg-void p-5 shadow-2xl relative overflow-hidden">
+  <div class="border border-wire bg-void p-4 sm:p-5 shadow-2xl relative overflow-hidden">
     <!-- 背景等寬硬體飾紋 -->
-    <div class="absolute right-4 top-2 text-[68px] font-mono font-black text-panel/40 select-none pointer-events-none">
+    <div class="absolute right-4 top-2 text-[56px] sm:text-[68px] font-mono font-black text-panel/30 select-none pointer-events-none">
       QUE_04
     </div>
 
@@ -174,7 +174,7 @@
           <span class="w-2 h-2 rounded-full {activeListeningItem ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse' : 'bg-signal shadow-[0_0_8px_rgba(254,196,134,0.6)]'}"></span>
           <span>MASTER_LISTENING_SESSION // 聲學聆賞工單調度台</span>
         </div>
-        <h1 class="text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2">
+        <h1 class="text-xl sm:text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2">
           <span>聆賞隊列</span>
           <span class="font-mono text-xs font-normal px-2 py-0.5 border border-wire bg-panel text-ink-muted">
             {pendingItems.length} PENDING / {completedItems.length} COMPLETED
@@ -182,19 +182,19 @@
         </h1>
       </div>
 
-      <!-- 聲學數據晶片組 -->
-      <div class="flex items-center gap-3 font-mono">
-        <div class="border border-wire bg-panel/60 px-3 py-1.5 flex flex-col items-center min-w-[76px]">
+      <!-- 聲學數據晶片組 (小螢幕自動 3 等分 Grid，桌機自適應寬度) -->
+      <div class="grid grid-cols-3 sm:flex items-center gap-2 sm:gap-3 font-mono w-full sm:w-auto">
+        <div class="border border-wire bg-panel/60 px-2 sm:px-3 py-1.5 flex flex-col items-center">
           <span class="text-[9px] text-ink-dim uppercase tracking-wider">SESSION_DR</span>
-          <span class="text-sm font-bold text-signal">DR{averageDR}</span>
+          <span class="text-xs sm:text-sm font-bold text-signal">DR{averageDR}</span>
         </div>
-        <div class="border border-wire bg-panel/60 px-3 py-1.5 flex flex-col items-center min-w-[76px]">
+        <div class="border border-wire bg-panel/60 px-2 sm:px-3 py-1.5 flex flex-col items-center">
           <span class="text-[9px] text-ink-dim uppercase tracking-wider">HI-RES_PCT</span>
-          <span class="text-sm font-bold text-emerald-400">{hiResRatio}%</span>
+          <span class="text-xs sm:text-sm font-bold text-emerald-400">{hiResRatio}%</span>
         </div>
-        <div class="border border-wire bg-panel/60 px-3 py-1.5 flex flex-col items-center min-w-[76px]">
+        <div class="border border-wire bg-panel/60 px-2 sm:px-3 py-1.5 flex flex-col items-center">
           <span class="text-[9px] text-ink-dim uppercase tracking-wider">EST_TIME</span>
-          <span class="text-sm font-bold text-ink">{pendingItems.length * 42}m</span>
+          <span class="text-xs sm:text-sm font-bold text-ink">{pendingItems.length * 42}m</span>
         </div>
       </div>
     </div>
