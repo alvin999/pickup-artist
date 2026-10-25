@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href="/favicon.svg" />
+	<link rel="icon" type="image/png" href="/favicon-32x32.png" />
 </svelte:head>
 
 {@render children?.()}
