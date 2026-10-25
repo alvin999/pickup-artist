@@ -91,9 +91,25 @@
     }
   }
 
-  // 篩選與排序狀態
+  // 篩選、排序、搜尋與字母索引狀態
   let activeFilter = $state<string>('all');
   let sortBy = $state<'recent' | 'cat' | 'dr' | 'audiophile' | 'weight'>('recent');
+  let searchQuery = $state('');
+  let activeLetter = $state<string | null>(null);
+
+  // 小螢幕底部抽屜 (Bottom Sheet) 開關狀態
+  let isMobileDrawerOpen = $state(false);
+
+  // 1,000 位藝人長列表自動漸進加載 (Progressive Infinite Loading)
+  const CHUNK_SIZE = 36;
+  let visibleCount = $state(CHUNK_SIZE);
+  let loadMoreTriggerEl = $state<HTMLElement | null>(null);
+
+  // 選取藝人處理函式 (兼顧桌面與小螢幕抽屜拉起)
+  function handleSelectArtist(id: string) {
+    onselectArtist(id);
+    isMobileDrawerOpen = true;
+  }
 
   // 刪除二次確認計時器狀態
   let deleteConfirmPending = $state(false);
@@ -335,15 +351,161 @@
     SECTOR_LIST.filter((s) => (sectorCounts[s.id] || 0) > 0)
   );
 
-  // 篩選與排序邏輯
+  // 取得藝人名稱首字母標籤（英數字或 #）
+  function getArtistInitial(name: string): string {
+    if (!name) return '#';
+    const first = name.trim().charAt(0).toUpperCase();
+    return /[A-Z]/.test(first) ? first : '#';
+  }
+
+  // 首字母索引清單
+  const ALPHABET_LIST = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+
+  // 統計現有藝人的首字母分佈
+  const letterCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const a of artists) {
+      const initial = getArtistInitial(a.name);
+      counts[initial] = (counts[initial] || 0) + 1;
+    }
+    return counts;
+  });
+
+  // 側邊字母滑動選取 (Touch/Pointer Scrubbing) 狀態
+  let isScrubbing = $state(false);
+  let scrubbedLetter = $state<string | null>(null);
+  let scrubFadeTimer: ReturnType<typeof setTimeout> | null = null;
+  let alphabetNavEl = $state<HTMLElement | null>(null);
+
+  // 根據 Y 座標智慧解算字母 (支援邊界 Clamp 與無資料就近智慧吸附，避免清單消失)
+  function resolvePointerLetter(clientY: number) {
+    if (!alphabetNavEl) return;
+    const buttons = Array.from(alphabetNavEl.querySelectorAll<HTMLButtonElement>('[data-letter]'));
+    if (buttons.length === 0) return;
+
+    // 1. 找出 Y 座標軸上最貼近的手指/游標按鈕
+    let closestBtn: HTMLButtonElement | null = null;
+    let minDistance = Infinity;
+
+    for (const btn of buttons) {
+      const rect = btn.getBoundingClientRect();
+      const midY = (rect.top + rect.bottom) / 2;
+      const dist = Math.abs(clientY - midY);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestBtn = btn;
+      }
+    }
+
+    if (!closestBtn) return;
+    const rawLetter = closestBtn.dataset.letter;
+    if (!rawLetter) return;
+
+    // 2. 智慧就近吸附：若該字母暫無收錄藝人 (count === 0)，自動吸附至最近之有收錄字母，防止空屏
+    let targetValidLetter = rawLetter;
+    if (rawLetter !== 'ALL' && (!letterCounts[rawLetter] || letterCounts[rawLetter] === 0)) {
+      const currentIndex = buttons.indexOf(closestBtn);
+      let bestValidBtn: HTMLButtonElement | null = null;
+      let shortestSteps = Infinity;
+
+      for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+        const l = b.dataset.letter;
+        if (l === 'ALL' || (l && (letterCounts[l] || 0) > 0)) {
+          const steps = Math.abs(i - currentIndex);
+          if (steps < shortestSteps) {
+            shortestSteps = steps;
+            bestValidBtn = b;
+          }
+        }
+      }
+
+      if (bestValidBtn?.dataset.letter) {
+        targetValidLetter = bestValidBtn.dataset.letter;
+      }
+    }
+
+    // 3. 狀態賦值與微型觸覺震動 (Haptic Feedback)
+    if (scrubbedLetter !== targetValidLetter) {
+      scrubbedLetter = targetValidLetter;
+      activeLetter = targetValidLetter === 'ALL' ? null : targetValidLetter;
+      try {
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          navigator.vibrate(8);
+        }
+      } catch {
+        // 忽略無權限或不支援震動環境
+      }
+    }
+  }
+
+  function handlePointerDown(e: PointerEvent) {
+    // 僅響應滑鼠主鍵或觸控接觸
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    if (scrubFadeTimer) clearTimeout(scrubFadeTimer);
+    isScrubbing = true;
+
+    // 透過 setPointerCapture 讓滑鼠/手指在拖曳中即使微偏離軌道時仍可持續追蹤
+    try {
+      alphabetNavEl?.setPointerCapture(e.pointerId);
+    } catch {
+      // 忽略捕獲異常
+    }
+    resolvePointerLetter(e.clientY);
+  }
+
+  function handlePointerMove(e: PointerEvent) {
+    if (!isScrubbing) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    resolvePointerLetter(e.clientY);
+  }
+
+  function handlePointerUp(e: PointerEvent) {
+    if (!isScrubbing) return;
+    e.stopPropagation();
+    try {
+      if (alphabetNavEl?.hasPointerCapture(e.pointerId)) {
+        alphabetNavEl.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // 忽略釋放異常
+    }
+    scrubFadeTimer = setTimeout(() => {
+      isScrubbing = false;
+      scrubbedLetter = null;
+    }, 350);
+  }
+
+  // 篩選與排序邏輯 (整合流派/Inbox、首字母快篩與關鍵字快搜)
   const processedArtists = $derived(
     artists
       .filter((a) => {
-        if (activeFilter === 'inbox') return a.status === 'inbox';
-        if (activeFilter !== 'all') {
+        // 1. Inbox / Sector 篩選
+        if (activeFilter === 'inbox') {
+          if (a.status !== 'inbox') return false;
+        } else if (activeFilter !== 'all') {
           const targetSector = a.analysis?.sector || a.clusterSector || a.clusterCategory;
-          return targetSector === activeFilter;
+          if (targetSector !== activeFilter) return false;
         }
+
+        // 2. 首字母快篩
+        if (activeLetter) {
+          const initial = getArtistInitial(a.name);
+          if (initial !== activeLetter) return false;
+        }
+
+        // 3. 搜尋關鍵字 (比對名稱、別名、流派)
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          const matchName = a.name.toLowerCase().includes(q);
+          const matchAlias = a.aliases?.some((al) => al.toLowerCase().includes(q));
+          const matchGenre = a.analysis?.subGenre?.toLowerCase().includes(q) || a.clusterCategory?.toLowerCase().includes(q);
+          if (!matchName && !matchAlias && !matchGenre) return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -357,6 +519,34 @@
         return b.updatedAt - a.updatedAt;
       })
   );
+
+  // 當篩選、排序、搜尋或字母變更時，重設分批載入數量
+  $effect(() => {
+    void activeFilter;
+    void sortBy;
+    void searchQuery;
+    void activeLetter;
+    visibleCount = CHUNK_SIZE;
+  });
+
+  // 當前渲染於畫面的藝人切片 (避免 1,000 位藝人一次渲染導致掉幀)
+  const displayedArtists = $derived(processedArtists.slice(0, visibleCount));
+  const hasMore = $derived(visibleCount < processedArtists.length);
+
+  // 利用 IntersectionObserver 實現捲動觸底自動追加
+  $effect(() => {
+    if (!loadMoreTriggerEl || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          visibleCount = Math.min(visibleCount + CHUNK_SIZE, processedArtists.length);
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    observer.observe(loadMoreTriggerEl);
+    return () => observer.disconnect();
+  });
 
   const DEFAULT_COVER = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80';
 
@@ -456,11 +646,47 @@
           <span>{sector.id} [{count}]</span>
         </button>
       {/each}
+      <!-- 首字母快篩活躍狀態標籤 -->
+      {#if activeLetter}
+        <div class="flex items-center gap-1.5 px-2 py-0.5 text-[10px] bg-signal/20 border border-signal text-signal font-bold shrink-0 rounded-[2px] animate-in fade-in">
+          <span>INITIAL: [{activeLetter}]</span>
+          <button
+            type="button"
+            onclick={() => (activeLetter = null)}
+            class="hover:text-white cursor-pointer flex items-center"
+            title="清除首字母過濾"
+          >
+            <span class="material-symbols-outlined text-[12px]">close</span>
+          </button>
+        </div>
+      {/if}
     </div>
 
-    <!-- 排序選單 -->
-    <div class="flex items-center gap-3 shrink-0 text-[10px] self-end xl:self-auto">
-      <div class="flex items-center gap-2 bg-void border px-2.5 py-1 transition-all {sortBy === 'recent' ? 'border-signal/50 shadow-[0_0_10px_rgba(255,42,60,0.15)]' : 'border-wire hover:border-wire-bright'}">
+    <!-- 搜尋與排序選單 -->
+    <div class="flex items-center gap-2.5 shrink-0 text-[10px] self-end xl:self-auto flex-wrap">
+      <!-- 即時關鍵字搜尋框 -->
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-void border border-wire text-ink focus-within:border-signal transition-colors rounded-[2px]">
+        <span class="material-symbols-outlined text-[13px] text-ink-dim">search</span>
+        <input
+          type="text"
+          bind:value={searchQuery}
+          placeholder="快速快搜藝人..."
+          class="bg-transparent text-ink placeholder-ink-dim text-[10px] font-mono outline-none w-24 sm:w-32 focus:w-40 transition-all"
+        />
+        {#if searchQuery}
+          <button
+            type="button"
+            onclick={() => (searchQuery = '')}
+            class="text-ink-dim hover:text-signal cursor-pointer flex items-center"
+            title="清除搜尋"
+          >
+            <span class="material-symbols-outlined text-[12px]">close</span>
+          </button>
+        {/if}
+      </div>
+
+      <!-- 排序選單 -->
+      <div class="flex items-center gap-2 bg-void border px-2.5 py-1 transition-all rounded-[2px] {sortBy === 'recent' ? 'border-signal/50 shadow-[0_0_10px_rgba(255,42,60,0.15)]' : 'border-wire hover:border-wire-bright'}">
         <span class="text-ink-dim">SORT_BY:</span>
         {#if sortBy === 'recent'}
           <span class="w-1.5 h-1.5 rounded-full bg-signal shrink-0 animate-pulse"></span>
@@ -498,7 +724,7 @@
           </div>
         </div>
       {:else}
-        <!-- 小螢幕解剖面板快速跳轉通知 (僅在寬度小於 xl 且已有選取藝人時顯現) -->
+        <!-- 小螢幕解剖面板喚起條 (僅在寬度小於 xl 且已有選取藝人時顯現) -->
         {#if selectedArtist}
           <div class="xl:hidden mb-3 p-2 bg-[#101218] border border-signal/40 flex items-center justify-between text-xs font-mono rounded-[2px] shadow-sm animate-in fade-in">
             <div class="flex items-center gap-2 truncate">
@@ -507,32 +733,33 @@
             </div>
             <button
               type="button"
-              onclick={() => {
-                const el = document.getElementById('artist-dossier-panel');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
+              onclick={() => (isMobileDrawerOpen = true)}
               class="shrink-0 px-2.5 py-1 bg-signal text-white font-bold text-[10px] uppercase tracking-wider rounded-[2px] hover:bg-white hover:text-void transition-colors cursor-pointer flex items-center gap-1"
             >
-              <span>查看解剖</span>
-              <span class="material-symbols-outlined text-[13px]">arrow_downward</span>
+              <span>展開解剖艙</span>
+              <span class="material-symbols-outlined text-[13px]">open_in_full</span>
             </button>
           </div>
         {/if}
 
-        <!-- 模組化硬體卡片網格 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
-          {#each processedArtists as artist (artist.id)}
-          {@const isActive = selectedArtistId === artist.id}
-          {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
-          {@const isQueued = queueState?.queuedArtistIds?.includes(artist.id)}
-          {@const aura = getStageAuraStyle(artist.analysis?.sector, isActive)}
-          <div
-            role="button"
-            tabindex="0"
-            onclick={() => onselectArtist(artist.id)}
-            onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
-            class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : isCurrentTarget ? 'bg-[#101218] ring-1 ring-inset ring-signal/70 bg-micro-grid shadow-[0_0_18px_rgba(255,42,60,0.25)]' : 'bg-void hover:bg-[#0d0e14]'}"
-          >
+        <!-- 藝人網格與側邊首字母快速導航容器 -->
+        <div class="flex items-start gap-2 sm:gap-3">
+          <!-- 主卡片網格與觸底自動追加 -->
+          <div class="flex-1 min-w-0">
+            <!-- 模組化硬體卡片網格 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+              {#each displayedArtists as artist (artist.id)}
+              {@const isActive = selectedArtistId === artist.id}
+              {@const isCurrentTarget = queueState?.currentArtist?.id === artist.id}
+              {@const isQueued = queueState?.queuedArtistIds?.includes(artist.id)}
+              {@const aura = getStageAuraStyle(artist.analysis?.sector, isActive)}
+              <div
+                role="button"
+                tabindex="0"
+                onclick={() => handleSelectArtist(artist.id)}
+                onkeydown={(e) => e.key === 'Enter' && handleSelectArtist(artist.id)}
+                class="group relative p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 {isActive ? 'bg-[#101218] ring-1 ring-inset ring-signal bg-micro-grid shadow-[0_0_24px_rgba(255,42,60,0.2)]' : isCurrentTarget ? 'bg-[#101218] ring-1 ring-inset ring-signal/70 bg-micro-grid shadow-[0_0_18px_rgba(255,42,60,0.25)]' : 'bg-void hover:bg-[#0d0e14]'}"
+              >
             <!-- 頂部微距數據列：最左上角顯示時代印記 (取代無意義的 STAGE-XXX)，右側呈現 AI_PARSED -->
             <div class="flex items-center justify-between font-mono text-[10px] pb-3 border-b border-wire border-dashed">
               <div class="flex items-center gap-1.5 min-w-0">
@@ -723,28 +950,136 @@
           </div>
         {/each}
       </div>
+
+            <!-- 捲動觸底自動追加哨兵 (Infinite Loading Sentinel) -->
+            {#if hasMore}
+              <div
+                bind:this={loadMoreTriggerEl}
+                class="py-8 text-center text-xs font-mono text-ink-dim flex items-center justify-center gap-2 border-t border-wire/40 mt-6"
+              >
+                <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
+                <span>聲學檔案自動深勘加載中... ({displayedArtists.length} / {processedArtists.length})</span>
+              </div>
+            {:else if processedArtists.length > CHUNK_SIZE}
+              <div class="py-6 text-center text-[10px] font-mono text-ink-dim/60 border-t border-wire/20 mt-6 tracking-widest uppercase">
+                // END_OF_ROSTER: 已加載全數 {processedArtists.length} 位音樂人檔案 //
+              </div>
+            {/if}
+          </div>
+
+          <!-- 側邊垂直微型字母索引軌道 (支援手機手勢滑動與桌面滑鼠拖曳) -->
+          <nav
+            bind:this={alphabetNavEl}
+            aria-label="藝人首字母快速索引"
+            onpointerdown={handlePointerDown}
+            onpointermove={handlePointerMove}
+            onpointerup={handlePointerUp}
+            onpointercancel={handlePointerUp}
+            class="sticky top-24 shrink-0 flex flex-col items-center py-2 px-1 bg-void/90 backdrop-blur-md border border-wire rounded-[2px] select-none text-[9px] font-mono shadow-md z-20 touch-none cursor-ns-resize"
+          >
+            <button
+              type="button"
+              data-letter="ALL"
+              onclick={() => (activeLetter = null)}
+              title="顯示全數藝人"
+              class="w-5 py-0.5 mb-1 text-[8px] tracking-tighter text-center rounded-[1px] transition-colors cursor-pointer {activeLetter === null ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
+            >
+              ALL
+            </button>
+            <div class="w-full h-px bg-wire my-1"></div>
+            <!-- 緊湊無捲動字母串 (一體成型防止手勢搶奪與事件穿透) -->
+            <div class="flex flex-col items-center gap-0 w-full" style="touch-action: none;">
+              {#each ALPHABET_LIST as letter}
+                {@const count = letterCounts[letter] || 0}
+                {@const isSelected = activeLetter === letter}
+                <button
+                  type="button"
+                  data-letter={letter}
+                  aria-disabled={count === 0}
+                  onclick={() => {
+                    if (count > 0) {
+                      activeLetter = isSelected ? null : letter;
+                    }
+                  }}
+                  title={count > 0 ? `${letter} (${count} 位藝人)` : `${letter} (無藝人)`}
+                  class="w-4 h-3.5 sm:h-4 flex items-center justify-center rounded-[1px] text-[8px] sm:text-[9px] leading-none transition-all cursor-pointer
+                    {isSelected
+                      ? 'bg-signal text-white font-bold shadow-[0_0_8px_rgba(255,42,60,0.5)] z-10'
+                      : count > 0
+                        ? 'text-ink-muted hover:text-signal hover:bg-white/5 font-semibold'
+                        : 'text-ink-dim/20'}"
+                >
+                  {letter}
+                </button>
+              {/each}
+            </div>
+          </nav>
+
+          <!-- 音樂軟體同款 HUD 字母放大預覽氣泡 (Cyber HUD Scrubber Indicator) -->
+          {#if isScrubbing && scrubbedLetter}
+            <div
+              class="fixed right-14 sm:right-18 top-1/2 -translate-y-1/2 z-50 pointer-events-none flex flex-col items-center justify-center w-24 h-24 bg-[#0a0a0e]/95 border-2 border-signal rounded-lg shadow-[0_0_30px_rgba(255,42,60,0.5)] backdrop-blur-md animate-in zoom-in-90 duration-100"
+            >
+              <!-- 刻度與抬頭 -->
+              <span class="absolute top-1 left-2 text-[8px] font-mono text-signal font-bold tracking-widest">// INDEX</span>
+              <span class="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-signal animate-pulse"></span>
+              
+              <div class="text-4xl font-mono font-black text-white tracking-widest drop-shadow-[0_0_12px_rgba(255,42,60,0.8)]">
+                {scrubbedLetter}
+              </div>
+              
+              <div class="text-[9px] font-mono text-signal font-bold mt-1 tracking-wider uppercase">
+                {scrubbedLetter === 'ALL' ? 'ALL_RECORDS' : `${letterCounts[scrubbedLetter] || 0} ARTISTS`}
+              </div>
+            </div>
+          {/if}
+        </div>
       {/if}
     </main>
 
-    <!-- 右側：整合式透明硬體解剖艙 (Unified Cyber-Hardware Dossier & Telemetry) -->
-    <aside id="artist-dossier-panel" class="w-full xl:w-[420px] 2xl:w-[460px] shrink-0 bg-chassis/95 backdrop-blur-xl border border-wire xl:border-l xl:border-t-0 xl:border-r-0 xl:border-b-0 flex flex-col justify-between sticky top-20">
+    <!-- 小螢幕底部抽屜背景遮罩 (Backdrop) -->
+    {#if isMobileDrawerOpen && selectedArtist}
+      <div
+        role="button"
+        tabindex="0"
+        onclick={() => (isMobileDrawerOpen = false)}
+        onkeydown={(e) => e.key === 'Escape' && (isMobileDrawerOpen = false)}
+        class="xl:hidden fixed inset-0 bg-void/80 backdrop-blur-xs z-40 transition-opacity"
+        aria-label="收合解剖艙"
+      ></div>
+    {/if}
+
+    <!-- 右側／小螢幕底部抽屜：整合式透明硬體解剖艙 (Unified Cyber-Hardware Dossier & Telemetry) -->
+    <aside
+      id="artist-dossier-panel"
+      class="w-full xl:w-[420px] 2xl:w-[460px] shrink-0 bg-chassis/98 backdrop-blur-xl border border-wire xl:border-l xl:border-t-0 xl:border-r-0 xl:border-b-0 flex flex-col justify-between
+        fixed xl:sticky inset-x-0 bottom-0 xl:bottom-auto top-auto xl:top-20 z-50 xl:z-auto
+        max-h-[85dvh] xl:max-h-none overflow-y-auto rounded-t-xl xl:rounded-none shadow-2xl xl:shadow-none
+        transition-transform duration-300 ease-out
+        {isMobileDrawerOpen && selectedArtist ? 'translate-y-0' : 'translate-y-full xl:translate-y-0'}
+        {!selectedArtist ? 'hidden xl:flex' : ''}"
+    >
       {#if selectedArtist}
         <div class="p-4 sm:p-5 flex flex-col gap-5">
 
-          <!-- 小螢幕頂部返回卡片網格按鈕 (僅在寬度小於 xl 時呈現) -->
-          <div class="xl:hidden pb-3 border-b border-wire flex items-center justify-between">
-            <span class="font-mono text-xs text-signal font-bold flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
-              <span>藝人發燒解剖艙 // DOSSIER</span>
-            </span>
-            <button
-              type="button"
-              onclick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              class="px-2 py-1 bg-void hover:bg-panel border border-wire text-ink-muted hover:text-ink font-mono text-[10px] rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <span class="material-symbols-outlined text-[13px]">arrow_upward</span>
-              <span>返回卡片網格</span>
-            </button>
+          <!-- 小螢幕頂部收合抽屜控制列 (僅在寬度小於 xl 時呈現) -->
+          <div class="xl:hidden pb-3 border-b border-wire flex flex-col gap-2">
+            <!-- 賽博硬體把手條 (Drag Handle) -->
+            <div class="w-12 h-1 bg-wire-bright/60 rounded-full mx-auto my-0.5"></div>
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs text-signal font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
+                <span>藝人發燒解剖艙 // DOSSIER</span>
+              </span>
+              <button
+                type="button"
+                onclick={() => (isMobileDrawerOpen = false)}
+                class="px-2.5 py-1 bg-void hover:bg-signal-dim border border-wire hover:border-signal text-ink-muted hover:text-signal font-mono text-[10px] rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-[13px]">keyboard_arrow_down</span>
+                <span>收合面板</span>
+              </button>
+            </div>
           </div>
 
           <!-- 艙門頂部狀態列：發跡時空 ✕ 音樂史定位 ✕ 編制與風格 (去識別化預設值) -->
