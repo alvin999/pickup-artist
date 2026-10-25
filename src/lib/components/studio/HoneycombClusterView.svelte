@@ -57,7 +57,9 @@
     Cpu,
     Activity,
     Globe,
-    HelpCircle
+    HelpCircle,
+    Minimize2,
+    List
   } from 'lucide-svelte';
 
   interface Props {
@@ -98,7 +100,12 @@
   let isDraggingMinimap = $state(false);
   let radarBoxEl = $state<HTMLElement | null>(null);
 
-  // 側邊欄面板模式：'roster' (類別/子流派藝人名錄) | 'dossier' (單星檔案)
+  // 側邊欄與 HUD 開關狀態 (點選才展開，HUD 操作一切)
+  let isDossierOpen = $state(false);      // 單星解剖艙抽屜 (點選星體時展開)
+  let isRosterDrawerOpen = $state(false); // 藝人名錄檢索抽屜 (頂部 HUD 呼叫)
+  let isWeightSliderOpen = $state(false); // 右下角控制塢質量門檻滑桿展開
+  let isFullscreen = $state(false);       // 全螢幕沉浸模式
+
   let panelViewMode = $state<'roster' | 'dossier'>('roster');
   let rosterSearchQuery = $state('');
   let rosterSortBy = $state<'weight' | 'name'>('weight');
@@ -110,6 +117,20 @@
   let startCanvasPanX = $state(0);
   let startCanvasPanY = $state(0);
   let isSpacePressed = $state(false); // 空白鍵按住狀態 (輔助平移手勢)
+
+  // Google Maps 式觸控與指針互動引擎 (單指平移、慣性物理滑行、雙指捏合縮放、雙擊放大)
+  const activePointers = new Map<number, { x: number; y: number }>();
+  let touchStartDist = 0;
+  let touchStartZoom = 60;
+  let touchStartMid = { x: 0, y: 0 };
+  let pointerStartPos = { x: 0, y: 0 };
+  let hasMovedSignificantly = false;
+  let lastPointerMoveTime = 0;
+  let lastPointerPos = { x: 0, y: 0 };
+  let velocity = { x: 0, y: 0 };
+  let inertiaRafId: number | null = null;
+  let lastTapTime = 0;
+  let lastTapPos = { x: 0, y: 0 };
 
   // Google Maps 式平滑滾輪即時縮放狀態 (防止 CSS 過渡造成黏滯感)
   let isWheelZooming = $state(false);
@@ -494,32 +515,99 @@
     return { x, y, w, h };
   });
 
-  // 畫布背景滑鼠按下：準備平移畫布 (支援空白鍵快捷拖曳)
-  function handleCanvasMouseDown(e: MouseEvent) {
-    if ((e.target as HTMLElement).closest('.guide-modal-container, input, textarea, button, a')) return;
-    if (!isSpacePressed && (e.target as HTMLElement).closest('.artist-star-node, .ghost-star-node, .sun-core-node, .subgenre-node, .minimap-radar, .hud-controls')) return;
-    if (isFlying) isFlying = false;
-    isPanningCanvas = true;
-    startCanvasPanX = e.clientX - panX;
-    startCanvasPanY = e.clientY - panY;
+  // 停止慣性平移
+  function stopInertia() {
+    if (inertiaRafId !== null) {
+      cancelAnimationFrame(inertiaRafId);
+      inertiaRafId = null;
+    }
   }
 
-  // 星體節點滑鼠按下：啟動節點自由拖曳與互斥動力學，並切換至單星檔案
-  function handleNodeMouseDown(e: MouseEvent, artistId: string) {
-    e.stopPropagation();
+  // 啟動 Google Maps 式慣性物理滑行 (Inertia Momentum Scrolling)
+  function startInertia() {
+    stopInertia();
+    const speed = Math.hypot(velocity.x, velocity.y);
+    if (speed < 0.12) return;
+
+    let vx = velocity.x * 16;
+    let vy = velocity.y * 16;
+    const maxV = 40;
+    vx = Math.max(-maxV, Math.min(maxV, vx));
+    vy = Math.max(-maxV, Math.min(maxV, vy));
+
+    function step() {
+      if (Math.hypot(vx, vy) < 0.35) {
+        inertiaRafId = null;
+        return;
+      }
+      panX = Math.round(panX + vx);
+      panY = Math.round(panY + vy);
+      vx *= 0.92;
+      vy *= 0.92;
+      inertiaRafId = requestAnimationFrame(step);
+    }
+    inertiaRafId = requestAnimationFrame(step);
+  }
+
+  // 點選藝人星體：展開解剖艙卡片
+  function handleSelectArtistNode(artistId: string, e?: Event) {
+    e?.stopPropagation();
     onselectArtist(artistId);
-    panelViewMode = 'dossier';
-
-    const pos = posMap.get(artistId);
-    if (!pos) return;
-
-    draggingArtistId = artistId;
-    dragMouseStart = { x: e.clientX, y: e.clientY };
-    dragNodeStart = { x: pos.x, y: pos.y };
+    isDossierOpen = true; // 點選才展開卡片
   }
 
-  // 全域滑鼠移動處理 (含即時彈性連鎖互斥推力)
-  function handleGlobalMouseMove(e: MouseEvent) {
+  // 全螢幕切換
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      canvasViewportEl?.requestFullscreen?.();
+      isFullscreen = true;
+    } else {
+      document.exitFullscreen?.();
+      isFullscreen = false;
+    }
+  }
+
+  // 畫布指針按下：記錄起點、多點觸控狀態與準備平移 / 捏合手勢
+  function handleCanvasPointerDown(e: PointerEvent) {
+    if ((e.target as HTMLElement).closest('.guide-modal-container, .hud-panel, .floating-hud, input, textarea, button, a')) return;
+    if (isFlying) isFlying = false;
+    stopInertia();
+
+    try {
+      (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
+
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size === 1) {
+      pointerStartPos = { x: e.clientX, y: e.clientY };
+      startCanvasPanX = e.clientX - panX;
+      startCanvasPanY = e.clientY - panY;
+      hasMovedSignificantly = false;
+      isPanningCanvas = true;
+      lastPointerMoveTime = performance.now();
+      lastPointerPos = { x: e.clientX, y: e.clientY };
+      velocity = { x: 0, y: 0 };
+    } else if (activePointers.size === 2) {
+      const points = Array.from(activePointers.values());
+      touchStartDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      touchStartZoom = zoomLevel;
+      touchStartMid = {
+        x: (points[0].x + points[1].x) / 2,
+        y: (points[0].y + points[1].y) / 2
+      };
+      hasMovedSignificantly = true;
+      isPanningCanvas = false;
+      velocity = { x: 0, y: 0 };
+    }
+  }
+
+  // 畫布指針移動：支援單指平移、雙指捏合縮放 (Pinch-to-zoom)
+  function handleCanvasPointerMove(e: PointerEvent) {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // 1. 若正在拖曳特定藝人節點
     if (draggingArtistId) {
       const scale = zoomLevel / 100;
       const dx = (e.clientX - dragMouseStart.x) / scale;
@@ -529,7 +617,6 @@
         y: Math.round(dragNodeStart.y + dy)
       };
 
-      // 計算與周圍節點的即時彈性互斥推力 (基於當前實時位置)
       const nodeList = Array.from(hierarchicalData.posMap.entries()).map(([id, p]) => ({
         id,
         x: liveNodePosOverrides[id]?.x ?? p.x,
@@ -544,7 +631,169 @@
         24
       );
 
-      // 直接將被推開鄰居的新位置合併儲存，使排斥永久安定，絕不回彈貼合
+      liveNodePosOverrides = {
+        ...liveNodePosOverrides,
+        ...pushes,
+        [draggingArtistId]: currentDraggingPos
+      };
+      return;
+    }
+
+    // 2. 雙指捏合縮放 (Pinch-to-zoom with Focal Center)
+    if (activePointers.size === 2) {
+      const points = Array.from(activePointers.values());
+      const currentDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      const currentMid = {
+        x: (points[0].x + points[1].x) / 2,
+        y: (points[0].y + points[1].y) / 2
+      };
+
+      if (touchStartDist > 0 && canvasViewportEl) {
+        const ratio = currentDist / touchStartDist;
+        const targetZoom = Math.max(30, Math.min(220, Math.round(touchStartZoom * ratio)));
+
+        if (targetZoom !== zoomLevel) {
+          const rect = canvasViewportEl.getBoundingClientRect();
+          const mouseOffsetX = currentMid.x - (rect.left + rect.width / 2);
+          const mouseOffsetY = currentMid.y - (rect.top + rect.height / 2);
+          const zoomRatio = targetZoom / zoomLevel;
+
+          panX = Math.round(panX * zoomRatio - mouseOffsetX * (zoomRatio - 1));
+          panY = Math.round(panY * zoomRatio - mouseOffsetY * (zoomRatio - 1));
+          zoomLevel = targetZoom;
+        }
+
+        const dMidX = currentMid.x - touchStartMid.x;
+        const dMidY = currentMid.y - touchStartMid.y;
+        panX += dMidX * 0.5;
+        panY += dMidY * 0.5;
+        touchStartMid = currentMid;
+      }
+      return;
+    }
+
+    // 3. 單指平移畫布 (Pan)
+    if (activePointers.size === 1 && isPanningCanvas) {
+      const moveDist = Math.hypot(e.clientX - pointerStartPos.x, e.clientY - pointerStartPos.y);
+      if (moveDist > 8) {
+        hasMovedSignificantly = true;
+      }
+
+      if (hasMovedSignificantly) {
+        panX = e.clientX - startCanvasPanX;
+        panY = e.clientY - startCanvasPanY;
+
+        const now = performance.now();
+        const dt = now - lastPointerMoveTime;
+        if (dt > 10) {
+          velocity.x = (e.clientX - lastPointerPos.x) / dt;
+          velocity.y = (e.clientY - lastPointerPos.y) / dt;
+          lastPointerMoveTime = now;
+          lastPointerPos = { x: e.clientX, y: e.clientY };
+        }
+      }
+    }
+  }
+
+  // 畫布指針放開：處理慣性物理滑行或單擊/雙擊事件
+  function handleCanvasPointerUp(e: PointerEvent) {
+    try {
+      (e.currentTarget as HTMLElement)?.releasePointerCapture?.(e.pointerId);
+    } catch (_) {}
+
+    activePointers.delete(e.pointerId);
+
+    if (activePointers.size === 0) {
+      if (hasMovedSignificantly) {
+        startInertia();
+      } else {
+        handleCanvasTap(e);
+      }
+      isPanningCanvas = false;
+    } else if (activePointers.size === 1) {
+      const remaining = Array.from(activePointers.values())[0];
+      startCanvasPanX = remaining.x - panX;
+      startCanvasPanY = remaining.y - panY;
+      lastPointerMoveTime = performance.now();
+      lastPointerPos = { ...remaining };
+      velocity = { x: 0, y: 0 };
+    }
+  }
+
+  function handleCanvasPointerCancel(e: PointerEvent) {
+    activePointers.delete(e.pointerId);
+    isPanningCanvas = false;
+    stopInertia();
+  }
+
+  // 輕觸點擊與雙擊放大 (Tap & Double-Tap Zoom)
+  function handleCanvasTap(e: PointerEvent) {
+    const now = performance.now();
+    const tapTarget = e.target as HTMLElement;
+
+    // 若點在互動元件上，由該元件自身事件處理
+    if (tapTarget.closest('button, input, textarea, a, .hud-panel, .minimap-radar')) return;
+
+    // 雙擊快速放大 (Double-tap Zoom)
+    if (now - lastTapTime < 320 && Math.hypot(e.clientX - lastTapPos.x, e.clientY - lastTapPos.y) < 24) {
+      lastTapTime = 0;
+      if (canvasViewportEl) {
+        const rect = canvasViewportEl.getBoundingClientRect();
+        const clickOffsetX = e.clientX - (rect.left + rect.width / 2);
+        const clickOffsetY = e.clientY - (rect.top + rect.height / 2);
+        const nextZoom = Math.min(220, zoomLevel + 35);
+        flyTo(
+          Math.round(panX - clickOffsetX * 0.6),
+          Math.round(panY - clickOffsetY * 0.6),
+          nextZoom,
+          320
+        );
+      }
+      return;
+    }
+
+    lastTapTime = now;
+    lastTapPos = { x: e.clientX, y: e.clientY };
+  }
+
+  // 星體節點滑鼠/指針按下：啟動節點自由拖曳與互斥動力學，並展開解剖艙
+  function handleNodeMouseDown(e: MouseEvent, artistId: string) {
+    e.stopPropagation();
+    handleSelectArtistNode(artistId, e);
+
+    const pos = posMap.get(artistId);
+    if (!pos) return;
+
+    draggingArtistId = artistId;
+    dragMouseStart = { x: e.clientX, y: e.clientY };
+    dragNodeStart = { x: pos.x, y: pos.y };
+  }
+
+  // 全域滑鼠/指針移動處理
+  function handleGlobalMouseMove(e: MouseEvent) {
+    if (draggingArtistId) {
+      const scale = zoomLevel / 100;
+      const dx = (e.clientX - dragMouseStart.x) / scale;
+      const dy = (e.clientY - dragMouseStart.y) / scale;
+      const currentDraggingPos = {
+        x: Math.round(dragNodeStart.x + dx),
+        y: Math.round(dragNodeStart.y + dy)
+      };
+
+      const nodeList = Array.from(hierarchicalData.posMap.entries()).map(([id, p]) => ({
+        id,
+        x: liveNodePosOverrides[id]?.x ?? p.x,
+        y: liveNodePosOverrides[id]?.y ?? p.y,
+        size: p.size
+      }));
+
+      const pushes = applyInteractiveRepulsion(
+        draggingArtistId,
+        currentDraggingPos,
+        nodeList,
+        24
+      );
+
       liveNodePosOverrides = {
         ...liveNodePosOverrides,
         ...pushes,
@@ -557,14 +806,9 @@
       updateViewFromMinimap(e.clientX, e.clientY, false);
       return;
     }
-
-    if (isPanningCanvas) {
-      panX = e.clientX - startCanvasPanX;
-      panY = e.clientY - startCanvasPanY;
-    }
   }
 
-  // 全域滑鼠放開處理：將拖曳節點與被推擠鄰居的新座標永久持久化
+  // 全域放開處理
   function handleGlobalMouseUp() {
     if (isDraggingMinimap) {
       isDraggingMinimap = false;
@@ -574,20 +818,17 @@
       const draggedId = draggingArtistId;
       draggingArtistId = null;
 
-      // 持久化儲存拖曳者位置
       const finalPos = liveNodePosOverrides[draggedId];
       if (finalPos && onupdatePos) {
         onupdatePos(draggedId, finalPos);
       }
 
-      // 將所有被彈開鄰居的新位置一併寫入資料庫，確保之後每一次拖曳都有空間
       for (const [id, pos] of Object.entries(liveNodePosOverrides)) {
         if (id !== draggedId && onupdatePos) {
           onupdatePos(id, pos);
         }
       }
     }
-    isPanningCanvas = false;
   }
 
   // Google Maps 式游標中心智慧滾輪縮放與手勢
@@ -688,10 +929,18 @@
       return;
     }
 
-    // Esc 鍵：若指南開啟則關閉指南，否則若有選中藝人則取消選取
+    // Esc 鍵：若指南開啟則關閉指南，否則若有展開卡片則關閉卡片，保持星空乾淨
     if (e.key === 'Escape') {
       if (showGuideModal) {
         showGuideModal = false;
+        return;
+      }
+      if (isDossierOpen) {
+        isDossierOpen = false;
+        return;
+      }
+      if (isRosterDrawerOpen) {
+        isRosterDrawerOpen = false;
         return;
       }
       if (selectedArtistId) {
@@ -877,40 +1126,512 @@
   {/if}
 {/snippet}
 
-<div class="flex flex-col w-full text-[#EEF0F2] select-none pb-12">
-  <!-- 頂部 Sub-header / 發燒星系控制台工具列 -->
-  <div class="flex flex-col gap-3 bg-[#0D0E11] p-4 rounded-[4px] border border-[#1F2228] mb-5 shadow-md">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <!-- 左側：RIG 編號與標題 -->
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-1.5 px-2.5 py-1 bg-[#14161A] border border-[#E0A96D]/30 rounded-[3px] font-mono text-[10px] text-[#FEC486] uppercase">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#FEC486] animate-ping"></span>
-          <span>RIG 04 // THREE-TIER GALAXY TREE</span>
-        </div>
-        <div class="flex flex-col">
-          <div class="flex items-center gap-2">
-            <span class="font-serif text-base font-bold text-[#EEF0F2] tracking-tight">
-              八大音樂天體系譜樹
-            </span>
-            <span class="px-2 py-0.5 bg-[#171A21] border border-[#2B313D] text-[#FEC486] font-mono text-[11px] rounded font-bold">
-              {visibleArtists.length} / {artists.length} 藝人天體
-            </span>
-          </div>
-          <span class="font-mono text-[9px] text-[#8E9298] tracking-wider uppercase">
-            SUN ➔ SUB-GENRE NODE ➔ ARTIST PLANET // ELASTIC REPULSION
-          </span>
-        </div>
+{#snippet dossierBody(artist: ArtistEntry)}
+  {@const weight = artist.weight ?? 20}
+  <div class="p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-2">
+    <!-- 藝人抬頭與類別 -->
+    <div>
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="font-mono text-[10px] text-[#8E9298] uppercase">
+          ID: {artist.id.slice(0, 8)}
+        </span>
+        {#if artist.status === 'inbox'}
+          <SpecBadge type="inbox" text="RAW INBOX" />
+        {:else}
+          <SpecBadge type="analyzed" text="ANALYZED" />
+        {/if}
       </div>
 
-      <!-- 中間：八大太陽系快速切換 (配有專屬流派徽章) -->
-      <div class="flex items-center gap-1 bg-[#040405] p-1 rounded-[3px] border border-[#1F2228] overflow-x-auto max-w-full">
+      <div class="flex items-center gap-3">
+        {#if artist.coverImage}
+          <img src={artist.coverImage} alt={artist.name} class="w-12 h-12 rounded-full object-cover border border-[#2B303C] shrink-0" />
+        {:else}
+          <div class="w-12 h-12 rounded-full bg-[#111317] border border-[#2B303C] flex items-center justify-center shrink-0">
+            <Disc3 class="w-6 h-6 text-[#FEC486]" />
+          </div>
+        {/if}
+        <div class="min-w-0 flex-1">
+          <h3 class="font-serif text-xl font-bold text-[#EEF0F2] truncate">
+            {artist.name}
+          </h3>
+          {#if artist.aliases && artist.aliases.length > 0}
+            <div class="font-mono text-[11px] text-[#8E9298] truncate">
+              {artist.aliases.join(' / ')}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    <!-- 雙層分類標章 (Sun ➔ SubNode) -->
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <button
+        type="button"
+        onclick={() => {
+          const sec = artist.analysis?.sector || artist.clusterSector;
+          if (sec) {
+            activeSectorFilter = sec;
+            selectedSubGenre = null;
+          }
+        }}
+        class="px-2 py-0.5 rounded bg-[#171A21] text-[#FEC486] font-mono text-xs border border-[#E0A96D]/40 font-bold flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
+        title="點擊切換至此母星系"
+      >
+        <Sun class="w-3 h-3 text-[#FEC486]" />
+        <span>{getSectorDisplayName(artist.analysis?.sector || artist.clusterSector)}</span>
+      </button>
+      <span class="text-[#8E9298] font-mono text-xs">➔</span>
+      <button
+        type="button"
+        onclick={() => {
+          const sec = artist.analysis?.sector || artist.clusterSector;
+          const sub = artist.analysis?.subGenre;
+          if (sec) activeSectorFilter = sec;
+          if (sub) selectedSubGenre = sub;
+        }}
+        class="px-2 py-0.5 rounded bg-[#101217] text-[#EEF0F2] font-mono text-xs border border-[#2B303C] flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
+        title="點擊過濾此子流派"
+      >
+        <Layers class="w-3 h-3 text-[#FEC486]" />
+        <span>{artist.analysis?.subGenre || '未定流派'}</span>
+      </button>
+    </div>
+
+    <!-- Weight 引力權重步進調節面板 (1 ~ 100) -->
+    <div class="p-3 bg-[#050608] border border-[#2B303C] rounded-[4px] flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-[11px] text-[#8E9298] font-bold flex items-center gap-1.5">
+          <Flame class="w-3.5 h-3.5 text-[#FEC486]" />
+          <span>天體引力質量 (GRAVITY WEIGHT)</span>
+        </span>
+        <span class="font-mono text-base font-bold text-[#FEC486] font-tabular">
+          {weight} <span class="text-[10px] text-[#8E9298] font-normal">/ 100</span>
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 pt-1">
+        <button
+          type="button"
+          onclick={() => changeWeight(artist.id, weight - 5)}
+          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
+          title="調降權重 -5"
+        >
+          -5
+        </button>
+        <button
+          type="button"
+          onclick={() => changeWeight(artist.id, weight - 1)}
+          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
+          title="調降權重 -1"
+        >
+          -1
+        </button>
+
+        <div class="flex-[3] px-2 flex items-center">
+          <input
+            type="range"
+            min="1"
+            max="100"
+            step="1"
+            value={weight}
+            oninput={(e) => changeWeight(artist.id, +(e.currentTarget as HTMLInputElement).value)}
+            class="w-full accent-[#FEC486] cursor-pointer"
+          />
+        </div>
+
+        <button
+          type="button"
+          onclick={() => changeWeight(artist.id, weight + 1)}
+          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
+          title="調升權重 +1"
+        >
+          +1
+        </button>
+        <button
+          type="button"
+          onclick={() => changeWeight(artist.id, weight + 5)}
+          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
+          title="調升權重 +5"
+        >
+          +5
+        </button>
+      </div>
+      <div class="flex justify-between font-mono text-[9px] text-[#52565E] pt-0.5">
+        <span>小行星 (1)</span>
+        <span>岩質星 (20)</span>
+        <span>氣態巨星 (70)</span>
+        <span>超重恆星 (100)</span>
+      </div>
+    </div>
+
+    <!-- 操作按鈕列 -->
+    <div class="flex items-center gap-2">
+      <StreamingTrigger
+        artistName={artist.name}
+        appleMusicUrl={artist.appleMusicUrl}
+        variant="compact"
+        className="flex-1"
+      />
+
+      <TactileButton
+        variant="amber"
+        size="md"
+        onclick={() => onanalyzeArtist(artist)}
+        class="flex-1 py-2 text-xs"
+      >
+        <Sparkles class="w-3.5 h-3.5 mr-1 text-[#FEC486]" />
+        <span>AI 聲學解剖</span>
+      </TactileButton>
+    </div>
+
+    <!-- 檔案脈絡與 AI 分析細節 -->
+    <div class="flex flex-col gap-3">
+      {#if artist.analysis}
+        <!-- 聲響脈絡介紹 -->
+        <div>
+          <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
+            聲響脈絡 (Summary)
+          </h4>
+          <p class="font-sans text-xs text-[#CCCFD6] leading-relaxed bg-[#050608] p-3 rounded border border-[#1A1D23]">
+            {artist.analysis.summary}
+          </p>
+        </div>
+
+        <!-- 錄音質地評註 -->
+        {#if artist.analysis.instrumentationNotes}
+          <div>
+            <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
+              錄音質地與聲學評註
+            </h4>
+            <p class="font-mono text-xs text-[#E0A96D]/90 bg-[#12100A] p-3 rounded border border-[#E0A96D]/30 leading-relaxed">
+              {artist.analysis.instrumentationNotes}
+            </p>
+          </div>
+        {/if}
+
+        <!-- 推薦專輯卡片矩陣 -->
+        {#if artist.analysis.notableAlbums && artist.analysis.notableAlbums.length > 0}
+          <div>
+            <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1.5">
+              推薦唱片精選 (Notable Works)
+            </h4>
+            <div class="flex flex-col gap-2">
+              {#each artist.analysis.notableAlbums as album}
+                <div class="p-2.5 bg-[#050608] rounded border border-[#1A1D23] flex flex-col gap-1">
+                  <div class="flex items-center justify-between">
+                    <span class="font-serif text-xs font-bold text-[#EEF0F2]">
+                      {album.title} ({album.year})
+                    </span>
+                    <span class="font-mono text-[9px] uppercase px-1.5 py-0.2 rounded font-bold {album.tier === 'hidden-treasure' ? 'bg-[#3A1418] text-[#FA383E] border border-[#FA383E]/40' : 'bg-[#1C1F26] text-[#FEC486]'}">
+                      {album.tier === 'hidden-treasure' ? '深埋寶藏' : '時代基石'}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-[#8E9298] leading-normal">
+                    {album.description}
+                  </p>
+                  {#if album.audiophileHighlight}
+                    <div class="text-[10px] text-[#E0A96D] font-mono mt-0.5">
+                      ★ 聲學亮點: {album.audiophileHighlight}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- 相似藝人晶片群 -->
+        {#if artist.analysis.similarArtists && artist.analysis.similarArtists.length > 0}
+          <div>
+            <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
+              AI 相似頻率藝人 (點擊知悉入庫)
+            </h4>
+            <div class="flex flex-wrap gap-1.5">
+              {#each artist.analysis.similarArtists as sim}
+                {@const isCollected = artists.some((a) => a.name.toLowerCase() === sim.toLowerCase())}
+                <button
+                  type="button"
+                  onclick={() => onpickupSimilar?.(sim)}
+                  class="px-2 py-0.5 rounded font-mono text-xs border transition-colors cursor-pointer flex items-center gap-1 {isCollected ? 'bg-[#14161B] text-[#FEC486] border-[#252A34]' : 'bg-[#181112] text-[#FA383E] border-[#FA383E]/40 hover:bg-[#2B0E12]'}"
+                >
+                  {#if !isCollected}
+                    <Plus class="w-3 h-3" />
+                  {/if}
+                  <span>{sim}</span>
+                  {#if isCollected}
+                    <span class="text-[9px] text-[#63C78B]">✓</span>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {:else}
+        <div class="py-8 text-center text-[#8E9298] font-mono text-xs bg-[#050608] rounded border border-[#1A1D23] p-4 flex flex-col items-center gap-2">
+          <Sparkles class="w-6 h-6 text-[#FEC486] animate-pulse" />
+          <span class="font-bold text-[#EEF0F2]">此星體尚未進行 AI 聲學解剖</span>
+          <p class="text-[11px] text-[#52565E]">
+            點擊上方「AI 聲學解剖」，由音樂學家分析雙層分類歸屬與深埋寶藏專輯。
+          </p>
+        </div>
+      {/if}
+    </div>
+
+    <!-- 底部危險操作區：二次確認防誤觸移除按鈕 -->
+    <div class="pt-3 border-t border-[#1F2228] mt-auto">
+      <button
+        type="button"
+        onclick={handleTriggerDelete}
+        class="w-full py-2 px-3 rounded-[3px] font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 {deleteConfirmPending
+          ? 'bg-[#FA383E] text-white shadow-[0_0_16px_rgba(250,56,62,0.6)] animate-pulse'
+          : 'bg-[#14161B] hover:bg-[#1E1113] text-[#8E9298] hover:text-[#FA383E] border border-[#2B303C] hover:border-[#FA383E]/50'}"
+      >
+        {#if deleteConfirmPending}
+          <AlertTriangle class="w-4 h-4 text-white" />
+          <span>確認移除「{artist.name}」？ ({deleteCountdown}s)</span>
+        {:else}
+          <Trash2 class="w-3.5 h-3.5 text-[#8E9298]" />
+          <span>自星系與庫存中移除藝人</span>
+        {/if}
+      </button>
+    </div>
+  </div>
+{/snippet}
+
+{#snippet rosterDrawer()}
+  <div class="p-3.5 flex flex-col gap-3 h-full overflow-hidden">
+    <!-- 頂部標題與關閉 -->
+    <div class="flex items-center justify-between pb-2 border-b border-[#1F2228]">
+      <div class="flex items-center gap-2">
+        <Users class="w-4 h-4 text-[#FEC486]" />
+        <span class="font-serif text-sm font-bold text-[#EEF0F2]">藝人天體名錄 ({rosterArtists.length})</span>
+      </div>
+      <button
+        type="button"
+        onclick={() => (isRosterDrawerOpen = false)}
+        class="p-1 text-[#8E9298] hover:text-white rounded hover:bg-[#1F2228] cursor-pointer"
+        title="關閉名錄 [Esc]"
+      >
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+
+    <!-- 搜尋框與排序 -->
+    <div class="flex items-center gap-2">
+      <div class="flex-1 relative">
+        <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8E9298]" />
+        <input
+          type="text"
+          bind:value={rosterSearchQuery}
+          placeholder="搜尋藝人名稱或風格..."
+          class="w-full pl-8 pr-7 py-1.5 bg-[#050608] border border-[#1F2228] focus:border-[#FEC486]/60 rounded-[3px] text-xs text-[#EEF0F2] placeholder-[#52565E] outline-none font-mono"
+        />
+        {#if rosterSearchQuery}
+          <button
+            type="button"
+            onclick={() => (rosterSearchQuery = '')}
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8E9298] hover:text-[#EEF0F2]"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+        {/if}
+      </div>
+
+      <div class="flex items-center bg-[#050608] border border-[#1F2228] rounded p-0.5 text-[10px] font-mono shrink-0">
+        <button
+          type="button"
+          onclick={() => (rosterSortBy = 'weight')}
+          class="px-2 py-0.5 rounded cursor-pointer {rosterSortBy === 'weight' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298]'}"
+          title="按質量排序"
+        >
+          WT
+        </button>
+        <button
+          type="button"
+          onclick={() => (rosterSortBy = 'name')}
+          class="px-2 py-0.5 rounded cursor-pointer {rosterSortBy === 'name' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298]'}"
+          title="按名稱字母排序"
+        >
+          A-Z
+        </button>
+      </div>
+    </div>
+
+    <!-- 子流派膠囊列 -->
+    {#if availableSubGenres.length > 0}
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
+        <button
+          type="button"
+          onclick={() => selectSubGenreFilter(null)}
+          class="px-2 py-0.5 rounded-[2px] font-mono text-[10px] cursor-pointer shrink-0 transition-all {!selectedSubGenre
+            ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#FEC486]/40'
+            : 'bg-[#0E1015] text-[#8E9298] border border-[#1F2228] hover:text-[#EEF0F2]'}"
+        >
+          全部
+        </button>
+        {#each availableSubGenres as subItem}
+          <button
+            type="button"
+            onclick={() => selectSubGenreFilter(selectedSubGenre === subItem.name ? null : subItem.name)}
+            class="px-2 py-0.5 rounded-[2px] font-mono text-[10px] cursor-pointer shrink-0 transition-all flex items-center gap-1 {selectedSubGenre === subItem.name
+              ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#FEC486]/50 shadow-[0_0_8px_rgba(254,196,134,0.2)]'
+              : 'bg-[#0E1015] text-[#8E9298] border border-[#1F2228] hover:text-[#EEF0F2]'}"
+          >
+            <span>{subItem.name}</span>
+            <span class="opacity-70 text-[9px]">({subItem.count})</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- 藝人清單 -->
+    <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-1.5">
+      {#if rosterArtists.length === 0}
+        <div class="py-8 text-center text-[#8E9298] font-mono text-xs">
+          無符合之藝人
+        </div>
+      {:else}
+        {#each rosterArtists as artist (artist.id)}
+          {@const isSelected = selectedArtistId === artist.id}
+          {@const weight = artist.weight ?? 20}
+          <div
+            role="button"
+            tabindex="0"
+            onclick={() => selectArtistFromRoster(artist.id)}
+            onkeydown={(e) => e.key === 'Enter' && selectArtistFromRoster(artist.id)}
+            class="p-2 rounded-[3px] border transition-all cursor-pointer flex items-center justify-between gap-2.5 group {isSelected
+              ? 'bg-[#171A21] border-[#FEC486] shadow-[0_0_10px_rgba(254,196,134,0.2)]'
+              : 'bg-[#050608] border-[#1F2228] hover:border-[#E0A96D]/50 hover:bg-[#0E1015]'}"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-full bg-[#111317] border border-[#2B303C] overflow-hidden shrink-0 flex items-center justify-center">
+                {#if artist.coverImage}
+                  <img src={artist.coverImage} alt={artist.name} class="w-full h-full object-cover" />
+                {:else}
+                  <Disc3 class="w-4 h-4 text-[#8E9298]" />
+                {/if}
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="font-serif text-xs font-bold text-[#EEF0F2] group-hover:text-[#FEC486] truncate">
+                  {artist.name}
+                </span>
+                <span class="font-mono text-[9px] text-[#8E9298] truncate">
+                  {artist.analysis?.subGenre || '未定流派'}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0 font-mono text-[10px]">
+              <span class="px-1.5 py-0.5 rounded bg-[#14161A] text-[#CCCFD6] border border-[#1F2228] font-bold">
+                W{weight}
+              </span>
+              <Crosshair class="w-3.5 h-3.5 text-[#52565E] group-hover:text-[#FEC486]" />
+            </div>
+          </div>
+        {/each}
+      {/if}
+    </div>
+  </div>
+{/snippet}
+
+<div class="relative w-full h-[calc(100dvh-5.25rem)] min-h-[580px] text-[#EEF0F2] select-none rounded-[6px] border border-[#1F2228] overflow-hidden bg-[#040507] shadow-2xl flex flex-col">
+  <!-- 滿版深空畫布視口 (Edge-to-Edge Cosmic Viewport) -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    role="region"
+    aria-label="Acoustic Hierarchical Galaxy Canvas"
+    bind:this={canvasViewportEl}
+    onpointerdown={handleCanvasPointerDown}
+    onpointermove={handleCanvasPointerMove}
+    onpointerup={handleCanvasPointerUp}
+    onpointercancel={handleCanvasPointerCancel}
+    onwheel={handleWheel}
+    class="relative w-full h-full flex-1 overflow-hidden flex items-center justify-center select-none touch-none overscroll-none {isPanningCanvas ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'}"
+    style="touch-action: none;"
+  >
+    <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
+    <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>
+
+    <!-- 深空天文底片微粒噪點層 (Film Grain ISO Texture) -->
+    <svg
+      class="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-30 mix-blend-overlay"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <filter id="celestial-film-grain" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
+        <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.16 0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#celestial-film-grain)" />
+    </svg>
+
+    <!-- 深空暗角光罩 (Cosmic Vignette) -->
+    <div class="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(4,5,7,0.78)_100%)]"></div>
+
+    <!-- 頂部懸浮 HUD 巡航膠囊 (Top Floating Navigation HUD) -->
+    <div class="floating-hud absolute top-3 inset-x-3 z-30 flex items-center justify-between gap-2 pointer-events-none">
+      <!-- 左側：麵包屑巡航列 -->
+      <div class="pointer-events-auto flex items-center gap-1.5 bg-[#08090C]/90 backdrop-blur-md px-3 py-1.5 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-[11px] shrink-0">
         <button
           type="button"
           onclick={resetView}
-          class="px-2.5 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 {activeSectorFilter === 'all' ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-          title="重設攝影機至宇宙全景 (快捷鍵 R / Home / 0)"
+          class="text-[#FEC486] hover:text-white flex items-center gap-1 font-bold cursor-pointer transition-colors"
+          title="返回全宇宙全景 (快捷鍵 R / Home / 0)"
         >
-          <Orbit class="w-3.5 h-3.5 text-[#FEC486]" />
+          <Compass class="w-3.5 h-3.5 text-[#FEC486]" />
+          <span class="hidden sm:inline">全宇宙</span>
+        </button>
+
+        {#if activeSectorDef}
+          <ChevronRight class="w-3 h-3 text-[#52565E]" />
+          <button
+            type="button"
+            onclick={() => {
+              selectedSubGenre = null;
+              const sun = hierarchicalData.suns.find((s) => s.key === activeSectorFilter);
+              if (sun) navigateToSun(sun);
+            }}
+            class="hover:text-white font-bold cursor-pointer transition-colors flex items-center gap-1 max-w-[90px] sm:max-w-[140px] truncate"
+            style="color: {activeSectorDef.color};"
+            title="返回【{activeSectorDef.name}】"
+          >
+            <span class="truncate">{activeSectorDef.name}</span>
+          </button>
+        {/if}
+
+        {#if selectedSubGenre}
+          <ChevronRight class="w-3 h-3 text-[#52565E]" />
+          <button
+            type="button"
+            onclick={() => selectSubGenreFilter(selectedSubGenre)}
+            class="text-[#EEF0F2] hover:text-[#FEC486] font-bold cursor-pointer transition-colors max-w-[80px] sm:max-w-[120px] truncate"
+            title="聚焦子流派【{selectedSubGenre}】"
+          >
+            <span class="truncate">{selectedSubGenre}</span>
+          </button>
+        {/if}
+
+        {#if selectedArtist}
+          <ChevronRight class="w-3 h-3 text-[#52565E]" />
+          <button
+            type="button"
+            onclick={focusSelected}
+            class="text-[#FEC486] hover:underline font-serif font-bold truncate max-w-[80px] sm:max-w-[120px] cursor-pointer"
+            title="聚焦【{selectedArtist.name}】(快捷鍵 F)"
+          >
+            {selectedArtist.name}
+          </button>
+        {/if}
+      </div>
+
+      <!-- 中間：八大太陽系快速切換膠囊 (Google Maps 式探索 Pills，支援橫向滑動) -->
+      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/85 backdrop-blur-md p-1 rounded-[4px] border border-[#2B303C] shadow-xl overflow-x-auto max-w-[50%] md:max-w-[55%] no-scrollbar">
+        <button
+          type="button"
+          onclick={resetView}
+          class="px-2.5 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 flex items-center gap-1 {activeSectorFilter === 'all' ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
+          title="全宇宙"
+        >
+          <Orbit class="w-3 h-3 text-[#FEC486]" />
           <span>全宇宙 ({artists.length})</span>
         </button>
 
@@ -918,15 +1639,15 @@
           <button
             type="button"
             onclick={() => navigateToSun(sun)}
-            class="px-2.5 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 {activeSectorFilter === sun.key ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-            title="前往【{sun.name}】({sun.nameEn}) 太陽系 (Google Map 飛行航行)"
+            class="px-2 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 flex items-center gap-1 {activeSectorFilter === sun.key ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
+            title="前往【{sun.name}】({sun.nameEn})"
           >
             <span style="color: {sun.color};">
-              {@render sectorIcon(sun.icon, "w-3.5 h-3.5")}
+              {@render sectorIcon(sun.icon, "w-3 h-3")}
             </span>
             <span>{sun.name}</span>
             {#if sun.artistCount > 0}
-              <span class="text-[10px] opacity-70">({sun.artistCount})</span>
+              <span class="text-[9px] opacity-70">({sun.artistCount})</span>
             {/if}
           </button>
         {/each}
@@ -936,184 +1657,39 @@
           onclick={() => {
             activeSectorFilter = 'inbox';
             selectedSubGenre = null;
-            panelViewMode = 'roster';
           }}
-          class="px-2 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all shrink-0 text-[#FA383E] {activeSectorFilter === 'inbox' ? 'bg-[#2B0E12] font-bold border border-[#FA383E]/50' : 'hover:bg-[#1A0A0C]'}"
+          class="px-2 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 text-[#FA383E] {activeSectorFilter === 'inbox' ? 'bg-[#2B0E12] font-bold border border-[#FA383E]/50' : 'hover:bg-[#1A0A0C]'}"
         >
-          待探索彗星 ({artists.filter((a) => a.status === 'inbox').length})
+          待探索 ({artists.filter((a) => a.status === 'inbox').length})
         </button>
       </div>
 
-      <!-- 右側：視角控制器 -->
-      <div class="flex items-center gap-2">
+      <!-- 右側：藝人名錄檢索按鈕 & 全螢幕開關 -->
+      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/90 backdrop-blur-md p-1 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-xs shrink-0">
         <button
           type="button"
-          onclick={focusSelected}
-          disabled={!selectedArtist}
-          class="flex items-center gap-1 px-2.5 py-1 bg-[#14161A] hover:bg-[#1E222A] disabled:opacity-40 text-[#8E9298] hover:text-[#FEC486] rounded-[3px] border border-[#1F2228] font-mono text-[11px] transition-colors cursor-pointer"
-          title="聚焦目前選中的藝人 (快捷鍵 F)"
+          onclick={() => (isRosterDrawerOpen = !isRosterDrawerOpen)}
+          class="px-2 py-1 rounded-[2px] cursor-pointer transition-all flex items-center gap-1.5 {isRosterDrawerOpen ? 'bg-[#1C2027] text-[#FEC486] border border-[#FEC486]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
+          title="開啟藝人名錄檢索抽屜"
         >
-          <Crosshair class="w-3.5 h-3.5 text-[#FEC486]" />
-          <span>聚焦定位 [F]</span>
+          <List class="w-3.5 h-3.5 text-[#FEC486]" />
+          <span class="hidden sm:inline font-bold">名錄</span>
         </button>
 
         <button
           type="button"
-          onclick={resetView}
-          class="flex items-center gap-1 px-2.5 py-1 bg-[#14161A] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded-[3px] border border-[#1F2228] font-mono text-[11px] transition-colors cursor-pointer group"
-          title="攝影機鏡頭拉回全宇宙 (快捷鍵 R / Home / 0)"
+          onclick={toggleFullscreen}
+          class="p-1 rounded-[2px] text-[#8E9298] hover:text-[#FEC486] transition-colors cursor-pointer"
+          title={isFullscreen ? '退出全螢幕' : '進入全螢幕漫遊'}
         >
-          <Orbit class="w-3.5 h-3.5 text-[#FEC486] group-hover:rotate-45 transition-transform duration-300" />
-          <span>全宇宙 [R]</span>
+          {#if isFullscreen}
+            <Minimize2 class="w-3.5 h-3.5" />
+          {:else}
+            <Maximize2 class="w-3.5 h-3.5" />
+          {/if}
         </button>
       </div>
     </div>
-
-    <!-- 第二層：子流派階層標籤與 Weight 質量過濾門檻 -->
-    <div class="flex flex-wrap items-center justify-between pt-2.5 border-t border-[#1F2228] text-xs gap-3">
-      <div class="flex flex-wrap items-center gap-4">
-        <!-- 顯示跨太陽系引力線開關 -->
-        <label class="flex items-center gap-2 cursor-pointer group select-none">
-          <input
-            type="checkbox"
-            bind:checked={showGravityLines}
-            class="hidden"
-          />
-          <span class="w-3.5 h-3.5 bg-[#040405] border border-[#2B2F38] rounded-[2px] flex items-center justify-center {showGravityLines ? 'border-[#E0A96D]' : ''}">
-            {#if showGravityLines}
-              <span class="w-1.5 h-1.5 bg-[#FEC486]"></span>
-            {/if}
-          </span>
-          <span class="font-mono text-[11px] text-[#8E9298] group-hover:text-[#FEC486] transition-colors">
-            跨星系 AI 引力光束 (GRAVITY BEAMS)
-          </span>
-        </label>
-
-        <div class="h-3 w-px bg-[#1F2228] hidden md:block"></div>
-
-        <!-- 1000 藝人聲學質量門檻滑桿 -->
-        <div class="flex items-center gap-2 font-mono text-[11px]">
-          <span class="text-[#8E9298] flex items-center gap-1">
-            <Sliders class="w-3 h-3 text-[#FEC486]" />
-            <span>質量門檻 (WT):</span>
-          </span>
-          <input
-            type="range"
-            min="1"
-            max="80"
-            step="5"
-            bind:value={minWeightFilter}
-            class="w-20 sm:w-28 accent-[#FEC486] cursor-pointer"
-          />
-          <span class="text-[#FEC486] font-bold font-tabular min-w-[32px]">
-            {minWeightFilter > 1 ? `≥ ${minWeightFilter}` : 'ALL'}
-          </span>
-        </div>
-      </div>
-
-      <!-- 右側提示說明 (Zoom 控制已整合進星系畫布右下角 HUD) -->
-      <div class="flex items-center gap-2 font-mono text-[10px] text-[#636873]">
-        <span class="px-2 py-0.5 bg-[#14161B] border border-[#1F2228] rounded text-[#8E9298]">
-          畫布空白處雙擊放大 · 滾輪或 HUD 縮放
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- 主太陽系星空畫布 + 右側 Dossier 檢查抽屜 -->
-  <div class="grid grid-cols-12 gap-6 items-start">
-    <!-- 宇宙深空視口 (8 欄) -->
-    <div class="col-span-12 xl:col-span-8 flex flex-col gap-2">
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <div
-        role="region"
-        aria-label="Acoustic Hierarchical Galaxy Canvas"
-        bind:this={canvasViewportEl}
-        onmousedown={handleCanvasMouseDown}
-        ondblclick={handleCanvasDblClick}
-        onwheel={handleWheel}
-        class="relative w-full h-[480px] sm:h-[600px] xl:h-[750px] bg-[#040507] rounded-[4px] border border-[#1F2228] overflow-hidden shadow-2xl flex items-center justify-center select-none {isPanningCanvas ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'}"
-      >
-        <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
-        <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>
-
-        <!-- 深空天文底片微粒噪點層 (Film Grain ISO Texture) -->
-        <svg
-          class="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-30 mix-blend-overlay"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <filter id="celestial-film-grain" x="0%" y="0%" width="100%" height="100%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.16 0" />
-          </filter>
-          <rect width="100%" height="100%" filter="url(#celestial-film-grain)" />
-        </svg>
-
-        <!-- 深空暗角光罩 (Cosmic Vignette) -->
-        <div class="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(4,5,7,0.78)_100%)]"></div>
-
-        <!-- 畫布左上角：麵包屑巡航列與狀態 (Cosmic Breadcrumbs) -->
-        <div class="absolute top-4 left-4 z-20 flex flex-col gap-1.5 font-mono text-[11px] pointer-events-auto">
-          <!-- 麵包屑導航條 -->
-          <div class="flex items-center gap-1.5 bg-[#0C0E13]/85 backdrop-blur-md px-3 py-1.5 rounded border border-[#2B303C] shadow-lg">
-            <button
-              type="button"
-              onclick={resetView}
-              class="text-[#FEC486] hover:text-white flex items-center gap-1 font-bold cursor-pointer transition-colors"
-              title="返回全宇宙全景 (快捷鍵 R / Home / 0)"
-            >
-              <Compass class="w-3.5 h-3.5 text-[#FEC486]" />
-              <span>宇宙全景</span>
-            </button>
-
-            {#if activeSectorDef}
-              <ChevronRight class="w-3 h-3 text-[#52565E]" />
-              <button
-                type="button"
-                onclick={() => {
-                  selectedSubGenre = null;
-                  const sun = hierarchicalData.suns.find((s) => s.key === activeSectorFilter);
-                  if (sun) navigateToSun(sun);
-                }}
-                class="hover:text-white font-bold cursor-pointer transition-colors flex items-center gap-1"
-                style="color: {activeSectorDef.color};"
-                title="返回【{activeSectorDef.name}】"
-              >
-                <span>{activeSectorDef.name}</span>
-              </button>
-            {/if}
-
-            {#if selectedSubGenre}
-              <ChevronRight class="w-3 h-3 text-[#52565E]" />
-              <button
-                type="button"
-                onclick={() => selectSubGenreFilter(selectedSubGenre)}
-                class="text-[#EEF0F2] hover:text-[#FEC486] font-bold cursor-pointer transition-colors"
-                title="聚焦子流派【{selectedSubGenre}】"
-              >
-                <span>{selectedSubGenre}</span>
-              </button>
-            {/if}
-
-            {#if selectedArtist}
-              <ChevronRight class="w-3 h-3 text-[#52565E]" />
-              <button
-                type="button"
-                onclick={focusSelected}
-                class="text-[#FEC486] hover:underline font-serif font-bold truncate max-w-[120px] cursor-pointer"
-                title="聚焦【{selectedArtist.name}】(快捷鍵 F)"
-              >
-                {selectedArtist.name}
-              </button>
-            {/if}
-          </div>
-        </div>
-
-        <!-- 畫布右上角：系統狀態標籤 -->
-        <div class="absolute top-4 right-4 z-20 flex items-center gap-1.5 font-mono text-[10px] text-[#FEC486] bg-[#14161B]/85 backdrop-blur-md px-2.5 py-1.5 rounded border border-[#E0A96D]/30 pointer-events-none shadow-lg">
-          <Layers class="w-3.5 h-3.5 text-[#FEC486]" />
-          <span>{isFlying ? 'FLY-TO PROPULSION ACTIVE' : 'HIERARCHICAL GRAVITY ACTIVE'}</span>
-        </div>
 
         <!-- 畫布左下角：微型宇宙雷達小地圖 (Minimap HUD) - 完美置中，支援點擊巡航與按住拖曳 -->
         <div
@@ -1194,9 +1770,38 @@
           </div>
         </div>
 
-        <!-- 畫布右下角：全功能星系 HUD 導航控制台 (Floating Cosmic Navigator HUD) -->
-        <div class="hud-controls absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2 pointer-events-auto select-none">
-          <div class="flex items-center gap-1.5 bg-[#08090C]/90 backdrop-blur-md p-1.5 rounded border border-[#2B303C] shadow-2xl font-mono">
+        <!-- 畫布右下角：全功能星系 HUD 導航控制台 (Floating Cosmic Control Dock HUD) -->
+        <div class="hud-controls absolute bottom-4 right-4 z-30 flex flex-col items-end gap-2 pointer-events-auto select-none">
+          <!-- 質量門檻快選懸浮面板 (點擊 WT 按鈕展開) -->
+          {#if isWeightSliderOpen}
+            <div class="p-3 bg-[#08090C]/95 backdrop-blur-md rounded border border-[#2B303C] shadow-2xl flex flex-col gap-2 font-mono text-xs w-64 animate-fadeIn">
+              <div class="flex items-center justify-between text-[#8E9298]">
+                <span class="flex items-center gap-1 text-[#FEC486] font-bold">
+                  <Sliders class="w-3.5 h-3.5" />
+                  <span>天體質量過濾閥 (WT)</span>
+                </span>
+                <span class="text-[#FEC486] font-bold">
+                  {minWeightFilter > 1 ? `≥ ${minWeightFilter}` : 'ALL'}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="80"
+                step="5"
+                bind:value={minWeightFilter}
+                class="w-full accent-[#FEC486] cursor-pointer"
+              />
+              <div class="flex justify-between text-[9px] text-[#52565E]">
+                <span>全部天體 (1)</span>
+                <span>中量恆星 (40)</span>
+                <span>超重恆星 (80)</span>
+              </div>
+            </div>
+          {/if}
+
+          <!-- 控制塢主工具列 -->
+          <div class="flex items-center gap-1 bg-[#08090C]/90 backdrop-blur-md p-1.5 rounded border border-[#2B303C] shadow-2xl font-mono text-xs">
             <!-- 縮小按鈕 -->
             <button
               type="button"
@@ -1211,7 +1816,7 @@
             <button
               type="button"
               onclick={() => flyTo(panX, panY, 100, 350)}
-              class="px-2.5 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#FEC486] hover:text-[#FFA552] text-xs font-bold rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
+              class="px-2 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#FEC486] hover:text-[#FFA552] text-xs font-bold rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
               title="重設為 1:1 標準比例 (100%)"
             >
               <span>{zoomLevel}%</span>
@@ -1229,6 +1834,30 @@
 
             <div class="h-4 w-px bg-[#2B303C] mx-0.5"></div>
 
+            <!-- 引力光束開關 -->
+            <button
+              type="button"
+              onclick={() => (showGravityLines = !showGravityLines)}
+              class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] rounded-[3px] border transition-colors cursor-pointer {showGravityLines ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10' : 'text-[#8E9298] border-[#1F2228]'}"
+              title="跨星系 AI 引力光束開關"
+            >
+              <Layers class="w-3.5 h-3.5" />
+              <span class="hidden md:inline text-[11px] font-bold">引力束</span>
+            </button>
+
+            <!-- 質量過濾開關 -->
+            <button
+              type="button"
+              onclick={() => (isWeightSliderOpen = !isWeightSliderOpen)}
+              class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] rounded-[3px] border transition-colors cursor-pointer {isWeightSliderOpen || minWeightFilter > 1 ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10' : 'text-[#8E9298] border-[#1F2228]'}"
+              title="天體質量過濾閥"
+            >
+              <Sliders class="w-3.5 h-3.5" />
+              <span class="hidden md:inline text-[11px] font-bold">WT:{minWeightFilter > 1 ? minWeightFilter : 'ALL'}</span>
+            </button>
+
+            <div class="h-4 w-px bg-[#2B303C] mx-0.5"></div>
+
             <!-- 一鍵全宇宙按鈕 (Orbit Reset View) -->
             <button
               type="button"
@@ -1237,7 +1866,7 @@
               title="攝影機鏡頭拉回全宇宙 (快捷鍵 R / Home / 0)"
             >
               <Orbit class="w-3.5 h-3.5 text-[#FEC486] group-hover:rotate-45 transition-transform duration-300" />
-              <span class="hidden sm:inline text-[11px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486]">全宇宙 [R]</span>
+              <span class="hidden lg:inline text-[11px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486]">全宇宙 [R]</span>
             </button>
 
             <!-- 聚焦藝人按鈕 -->
@@ -1249,20 +1878,17 @@
               title="聚焦當前藝人 (快捷鍵 F)"
             >
               <Crosshair class="w-3.5 h-3.5" />
-              <span class="hidden sm:inline text-[11px] font-bold">聚焦 [F]</span>
+              <span class="hidden lg:inline text-[11px] font-bold">聚焦 [F]</span>
             </button>
-
-            <div class="h-4 w-px bg-[#2B303C] mx-0.5"></div>
 
             <!-- 操作手冊按鈕 -->
             <button
               type="button"
               onclick={() => (showGuideModal = !showGuideModal)}
-              class="h-7 px-2.5 flex items-center gap-1.5 bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer group {showGuideModal ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10 shadow-[0_0_8px_rgba(254,196,134,0.2)]' : ''}"
+              class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer group {showGuideModal ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10 shadow-[0_0_8px_rgba(254,196,134,0.2)]' : ''}"
               title="星系導航與操作手冊 (快捷鍵 ? 或 /)"
             >
               <HelpCircle class="w-3.5 h-3.5 text-[#FEC486]" />
-              <span class="hidden sm:inline text-[11px] font-bold">指南 [?]</span>
             </button>
           </div>
         </div>
@@ -1616,7 +2242,8 @@
               role="button"
               tabindex="0"
               onmousedown={(e) => handleNodeMouseDown(e, artist.id)}
-              onkeydown={(e) => e.key === 'Enter' && onselectArtist(artist.id)}
+              onclick={(e) => handleSelectArtistNode(artist.id, e)}
+              onkeydown={(e) => e.key === 'Enter' && handleSelectArtistNode(artist.id, e)}
               class="artist-star-node absolute flex flex-col items-center justify-center z-30 cursor-grab active:cursor-grabbing group {isDraggingThis ? 'z-50 scale-110' : ''}"
               style="
                 left: {pos.x - pos.size / 2}px;
@@ -1895,506 +2522,90 @@
             </div>
           </div>
         {/if}
-      </div>
-    </div>
 
-    <!-- 右側 Dossier 檢查抽屜與 Weight 發燒調節面板 (4 欄) -->
-    <div class="col-span-12 xl:col-span-4 bg-[#0D0E11] border border-[#1F2228] p-5 rounded-[4px] shadow-2xl flex flex-col gap-4">
-      <!-- 頂部視圖切換 Tab 列 -->
-      <div class="flex items-center justify-between border-b border-[#1F2228] pb-3">
-        <div class="flex items-center gap-1.5 bg-[#050608] p-1 rounded-[3px] border border-[#1F2228]">
-          <button
-            type="button"
-            onclick={() => (panelViewMode = 'roster')}
-            class="px-2.5 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all flex items-center gap-1.5 {panelViewMode === 'roster' || !selectedArtist
-              ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40'
-              : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
+        <!-- 桌面版：右側懸浮半透明毛玻璃解剖艙抽屜 (Slide-over Dossier Panel) -->
+        {#if isDossierOpen && selectedArtist}
+          <aside
+            class="hidden xl:flex absolute top-14 bottom-4 right-4 z-40 w-[420px] max-w-[calc(100vw-2rem)] bg-[#090B0E]/95 backdrop-blur-xl border border-[#2B303C] rounded-[6px] shadow-2xl flex-col overflow-hidden animate-fadeIn"
           >
-            <Users class="w-3.5 h-3.5 text-[#FEC486]" />
-            <span>類別名錄 ({rosterArtists.length})</span>
-          </button>
-
-          {#if selectedArtist}
-            <button
-              type="button"
-              onclick={() => (panelViewMode = 'dossier')}
-              class="px-2.5 py-1 rounded-[2px] font-mono text-xs cursor-pointer transition-all flex items-center gap-1.5 {panelViewMode === 'dossier'
-                ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40'
-                : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-            >
-              <Sun class="w-3.5 h-3.5 text-[#FEC486]" />
-              <span>星體檔案</span>
-            </button>
-          {/if}
-        </div>
-
-        <div class="flex items-center gap-1.5 max-w-[160px] truncate">
-          <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {currentCategoryColor};"></span>
-          <span class="font-mono text-[10px] text-[#8E9298] uppercase tracking-wider truncate">
-            {activeSectorDef ? activeSectorDef.name : activeSectorFilter === 'inbox' ? '待探索彗星' : activeSectorFilter}
-          </span>
-        </div>
-      </div>
-
-      <!-- 模式 A：群組名錄模式 (Sector & Sub-Genre Roster) -->
-      {#if panelViewMode === 'roster' || !selectedArtist}
-        <div class="flex flex-col gap-3">
-          <!-- 分類導航與麵包屑資訊 -->
-          <div class="bg-[#050608] p-3 rounded-[3px] border border-[#1F2228] flex flex-col gap-2">
-            <div class="flex items-center justify-between">
+            <!-- 抽屜頂部控制列 -->
+            <div class="px-4 py-3 border-b border-[#1F2228] flex items-center justify-between bg-[#050608]/80">
               <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full shadow-[0_0_8px]" style="background-color: {currentCategoryColor}; box-shadow: 0 0 10px {currentCategoryColor};"></span>
-                <span class="font-serif text-sm font-bold text-[#EEF0F2]">
-                  {currentCategoryTitle}
-                </span>
+                <span class="w-2 h-2 rounded-full bg-[#FEC486] animate-pulse"></span>
+                <span class="font-mono text-xs text-[#FEC486] font-bold">星體解剖艙 // DOSSIER</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-[#101217] text-[#FEC486] font-mono text-xs border border-[#2B303C] font-bold">
-                {rosterArtists.length} 藝人
-              </span>
-            </div>
-
-            <!-- 子類別標記與退回大類按鈕 -->
-            {#if selectedSubGenre}
-              <div class="flex items-center gap-2 pt-1 border-t border-[#14161C]">
-                <span class="text-[#8E9298] font-mono text-xs">子流派過濾:</span>
-                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#181B24] border border-[#FEC486]/50 text-[#FEC486] font-mono text-xs font-bold">
-                  <Layers class="w-3 h-3 text-[#FEC486]" />
-                  <span>{selectedSubGenre}</span>
-                  <button
-                    type="button"
-                    onclick={() => selectSubGenreFilter(null)}
-                    class="ml-1 hover:text-[#FA383E] cursor-pointer"
-                    title="取消子流派過濾，顯示大類全部"
-                  >
-                    <X class="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            {/if}
-
-            <!-- 該大類底下的子流派快速切換膠囊 (Sub-genre Chips) -->
-            {#if availableSubGenres.length > 0}
-              <div class="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 max-w-full">
+              <div class="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onclick={() => selectSubGenreFilter(null)}
-                  class="px-2 py-0.5 rounded-[2px] font-mono text-[10px] cursor-pointer shrink-0 transition-all {!selectedSubGenre
-                    ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#FEC486]/40'
-                    : 'bg-[#0E1015] text-[#8E9298] border border-[#1F2228] hover:text-[#EEF0F2]'}"
+                  onclick={() => focusSelected()}
+                  class="p-1 hover:bg-[#1C2027] text-[#8E9298] hover:text-[#FEC486] rounded text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  title="聚焦天體 [F]"
                 >
-                  全部子流派
+                  <Crosshair class="w-3.5 h-3.5" />
                 </button>
-                {#each availableSubGenres as subItem}
-                  <button
-                    type="button"
-                    onclick={() => selectSubGenreFilter(selectedSubGenre === subItem.name ? null : subItem.name)}
-                    class="px-2 py-0.5 rounded-[2px] font-mono text-[10px] cursor-pointer shrink-0 transition-all flex items-center gap-1 {selectedSubGenre === subItem.name
-                      ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#FEC486]/50 shadow-[0_0_8px_rgba(254,196,134,0.2)]'
-                      : 'bg-[#0E1015] text-[#8E9298] border border-[#1F2228] hover:text-[#EEF0F2]'}"
-                  >
-                    <span>{subItem.name}</span>
-                    <span class="opacity-70 text-[9px]">({subItem.count})</span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-
-          <!-- 搜尋框與排序切換工具列 -->
-          <div class="flex items-center gap-2">
-            <div class="flex-1 relative">
-              <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8E9298]" />
-              <input
-                type="text"
-                bind:value={rosterSearchQuery}
-                placeholder="搜尋藝人名稱或風格..."
-                class="w-full pl-8 pr-7 py-1.5 bg-[#050608] border border-[#1F2228] focus:border-[#FEC486]/60 rounded-[3px] text-xs text-[#EEF0F2] placeholder-[#52565E] outline-none font-mono"
-              />
-              {#if rosterSearchQuery}
                 <button
                   type="button"
-                  onclick={() => (rosterSearchQuery = '')}
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8E9298] hover:text-[#EEF0F2]"
+                  onclick={() => (isDossierOpen = false)}
+                  class="p-1 hover:bg-[#1C2027] text-[#8E9298] hover:text-white rounded cursor-pointer transition-colors"
+                  title="關閉卡片 [Esc]"
                 >
-                  <X class="w-3.5 h-3.5" />
+                  <X class="w-4 h-4" />
                 </button>
-              {/if}
-            </div>
-
-            <!-- 排序按鈕組 -->
-            <div class="flex items-center bg-[#050608] p-0.5 rounded-[3px] border border-[#1F2228] shrink-0">
-              <button
-                type="button"
-                onclick={() => (rosterSortBy = 'weight')}
-                title="依天體質量 Weight 排序"
-                class="px-2 py-1 rounded-[2px] font-mono text-[10px] cursor-pointer {rosterSortBy === 'weight' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-              >
-                質量
-              </button>
-              <button
-                type="button"
-                onclick={() => (rosterSortBy = 'name')}
-                title="依名稱字母排序"
-                class="px-2 py-1 rounded-[2px] font-mono text-[10px] cursor-pointer {rosterSortBy === 'name' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-              >
-                A-Z
-              </button>
-            </div>
-          </div>
-
-          <!-- 符合藝人名錄滾動列表 -->
-          <div class="flex flex-col gap-2 overflow-y-auto max-h-[580px] pr-1">
-            {#if rosterArtists.length === 0}
-              <div class="py-16 text-center text-[#8E9298] font-mono text-xs bg-[#050608] rounded border border-[#1A1D23] p-6 flex flex-col items-center gap-2">
-                <ListFilter class="w-6 h-6 text-[#52565E]" />
-                <span class="text-[#CCCFD6] font-bold">在此分類或篩選條件下無符合之藝人</span>
-                <span class="text-[10px] text-[#52565E]">可嘗試清除搜尋詞或切換子流派標籤</span>
               </div>
-            {:else}
-              {#each rosterArtists as artist (artist.id)}
-                {@const isSelected = selectedArtistId === artist.id}
-                {@const weight = artist.weight ?? 20}
-                {@const isGasGiant = weight >= 70}
-                <div
-                  role="button"
-                  tabindex="0"
-                  onclick={() => selectArtistFromRoster(artist.id)}
-                  onkeydown={(e) => e.key === 'Enter' && selectArtistFromRoster(artist.id)}
-                  class="p-2.5 rounded-[4px] border transition-all cursor-pointer flex items-center justify-between gap-3 group {isSelected
-                    ? 'bg-[#171A21] border-[#FEC486] shadow-[0_0_12px_rgba(254,196,134,0.25)]'
-                    : 'bg-[#050608] border-[#1F2228] hover:border-[#E0A96D]/50 hover:bg-[#0E1015]'}"
-                >
-                  <!-- 左側：頭像與名稱子類別 -->
-                  <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-10 h-10 rounded-full bg-[#111317] border border-[#2B303C] overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
-                      {#if artist.coverImage}
-                        <img
-                          src={artist.coverImage}
-                          alt={artist.name}
-                          class="w-full h-full object-cover"
-                        />
-                      {:else}
-                        <Disc3 class="w-5 h-5 text-[#8E9298] group-hover:text-[#FEC486] transition-colors" />
-                      {/if}
-                    </div>
-
-                    <div class="flex flex-col min-w-0">
-                      <div class="flex items-center gap-1.5">
-                        <span class="font-serif text-sm font-bold text-[#EEF0F2] group-hover:text-[#FEC486] truncate">
-                          {artist.name}
-                        </span>
-                        {#if isGasGiant}
-                          <span title="氣態巨星 (Weight ≥ 70)">
-                            <Flame class="w-3 h-3 text-[#FEC486] shrink-0" />
-                          </span>
-                        {/if}
-                      </div>
-
-                      <div class="flex items-center gap-1.5 mt-0.5">
-                        <span class="px-1.5 py-0.2 rounded bg-[#101217] text-[#8E9298] group-hover:text-[#EEF0F2] font-mono text-[10px] border border-[#1F2228] truncate max-w-[130px]">
-                          {artist.analysis?.subGenre || '未定流派'}
-                        </span>
-                        {#if artist.aliases && artist.aliases.length > 0}
-                          <span class="font-mono text-[9px] text-[#52565E] truncate max-w-[90px]">
-                            {artist.aliases[0]}
-                          </span>
-                        {/if}
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- 右側：質量 W 與狀態標籤 -->
-                  <div class="flex items-center gap-2 shrink-0 font-mono">
-                    <div class="flex items-center gap-1.5">
-                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {isGasGiant ? 'bg-[#2E1E10] text-[#FEC486] border border-[#E0A96D]/40' : 'bg-[#14161A] text-[#CCCFD6] border border-[#1F2228]'}">
-                        W{weight}
-                      </span>
-                      {#if artist.status === 'inbox'}
-                        <span class="text-[8px] text-[#FA383E] uppercase font-bold px-1.5 py-0.5 bg-[#2B0E12] border border-[#FA383E]/40 rounded">
-                          RAW
-                        </span>
-                      {/if}
-                    </div>
-
-                    <Crosshair class="w-3.5 h-3.5 text-[#52565E] group-hover:text-[#FEC486] transition-colors" />
-                  </div>
-                </div>
-              {/each}
-            {/if}
-          </div>
-        </div>
-
-      <!-- 模式 B：單星檔案模式 (Planet Dossier) -->
-      {:else}
-        {@const weight = selectedArtist.weight ?? 20}
-        <div class="border-b border-[#1F2228] pb-3">
-          <!-- 返回名錄麵包屑按鈕 -->
-          <div class="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onclick={() => (panelViewMode = 'roster')}
-              class="inline-flex items-center gap-1 font-mono text-xs text-[#8E9298] hover:text-[#FEC486] transition-colors cursor-pointer"
-            >
-              <ArrowLeft class="w-3.5 h-3.5" />
-              <span>返回【{currentCategoryTitle}】名錄 ({rosterArtists.length})</span>
-            </button>
-            {#if selectedArtist.status === 'inbox'}
-              <SpecBadge type="inbox" text="RAW INBOX" />
-            {:else}
-              <SpecBadge type="analyzed" text="ANALYZED" />
-            {/if}
-          </div>
-
-          <h3 class="font-serif text-2xl font-bold text-[#EEF0F2] mb-1">
-            {selectedArtist.name}
-          </h3>
-
-          {#if selectedArtist.aliases && selectedArtist.aliases.length > 0}
-            <div class="font-mono text-xs text-[#8E9298] mb-2">
-              {selectedArtist.aliases.join(' / ')}
-            </div>
-          {/if}
-
-          <!-- 雙層分類標章 (Sun ➔ SubNode) -->
-          <div class="flex items-center gap-2 mb-3">
-            <button
-              type="button"
-              onclick={() => {
-                const sec = selectedArtist.analysis?.sector || selectedArtist.clusterSector;
-                if (sec) {
-                  activeSectorFilter = sec;
-                  selectedSubGenre = null;
-                  panelViewMode = 'roster';
-                }
-              }}
-              class="px-2 py-0.5 rounded bg-[#171A21] text-[#FEC486] font-mono text-xs border border-[#E0A96D]/40 font-bold flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
-              title="點擊檢視此大類別全部藝人"
-            >
-              <Sun class="w-3 h-3 text-[#FEC486]" />
-              <span>{getSectorDisplayName(selectedArtist.analysis?.sector || selectedArtist.clusterSector)}</span>
-            </button>
-            <span class="text-[#8E9298] font-mono text-xs">➔</span>
-            <button
-              type="button"
-              onclick={() => {
-                const sec = selectedArtist.analysis?.sector || selectedArtist.clusterSector;
-                const sub = selectedArtist.analysis?.subGenre;
-                if (sec) activeSectorFilter = sec;
-                if (sub) {
-                  selectedSubGenre = sub;
-                  panelViewMode = 'roster';
-                }
-              }}
-              class="px-2 py-0.5 rounded bg-[#101217] text-[#EEF0F2] font-mono text-xs border border-[#2B303C] flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
-              title="點擊檢視此子流派全部藝人"
-            >
-              <Layers class="w-3 h-3 text-[#FEC486]" />
-              <span>{selectedArtist.analysis?.subGenre || '未定流派'}</span>
-            </button>
-          </div>
-
-          <!-- Weight 引力權重步進調節面板 (1 ~ 100) -->
-          <div class="my-3 p-3 bg-[#050608] border border-[#2B303C] rounded-[4px] flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <span class="font-mono text-[11px] text-[#8E9298] font-bold flex items-center gap-1.5">
-                <Flame class="w-3.5 h-3.5 text-[#FEC486]" />
-                <span>天體引力質量 (GRAVITY WEIGHT)</span>
-              </span>
-              <span class="font-mono text-base font-bold text-[#FEC486] font-tabular">
-                {weight} <span class="text-[10px] text-[#8E9298] font-normal">/ 100</span>
-              </span>
             </div>
 
-            <div class="flex items-center gap-1.5 pt-1">
-              <button
-                type="button"
-                onclick={() => changeWeight(selectedArtist.id, weight - 5)}
-                class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-                title="調降權重 -5"
-              >
-                -5
-              </button>
-              <button
-                type="button"
-                onclick={() => changeWeight(selectedArtist.id, weight - 1)}
-                class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-                title="調降權重 -1 (快捷鍵 -)"
-              >
-                -1
-              </button>
+            {@render dossierBody(selectedArtist)}
+          </aside>
+        {/if}
 
-              <div class="flex-[3] px-2 flex items-center">
-                <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  step="1"
-                  value={weight}
-                  oninput={(e) => changeWeight(selectedArtist.id, +(e.currentTarget as HTMLInputElement).value)}
-                  class="w-full accent-[#FEC486] cursor-pointer"
-                />
-              </div>
+        <!-- 浮動藝人名錄檢索抽屜 (Roster Drawer - Slide-over) -->
+        {#if isRosterDrawerOpen}
+          <aside
+            class="absolute top-14 bottom-4 left-4 z-40 w-[360px] max-w-[calc(100vw-2rem)] bg-[#090B0E]/95 backdrop-blur-xl border border-[#2B303C] rounded-[6px] shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
+          >
+            {@render rosterDrawer()}
+          </aside>
+        {/if}
+      </div>
 
-              <button
-                type="button"
-                onclick={() => changeWeight(selectedArtist.id, weight + 1)}
-                class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-                title="調升權重 +1 (快捷鍵 +)"
-              >
-                +1
-              </button>
-              <button
-                type="button"
-                onclick={() => changeWeight(selectedArtist.id, weight + 5)}
-                class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-                title="調升權重 +5"
-              >
-                +5
-              </button>
-            </div>
-            <div class="flex justify-between font-mono text-[9px] text-[#52565E] pt-0.5">
-              <span>小行星 (1)</span>
-              <span>岩質標準星 (20)</span>
-              <span>氣態巨行星 (70)</span>
-              <span>超重力恆星 (100)</span>
-            </div>
-          </div>
+  <!-- 行動端：Mobile Bottom Sheet 藝人解剖艙卡片 (點選星體時展開，比照藝人展間) -->
+  {#if isDossierOpen && selectedArtist}
+    <!-- 霧黑半透明背景遮罩 (Backdrop) -->
+    <div
+      role="button"
+      tabindex="0"
+      onclick={() => (isDossierOpen = false)}
+      onkeydown={(e) => e.key === 'Escape' && (isDossierOpen = false)}
+      class="xl:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity"
+      aria-label="收合解剖艙卡片"
+    ></div>
 
-          <!-- 操作按鈕列 -->
-          <div class="flex items-center gap-2 mt-3">
-            <StreamingTrigger
-              artistName={selectedArtist.name}
-              appleMusicUrl={selectedArtist.appleMusicUrl}
-              variant="compact"
-              className="flex-1"
-            />
-
-            <TactileButton
-              variant="amber"
-              size="md"
-              onclick={() => onanalyzeArtist(selectedArtist)}
-              class="flex-1 py-2 text-xs"
-            >
-              <Sparkles class="w-3.5 h-3.5 mr-1 text-[#FEC486]" />
-              <span>AI 聲學解剖</span>
-            </TactileButton>
-          </div>
-        </div>
-
-        <!-- 檔案脈絡與 AI 分析細節 -->
-        <div class="flex flex-col gap-3 overflow-y-auto max-h-[460px] pr-1">
-          {#if selectedArtist.analysis}
-            <!-- 聲響脈絡介紹 -->
-            <div>
-              <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-                聲響脈絡 (Summary)
-              </h4>
-              <p class="font-sans text-xs text-[#CCCFD6] leading-relaxed bg-[#050608] p-3 rounded border border-[#1A1D23]">
-                {selectedArtist.analysis.summary}
-              </p>
-            </div>
-
-            <!-- 錄音質地評註 -->
-            {#if selectedArtist.analysis.instrumentationNotes}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-                  錄音質地與聲學評註
-                </h4>
-                <p class="font-mono text-xs text-[#E0A96D]/90 bg-[#12100A] p-3 rounded border border-[#E0A96D]/30 leading-relaxed">
-                  {selectedArtist.analysis.instrumentationNotes}
-                </p>
-              </div>
-            {/if}
-
-            <!-- 推薦專輯卡片矩陣 -->
-            {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1.5">
-                  推薦唱片精選 (Notable Works)
-                </h4>
-                <div class="flex flex-col gap-2">
-                  {#each selectedArtist.analysis.notableAlbums as album}
-                    <div class="p-2.5 bg-[#050608] rounded border border-[#1A1D23] flex flex-col gap-1">
-                      <div class="flex items-center justify-between">
-                        <span class="font-serif text-xs font-bold text-[#EEF0F2]">
-                          {album.title} ({album.year})
-                        </span>
-                        <span class="font-mono text-[9px] uppercase px-1.5 py-0.2 rounded font-bold {album.tier === 'hidden-treasure' ? 'bg-[#3A1418] text-[#FA383E] border border-[#FA383E]/40' : 'bg-[#1C1F26] text-[#FEC486]'}">
-                          {album.tier === 'hidden-treasure' ? '深埋寶藏' : '時代基石'}
-                        </span>
-                      </div>
-                      <p class="text-[11px] text-[#8E9298] leading-normal">
-                        {album.description}
-                      </p>
-                      {#if album.audiophileHighlight}
-                        <div class="text-[10px] text-[#E0A96D] font-mono mt-0.5">
-                          ★ 聲學亮點: {album.audiophileHighlight}
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-
-            <!-- 相似藝人晶片群 -->
-            {#if selectedArtist.analysis.similarArtists && selectedArtist.analysis.similarArtists.length > 0}
-              <div>
-                <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-                  AI 相似頻率藝人 (點擊知悉入庫)
-                </h4>
-                <div class="flex flex-wrap gap-1.5">
-                  {#each selectedArtist.analysis.similarArtists as sim}
-                    {@const isCollected = artists.some((a) => a.name.toLowerCase() === sim.toLowerCase())}
-                    <button
-                      type="button"
-                      onclick={() => onpickupSimilar?.(sim)}
-                      class="px-2 py-0.5 rounded font-mono text-xs border transition-colors cursor-pointer flex items-center gap-1 {isCollected ? 'bg-[#14161B] text-[#FEC486] border-[#252A34]' : 'bg-[#181112] text-[#FA383E] border-[#FA383E]/40 hover:bg-[#2B0E12]'}"
-                    >
-                      {#if !isCollected}
-                        <Plus class="w-3 h-3" />
-                      {/if}
-                      <span>{sim}</span>
-                      {#if isCollected}
-                        <span class="text-[9px] text-[#63C78B]">✓</span>
-                      {/if}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          {:else}
-            <div class="py-12 text-center text-[#8E9298] font-mono text-xs bg-[#050608] rounded border border-[#1A1D23] p-6 flex flex-col items-center gap-2">
-              <Sparkles class="w-6 h-6 text-[#FEC486] animate-pulse" />
-              <span class="font-bold text-[#EEF0F2]">此星體尚未進行 AI 聲學解剖</span>
-              <p class="text-[11px] text-[#52565E]">
-                點擊上方「AI 聲學解剖」，由音樂學家分析雙層分類歸屬與深埋寶藏專輯。
-              </p>
-            </div>
-          {/if}
-        </div>
-
-        <!-- 底部危險操作區：二次確認防誤觸移除按鈕 -->
-        <div class="pt-3 border-t border-[#1F2228] mt-auto">
+    <!-- 底部抽屜卡片本體 (Bottom Sheet) -->
+    <div
+      class="xl:hidden fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] bg-[#090B0E]/98 backdrop-blur-xl border-t border-[#2B303C] rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out"
+    >
+      <!-- 金屬滑動把手與關閉按鈕 -->
+      <div class="pt-2.5 pb-2 px-4 border-b border-[#1F2228] flex flex-col items-center gap-2 bg-[#050608]/80">
+        <div class="w-12 h-1 bg-[#2B303C] rounded-full"></div>
+        <div class="flex items-center justify-between w-full">
+          <span class="font-mono text-xs text-[#FEC486] font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-[#FEC486] animate-pulse"></span>
+            <span>藝人星體檔案 // DOSSIER</span>
+          </span>
           <button
             type="button"
-            onclick={handleTriggerDelete}
-            class="w-full py-2 px-3 rounded-[3px] font-mono text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 {deleteConfirmPending
-              ? 'bg-[#FA383E] text-white shadow-[0_0_16px_rgba(250,56,62,0.6)] animate-pulse'
-              : 'bg-[#14161B] hover:bg-[#1E1113] text-[#8E9298] hover:text-[#FA383E] border border-[#2B303C] hover:border-[#FA383E]/50'}"
+            onclick={() => (isDossierOpen = false)}
+            class="px-2.5 py-1 bg-[#14161B] border border-[#2B303C] text-[#8E9298] hover:text-[#FEC486] rounded font-mono text-[10px] transition-colors cursor-pointer"
           >
-            {#if deleteConfirmPending}
-              <AlertTriangle class="w-4 h-4 text-white" />
-              <span>確認移除「{selectedArtist.name}」？ ({deleteCountdown}s)</span>
-            {:else}
-              <Trash2 class="w-3.5 h-3.5 text-[#8E9298]" />
-              <span>自星系與庫存中移除藝人</span>
-            {/if}
+            收合面板
           </button>
         </div>
-      {/if}
+      </div>
+
+      {@render dossierBody(selectedArtist)}
     </div>
-  </div>
+  {/if}
+
 </div>
 
 <style>
