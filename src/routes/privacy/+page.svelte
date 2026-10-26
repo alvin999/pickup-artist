@@ -106,9 +106,40 @@
                 rel="noopener noreferrer"
                 class="text-[#ff2a3c] hover:underline"
               >
-                Google API 服務：使用者資料政策
+                Google API 服務：使用者資料政策 (Google API Services User Data Policy)
+              </a>
+              與
+              <a
+                href="https://developers.google.com/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-[#ff2a3c] hover:underline"
+              >
+                Google APIs 服務條款 (Google APIs Terms of Service)
               </a>
               ，絕不將自 Google API 獲取之任何資料用於廣告投放、人工智慧模型訓練或出售給第三方機構。
+            </p>
+          </div>
+
+          <!-- Google APIs 服務條款與 AI NCII 專項合規聲明 -->
+          <div class="border-t border-[#1f2228] pt-3 space-y-2 bg-[#090b0e] p-3 rounded border border-neutral-800/80">
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
+              <span>Google APIs 服務條款與 AI NCII 合規宣告 (Terms & AI NCII Compliance)</span>
+            </h4>
+            <p class="text-xs text-[#a0a6b5] leading-relaxed">
+              <strong>繁體中文聲明：</strong>
+              Pickup Artist（大音悉聲）為一款專為音樂愛好者與黑膠唱片收藏者打造的本地優先音樂資料庫與曲風筆記工具。
+              本應用程式<strong>嚴格遵守 Google APIs 服務條款（Google APIs Terms of Service）</strong>。
+              我們鄭重聲明：本應用程式<strong>絕不使用、絕不介接、亦絕不調用任何 Google API 用於生成、處理、傳播或託管任何「AI 生成之未經同意私密影像」(AI-generated Non-Consensual Intimate Imagery, AI NCII) 或任何親密違法內容</strong>。
+              本軟體使用之 Google Drive API 僅限於 <code class="font-mono text-[#ff2a3c]">drive.appdata</code> 沙盒範圍，完全僅供使用者自願備份與還原純文字格式之音樂唱片目錄（JSON 備份檔）。
+            </p>
+            <p class="text-xs text-[#8a90a0] leading-relaxed font-mono pt-1 border-t border-neutral-800/60">
+              <strong>English Compliance Notice:</strong>
+              Pickup Artist is a client-side personal music curation, vinyl record cataloging, and listening log utility.
+              Pickup Artist strictly complies with the Google APIs Terms of Service.
+              We explicitly certify and warrant that <strong>this application does not use, integrate, or facilitate any Google APIs for AI-generated Non-Consensual Intimate Imagery (AI NCII)</strong> or any intimate imagery processing.
+              Google Drive API access is strictly limited to the private <code class="text-neutral-300">drive.appdata</code> sandbox exclusively for syncing user-owned music metadata backup files (JSON format).
             </p>
           </div>
         </div>

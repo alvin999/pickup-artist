@@ -23,6 +23,7 @@
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
+  import StudioFooter from '$lib/components/studio/StudioFooter.svelte';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
   import { loadSecureAISettings } from '$lib/ai/vault';
   import { fetchMoreSimilarArtists, fetchMoreNotableAlbums } from '$lib/ai/client';
@@ -772,6 +773,11 @@
         </div>
       {/if}
     </main>
+
+    <!-- Google OAuth / Google APIs Terms & AI NCII 合規性宣告頁尾 -->
+    <div class="px-3 sm:px-4 md:px-6">
+      <StudioFooter />
+    </div>
   </div>
 
   <!-- 行動端底部發燒友機架導航 (螢幕寬度小於 1024px 時常駐) -->
