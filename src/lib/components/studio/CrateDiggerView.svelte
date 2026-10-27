@@ -1896,23 +1896,12 @@
                 <span class="material-symbols-outlined text-[10px]">open_in_new</span>
               </button>
             </div>
-            <div class="p-2 bg-chassis border border-wire text-[10px] text-ink flex items-center justify-between">
-              <span>CHAIN: HD600 // 4.4mm BALANCED</span>
-              <span class="text-ink-dim">2026.10</span>
-            </div>
             <textarea
               bind:value={selectedArtist.personalNotes}
               placeholder="輸入私藏監聽耳機搭配、管機音色或現場聆聽筆記..."
               rows="2"
               class="w-full bg-void text-xs text-ink placeholder-ink-dim p-2 border border-wire focus:border-signal focus:outline-none resize-none font-mono"
             ></textarea>
-            <div class="flex items-center justify-between text-[9px] text-ink-dim pt-1">
-              <span class="flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>COMMITTED: pua_library.json</span>
-              </span>
-              <span>IDB_LATENCY &lt;12ms</span>
-            </div>
           </div>
 
           <!-- 底部危險操作區：二次確認防誤觸移除按鈕 -->
