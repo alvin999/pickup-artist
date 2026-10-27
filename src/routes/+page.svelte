@@ -35,13 +35,17 @@
     subscribeSyncState,
     syncFromCloudOnStartup,
     reauthenticateAndSync,
-    type CloudSyncState
+    getSyncState,
+    type CloudSyncState,
+    type SyncStatus
   } from '$lib/services/onedrive';
   import {
     getStoredGoogleToken,
     isGoogleDriveConnected,
     restoreBackupFromGoogleDrive,
-    subscribeGoogleDriveSyncState
+    subscribeGoogleDriveSyncState,
+    getGoogleDriveSyncState,
+    type GoogleDriveSyncState
   } from '$lib/services/googledrive';
   import { CheckCircle2 } from 'lucide-svelte';
 
@@ -68,7 +72,53 @@
   let isCloudSyncOpen = $state(false);
   let isOneDriveConnected = $state(false);
   let isAiConfigured = $state(false);
-  let cloudSyncState = $state<CloudSyncState>({ status: 'idle', lastSyncedAt: null });
+  let oneDriveSyncState = $state<CloudSyncState>(getSyncState());
+  let googleDriveSyncState = $state<GoogleDriveSyncState>(getGoogleDriveSyncState());
+
+  // 智慧聚合雲端同步狀態（相容 OneDrive 與 Google Drive 多軌同步）
+  const cloudSyncState = $derived.by(() => {
+    const isODActive = isOneDriveConnected;
+    const isGDActive = isGoogleDriveConnected();
+
+    // 若任一已連線服務正在傳輸中，優先呈現同步傳輸狀態
+    if ((isODActive && oneDriveSyncState.status === 'syncing') || (isGDActive && googleDriveSyncState.status === 'syncing')) {
+      return {
+        status: 'syncing' as SyncStatus,
+        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+      };
+    }
+
+    // 若任一已連線服務授權逾期，提示需重新驗證
+    if ((isODActive && oneDriveSyncState.status === 'session_expired') || (isGDActive && googleDriveSyncState.status === 'session_expired')) {
+      return {
+        status: 'session_expired' as SyncStatus,
+        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+      };
+    }
+
+    // 若任一服務發生同步錯誤
+    if ((isODActive && oneDriveSyncState.status === 'error') || (isGDActive && googleDriveSyncState.status === 'error')) {
+      return {
+        status: 'error' as SyncStatus,
+        errorMessage: oneDriveSyncState.errorMessage || googleDriveSyncState.errorMessage,
+        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+      };
+    }
+
+    // 若任一服務已完成同步
+    if ((isODActive && oneDriveSyncState.status === 'synced') || (isGDActive && googleDriveSyncState.status === 'synced')) {
+      return {
+        status: 'synced' as SyncStatus,
+        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+      };
+    }
+
+    if (oneDriveSyncState.status === 'offline' || googleDriveSyncState.status === 'offline') {
+      return { status: 'offline' as SyncStatus, lastSyncedAt: null };
+    }
+
+    return { status: 'idle' as SyncStatus, lastSyncedAt: null };
+  });
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
   let isAnalyzing = $state(false);
@@ -155,17 +205,11 @@
 
     // 訂閱雲端即時同步狀態 (OneDrive 與 Google Drive)
     const unsubSync = subscribeSyncState((st) => {
-      if (st.status === 'syncing' || !cloudSyncState || cloudSyncState.status === 'idle') {
-        cloudSyncState = st;
-      }
+      oneDriveSyncState = st;
     });
 
     const unsubGDriveSync = subscribeGoogleDriveSyncState((st) => {
-      if (st.status === 'syncing') {
-        cloudSyncState = { status: 'syncing', lastSyncedAt: st.lastSyncedAt };
-      } else if (st.lastSyncedAt && (!cloudSyncState.lastSyncedAt || st.lastSyncedAt > cloudSyncState.lastSyncedAt)) {
-        cloudSyncState = { status: st.status, lastSyncedAt: st.lastSyncedAt };
-      }
+      googleDriveSyncState = st;
     });
 
     // 訂閱 AI 背景批次分析佇列
