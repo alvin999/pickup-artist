@@ -71,13 +71,26 @@
   let luckyRollHistory = $state<string[]>([]);
   let luckyFeedbackMsg = $state<string | null>(null);
 
-  // 當外部傳入候選人時，直接開啟排歧選單，無須重複搜尋
+  let inputEl = $state<HTMLInputElement | null>(null);
+
+  // 當外部傳入候選人或初始查詢字串時，自動代入輸入框或直接開啟排歧選單
   $effect(() => {
     if (open) {
       if (initialCandidates && initialCandidates.length > 0) {
         pickupInput = initialQuery || initialCandidates[0].name;
         candidates = initialCandidates;
         step = 'disambiguation';
+      } else if (initialQuery && initialQuery.trim()) {
+        pickupInput = initialQuery.trim();
+        step = 'input';
+        setTimeout(() => {
+          inputEl?.focus();
+          inputEl?.select();
+        }, 60);
+      } else {
+        setTimeout(() => {
+          inputEl?.focus();
+        }, 60);
       }
     } else {
       resetState();
@@ -334,6 +347,7 @@
             <span class="text-signal text-xs mr-2 font-bold select-none">&gt;_</span>
             <input
               type="text"
+              bind:this={inputEl}
               bind:value={pickupInput}
               onkeydown={(e) => e.key === 'Enter' && !isSearching && handleSubmit()}
               disabled={isSearching}

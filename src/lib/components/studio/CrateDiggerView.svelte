@@ -63,6 +63,8 @@
     isAnalyzing?: boolean;
     isRecommendingMore?: boolean;
     isRecommendingAlbums?: boolean;
+    globalSearchQuery?: string;
+    onquickPickup?: (query: string) => void;
   }
 
   let {
@@ -80,7 +82,9 @@
     onupdateWeight,
     isAnalyzing = false,
     isRecommendingMore = false,
-    isRecommendingAlbums = false
+    isRecommendingAlbums = false,
+    globalSearchQuery = '',
+    onquickPickup
   }: Props = $props();
 
   // 調整 Weight (1 ~ 100)
@@ -712,16 +716,37 @@
     <!-- 左側：裸露網格黑膠櫃 (Exposed Grid Crate) -->
     <main class="flex-1 w-full min-w-0">
       {#if processedArtists.length === 0}
-        <div class="border border-wire border-dashed bg-void/60 p-16 text-center flex flex-col items-center justify-center gap-4 font-mono">
+        <div class="border border-wire border-dashed bg-void/60 p-12 sm:p-16 text-center flex flex-col items-center justify-center gap-4 font-mono">
           <div class="w-14 h-14 rounded-full border border-wire flex items-center justify-center bg-chassis text-ink-dim shadow-inner">
-            <span class="material-symbols-outlined text-3xl">album</span>
+            <span class="material-symbols-outlined text-3xl">
+              {globalSearchQuery.trim() ? 'person_search' : 'album'}
+            </span>
           </div>
-          <div class="flex flex-col gap-1">
-            <div class="text-sm font-bold text-ink uppercase tracking-wider">黑膠展間尚無藝人收錄 // CRATE_STANDBY</div>
-            <p class="text-xs text-ink-muted max-w-sm leading-relaxed">
-              點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一張聲學發燒友檔案解剖。
-            </p>
-          </div>
+          {#if globalSearchQuery.trim()}
+            <div class="flex flex-col items-center gap-2 max-w-md">
+              <div class="text-sm font-bold text-ink uppercase tracking-wider">
+                未在收藏庫找到「<span class="text-signal">{globalSearchQuery.trim()}</span>」
+              </div>
+              <p class="text-xs text-ink-muted leading-relaxed">
+                發燒友檔案庫中尚未收錄此藝人。您可以直接透過 Apple Music 智慧檢索並知悉入庫，開啟發燒級深度聲學解剖。
+              </p>
+              <button
+                type="button"
+                onclick={() => onquickPickup?.(globalSearchQuery.trim())}
+                class="mt-2 px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-2 cursor-pointer shadow-[0_0_15px_rgba(255,42,60,0.35)]"
+              >
+                <span class="material-symbols-outlined text-[16px]">person_add</span>
+                <span>立即知悉「{globalSearchQuery.trim()}」入庫</span>
+              </button>
+            </div>
+          {:else}
+            <div class="flex flex-col gap-1">
+              <div class="text-sm font-bold text-ink uppercase tracking-wider">黑膠展間尚無藝人收錄 // CRATE_STANDBY</div>
+              <p class="text-xs text-ink-muted max-w-sm leading-relaxed">
+                點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一張聲學發燒友檔案解剖。
+              </p>
+            </div>
+          {/if}
         </div>
       {:else}
         <!-- 小螢幕解剖面板喚起條 (僅在寬度小於 xl 且已有選取藝人時顯現) -->

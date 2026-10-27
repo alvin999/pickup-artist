@@ -278,6 +278,20 @@
     }
   }
 
+  // 透過頂部搜尋框直接發起快速知悉（自動代入搜尋詞）
+  function handleQuickPickupFromSearch(query: string) {
+    pickupModalInitialQuery = query;
+    isPickupModalOpen = true;
+  }
+
+  // 透過搜尋下拉直接定位藝人
+  function handleSelectArtistFromSearch(id: string) {
+    selectedArtistId = id;
+    if (activeStudioView !== 'crate-digger' && activeStudioView !== 'honeycomb-cluster') {
+      activeStudioView = 'crate-digger';
+    }
+  }
+
   // 刪除藝人
   async function handleDelete(id: string) {
     try {
@@ -647,6 +661,9 @@
     onopenCloudSync={() => (isCloudSyncOpen = true)}
     bind:searchQuery
     onsearchChange={(q) => (searchQuery = q)}
+    {artists}
+    onselectArtist={handleSelectArtistFromSearch}
+    onquickPickup={handleQuickPickupFromSearch}
     {isOneDriveConnected}
     {isAiConfigured}
     syncStatus={cloudSyncState.status}
@@ -696,6 +713,8 @@
           onaddToQueue={handleAddToQueue}
           onopenInLog={handleOpenInLog}
           onupdateWeight={handleUpdateWeight}
+          globalSearchQuery={searchQuery}
+          onquickPickup={handleQuickPickupFromSearch}
           {queueState}
           {isAnalyzing}
           {isRecommendingMore}
