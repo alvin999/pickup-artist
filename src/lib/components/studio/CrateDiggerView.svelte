@@ -1054,7 +1054,7 @@
       id="artist-dossier-panel"
       class="w-full xl:w-[420px] 2xl:w-[460px] shrink-0 bg-chassis/98 backdrop-blur-xl border border-wire xl:border-l xl:border-t-0 xl:border-r-0 xl:border-b-0 flex flex-col justify-between
         fixed xl:sticky inset-x-0 bottom-0 xl:bottom-auto top-auto xl:top-20 z-50 xl:z-auto
-        max-h-[85dvh] xl:max-h-none overflow-y-auto rounded-t-xl xl:rounded-none shadow-2xl xl:shadow-none
+        max-h-[85dvh] xl:max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain rounded-t-xl xl:rounded-none shadow-2xl xl:shadow-none
         transition-transform duration-300 ease-out
         {isMobileDrawerOpen && selectedArtist ? 'translate-y-0' : 'translate-y-full xl:translate-y-0'}
         {!selectedArtist ? 'hidden xl:flex' : ''}"
