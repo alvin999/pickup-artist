@@ -41,6 +41,57 @@ function cleanAndParseJson<T>(rawText: string): T {
 }
 
 /**
+ * 內部呼叫 Groq Chat Completions API
+ * 支援 json_object 約束模式與標準對話 Fallback 模式
+ */
+async function fetchGroqChat(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  useJsonObject: boolean
+): Promise<{ ok: boolean; status: number; text: string; content?: string }> {
+  const bodyPayload: any = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3,
+    max_tokens: 1800
+  };
+  if (useJsonObject) {
+    bodyPayload.response_format = { type: 'json_object' };
+  }
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(bodyPayload)
+  });
+
+  if (res.status === 429) {
+    throw new RateLimitError('Groq API 呼叫頻率超標 (429 Rate Limit)，請稍候重試。', 30);
+  }
+
+  if (!res.ok) {
+    const errText = await res.text();
+    return { ok: false, status: res.status, text: errText };
+  }
+
+  const data = await res.json();
+  const content =
+    data.choices?.[0]?.message?.content ||
+    data.choices?.[0]?.text ||
+    data.choices?.[0]?.message?.reasoning ||
+    '';
+  return { ok: true, status: res.status, text: '', content };
+}
+
+/**
  * 呼叫 AI 智慧推薦策展服務
  */
 export async function getSceneRecommendation(
@@ -62,35 +113,30 @@ export async function getSceneRecommendation(
     }
 
     const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${settings.groqKey.trim()}`
-      },
-      body: JSON.stringify({
-        model: groqModel,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 1800
-      })
-    });
+    const apiKey = settings.groqKey.trim();
 
-    if (res.status === 429) {
-      throw new RateLimitError('Groq API 呼叫頻率超標 (429 Rate Limit)，請稍候重試。', 30);
+    // 優先嘗試 JSON Object 約束模式
+    let groqRes = await fetchGroqChat(apiKey, groqModel, systemPrompt, userPrompt, true);
+
+    // 若伺服器端驗證器失敗 (如 json_validate_failed) 或特定模型約束下回傳空內容，自動降級為標準對話模式重試
+    const shouldFallback =
+      !groqRes.ok &&
+      groqRes.status === 400 &&
+      (groqRes.text.toLowerCase().includes('failed to validate json') ||
+        groqRes.text.toLowerCase().includes('response_format') ||
+        groqRes.text.toLowerCase().includes('json_object'));
+
+    if (shouldFallback || (groqRes.ok && !groqRes.content?.trim())) {
+      console.warn('[Groq Scene] 觸發 JSON 約束限制或回傳為空，自動降級為標準對話模式重試 (Fallback)');
+      groqRes = await fetchGroqChat(apiKey, groqModel, systemPrompt, userPrompt, false);
     }
 
-    if (!res.ok) {
-      const errText = await res.text();
+    if (!groqRes.ok) {
+      const errText = groqRes.text;
       throw new Error(`Groq 呼叫異常: ${errText}`);
     }
 
-    const data = await res.json();
-    rawJsonText = data.choices?.[0]?.message?.content || '';
+    rawJsonText = groqRes.content || '';
   } else {
     // Gemini
     if (!settings.geminiKey.trim()) {
@@ -132,7 +178,28 @@ export async function getSceneRecommendation(
     rawJsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
 
-  const parsed = cleanAndParseJson<SceneRecommendationResult>(rawJsonText);
+  let parsed: SceneRecommendationResult;
+  try {
+    parsed = cleanAndParseJson<SceneRecommendationResult>(rawJsonText);
+  } catch (parseErr: any) {
+    if (settings.provider === 'groq') {
+      console.warn('[Groq Scene] 輸出無法直接解析為 JSON，自動進入標準模式 Fallback 重試:', parseErr);
+      const fallbackRes = await fetchGroqChat(
+        settings.groqKey.trim(),
+        settings.groqModel || DEFAULT_GROQ_MODEL,
+        systemPrompt,
+        userPrompt,
+        false
+      );
+      if (fallbackRes.ok && fallbackRes.content) {
+        parsed = cleanAndParseJson<SceneRecommendationResult>(fallbackRes.content);
+      } else {
+        throw new Error(`AI 回傳內容無法解析為有效 JSON 格式 (${parseErr?.message || parseErr})`);
+      }
+    } else {
+      throw new Error(`AI 回傳內容無法解析為有效 JSON 格式 (${parseErr?.message || parseErr})`);
+    }
+  }
   return {
     reply: parsed.reply || '已為您調配此情境的聲學風格。',
     matchedGenres: Array.isArray(parsed.matchedGenres) ? parsed.matchedGenres : [],
