@@ -73,7 +73,7 @@
   class="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-void/95 backdrop-blur-xl border-t border-wire shadow-[0_-4px_24px_rgba(0,0,0,0.85)] font-mono select-none"
   style="padding-bottom: env(safe-area-inset-bottom, 0px);"
 >
-  <div class="grid grid-cols-5 h-14 items-stretch">
+  <div class="grid grid-cols-6 h-14 items-stretch">
     {#each NAV_ITEMS as item}
       {@const isActive = activeView === item.id}
       <button
