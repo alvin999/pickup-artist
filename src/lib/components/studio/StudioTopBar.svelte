@@ -7,6 +7,7 @@
 
   interface Props {
     onopenPickupModal: () => void;
+    onopenLuckyModal?: () => void;
     onopenAISettings?: () => void;
     onopenCloudSync?: () => void;
     searchQuery: string;
@@ -24,6 +25,7 @@
 
   let {
     onopenPickupModal,
+    onopenLuckyModal,
     onopenAISettings,
     onopenCloudSync,
     searchQuery = $bindable(''),
@@ -42,6 +44,12 @@
   let searchInputEl = $state<HTMLInputElement | null>(null);
   let searchContainerEl = $state<HTMLDivElement | null>(null);
   let isDropdownOpen = $state(false);
+
+  // 觸發聲學好手氣
+  function handleTriggerLucky(e: MouseEvent) {
+    e.stopPropagation();
+    onopenLuckyModal?.();
+  }
 
   // 本機匹配藝人列表（最多取前 5 筆）
   const matchingArtists = $derived.by(() => {
@@ -179,7 +187,21 @@
         placeholder="搜尋藝人、流派或別名..."
         class="bg-transparent text-xs text-[#f4f4f6] placeholder-[#8e929d] focus:outline-none w-full font-sans tracking-wide min-w-0"
       />
-      <kbd class="hidden md:inline-flex items-center px-1.5 py-0.5 bg-[#1b1c24] border border-[#373a46] text-[#b4b7c2] text-[9px] font-mono tracking-wider ml-2 shrink-0 select-none">CMD+K</kbd>
+      <!-- 聲學好手氣快捷按鈕 (Acoustic Serendipity) -->
+      <button
+        type="button"
+        onclick={handleTriggerLucky}
+        title="聲學好手氣 // 隨機探勘未入庫藝人"
+        class="group/lucky flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 transition-all cursor-pointer shrink-0 ml-1.5"
+      >
+        <span class="inline-block text-xs select-none group-hover/lucky:rotate-12 group-hover/lucky:scale-110 transition-transform duration-200">
+          🎲
+        </span>
+        <span class="hidden xl:inline text-[10px] tracking-wider uppercase text-amber-400/90 group-hover/lucky:text-amber-200">
+          好手氣
+        </span>
+      </button>
+      <kbd class="hidden md:inline-flex items-center px-1.5 py-0.5 bg-[#1b1c24] border border-[#373a46] text-[#b4b7c2] text-[9px] font-mono tracking-wider ml-1.5 shrink-0 select-none">CMD+K</kbd>
     </div>
 
     <!-- 即時搜尋與知悉引導下拉面板 (Smart Search & Fast Pickup Palette) -->

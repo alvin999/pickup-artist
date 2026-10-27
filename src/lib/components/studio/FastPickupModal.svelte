@@ -36,6 +36,7 @@
     onselectExisting?: (artist: ArtistEntry) => void;
     initialQuery?: string;
     initialCandidates?: ArtistCandidate[];
+    initialTab?: 'input' | 'lucky';
   }
 
   let {
@@ -45,7 +46,8 @@
     existingArtists = [],
     onselectExisting,
     initialQuery = '',
-    initialCandidates = []
+    initialCandidates = [],
+    initialTab = 'input'
   }: Props = $props();
 
   let pickupInput = $state('');
@@ -76,6 +78,12 @@
   // 當外部傳入候選人或初始查詢字串時，自動代入輸入框或直接開啟排歧選單
   $effect(() => {
     if (open) {
+      if (initialTab) {
+        activeTab = initialTab;
+        if (initialTab === 'lucky' && !luckyResult && !isRollingLucky) {
+          handleRollLucky();
+        }
+      }
       if (initialCandidates && initialCandidates.length > 0) {
         pickupInput = initialQuery || initialCandidates[0].name;
         candidates = initialCandidates;
@@ -128,7 +136,7 @@
     showMobileGuide = false;
     copiedUrl = false;
     duplicateMatch = null;
-    activeTab = 'input';
+    activeTab = initialTab || 'input';
     isRollingLucky = false;
     luckyResult = null;
     luckyFeedbackMsg = null;

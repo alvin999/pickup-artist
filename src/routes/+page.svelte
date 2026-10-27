@@ -50,8 +50,18 @@
   let selectedArtistId = $state<string | null>(null);
   let searchQuery = $state('');
   let isPickupModalOpen = $state(false);
+  let pickupModalInitialTab = $state<'input' | 'lucky'>('input');
   let pickupModalInitialQuery = $state<string>('');
   let pickupModalInitialCandidates = $state<ArtistCandidate[]>([]);
+
+  // 啟動聲學好手氣隨機探勘
+  function handleOpenLuckyModal() {
+    pickupModalInitialTab = 'lucky';
+    pickupModalInitialQuery = '';
+    pickupModalInitialCandidates = [];
+    isPickupModalOpen = true;
+  }
+
   let isAISettingsOpen = $state(false);
   let isUnlockModalOpen = $state(false);
   let isCloudSyncOpen = $state(false);
@@ -603,12 +613,14 @@
   <FastPickupModal
     open={isPickupModalOpen}
     existingArtists={artists}
+    initialTab={pickupModalInitialTab}
     initialQuery={pickupModalInitialQuery}
     initialCandidates={pickupModalInitialCandidates}
     onclose={() => {
       isPickupModalOpen = false;
       pickupModalInitialQuery = '';
       pickupModalInitialCandidates = [];
+      pickupModalInitialTab = 'input';
     }}
     onpickup={handlePickup}
     onselectExisting={(artist) => {
@@ -656,7 +668,11 @@
 
   <!-- Studio 頂部母帶工作列 (Studio Master TopBar) -->
   <StudioTopBar
-    onopenPickupModal={() => (isPickupModalOpen = true)}
+    onopenPickupModal={() => {
+      pickupModalInitialTab = 'input';
+      isPickupModalOpen = true;
+    }}
+    onopenLuckyModal={handleOpenLuckyModal}
     onopenAISettings={() => (isAISettingsOpen = true)}
     onopenCloudSync={() => (isCloudSyncOpen = true)}
     bind:searchQuery
