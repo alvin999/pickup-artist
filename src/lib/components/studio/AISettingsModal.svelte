@@ -72,6 +72,22 @@
   let statusMessage = $state<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   let isVaultLocked = $state(false);
 
+  // 自動即時探勘狀態
+  let autoExploreStatus = $state<{
+    groq: 'idle' | 'exploring' | 'success' | 'error';
+    gemini: 'idle' | 'exploring' | 'success' | 'error';
+  }>({
+    groq: 'idle',
+    gemini: 'idle'
+  });
+
+  let lastExploredGroqKey = '';
+  let lastExploredGeminiKey = '';
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  let currentAutoStatus = $derived(provider === 'groq' ? autoExploreStatus.groq : autoExploreStatus.gemini);
+  let currentModelsCount = $derived(provider === 'groq' ? groqModelsList.length : geminiModelsList.length);
+
   $effect(() => {
     if (open) {
       loadInitialData();
@@ -95,8 +111,77 @@
 
       if (!groqModelsList.includes(groqModel)) groqModelsList.push(groqModel);
       if (!geminiModelsList.includes(geminiModel)) geminiModelsList.push(geminiModel);
+
+      // 初始化探勘快取標記
+      if (groqKey.trim() && groqKey.trim().length >= 15) {
+        lastExploredGroqKey = groqKey.trim();
+        runAutoExplore('groq', true);
+      }
+      if (geminiKey.trim() && geminiKey.trim().length >= 15) {
+        lastExploredGeminiKey = geminiKey.trim();
+        runAutoExplore('gemini', true);
+      }
     } catch {
       // 保持預設值
+    }
+  }
+
+  function triggerAutoExplore(targetProvider: 'groq' | 'gemini') {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      runAutoExplore(targetProvider, false);
+    }, 600);
+  }
+
+  async function runAutoExplore(targetProvider: 'groq' | 'gemini', isSilent = false) {
+    const key = targetProvider === 'groq' ? groqKey.trim() : geminiKey.trim();
+    if (!key || key.length < 15) {
+      autoExploreStatus[targetProvider] = 'idle';
+      return;
+    }
+
+    if (targetProvider === 'groq' && key === lastExploredGroqKey && autoExploreStatus.groq === 'success') return;
+    if (targetProvider === 'gemini' && key === lastExploredGeminiKey && autoExploreStatus.gemini === 'success') return;
+
+    autoExploreStatus[targetProvider] = 'exploring';
+    isFetchingModels = true;
+
+    try {
+      if (targetProvider === 'groq') {
+        const models = await fetchGroqModels(key);
+        if (models.length > 0) {
+          groqModelsList = models;
+          if (!groqModelsList.includes(groqModel)) {
+            groqModel = models.includes(DEFAULT_GROQ_MODEL) ? DEFAULT_GROQ_MODEL : models[0];
+          }
+          lastExploredGroqKey = key;
+          autoExploreStatus.groq = 'success';
+          if (!isSilent) {
+            statusMessage = { text: `Groq 模型矩陣已自動同步（${models.length} 個可用模型）`, type: 'success' };
+          }
+        }
+      } else {
+        const models = await fetchGeminiModels(key);
+        if (models.length > 0) {
+          geminiModelsList = models;
+          if (!geminiModelsList.includes(geminiModel)) {
+            geminiModel = models.includes(DEFAULT_GEMINI_MODEL) ? DEFAULT_GEMINI_MODEL : models[0];
+          }
+          lastExploredGeminiKey = key;
+          autoExploreStatus.gemini = 'success';
+          if (!isSilent) {
+            statusMessage = { text: `Gemini 模型矩陣已自動同步（${models.length} 個可用模型）`, type: 'success' };
+          }
+        }
+      }
+    } catch {
+      autoExploreStatus[targetProvider] = 'error';
+      // 靜默模式或使用者正在輸入時，不以醒目大紅字打斷
+      if (!isSilent && targetProvider === provider) {
+        statusMessage = { text: `自動探勘 ${targetProvider.toUpperCase()} 模型失敗，請確認 Key 正確性`, type: 'error' };
+      }
+    } finally {
+      isFetchingModels = false;
     }
   }
 
@@ -112,6 +197,8 @@
       geminiModel = res.settings.geminiModel;
       unlockPassword = '';
       statusMessage = { text: '保管庫已成功解鎖', type: 'success' };
+      if (groqKey.trim()) runAutoExplore('groq', true);
+      if (geminiKey.trim()) runAutoExplore('gemini', true);
     } else {
       statusMessage = { text: res.error || '解鎖失敗，密碼錯誤', type: 'error' };
     }
@@ -131,6 +218,8 @@
         if (!groqModelsList.includes(groqModel) && models.length > 0) {
           groqModel = models.includes(DEFAULT_GROQ_MODEL) ? DEFAULT_GROQ_MODEL : models[0];
         }
+        lastExploredGroqKey = groqKey.trim();
+        autoExploreStatus.groq = 'success';
         statusMessage = { text: `成功探勘到 ${models.length} 個 Groq 可用模型`, type: 'success' };
       } else {
         if (!geminiKey.trim()) {
@@ -142,6 +231,8 @@
         if (!geminiModelsList.includes(geminiModel) && models.length > 0) {
           geminiModel = models.includes(DEFAULT_GEMINI_MODEL) ? DEFAULT_GEMINI_MODEL : models[0];
         }
+        lastExploredGeminiKey = geminiKey.trim();
+        autoExploreStatus.gemini = 'success';
         statusMessage = { text: `成功探勘到 ${models.length} 個 Gemini 可用模型`, type: 'success' };
       }
     } catch (err: any) {
@@ -282,7 +373,15 @@
 
         <!-- 供應商切換器 (Provider Selector) -->
         <div class="flex flex-col gap-1.5">
-          <span class="text-[10px] text-ink-muted uppercase tracking-wider block">// 選擇推論引擎供應商</span>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">// 選擇推論引擎與優先主力</span>
+            {#if groqKey.trim() && geminiKey.trim()}
+              <span class="text-[9px] text-signal font-mono flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-signal animate-pulse"></span>
+                雙引擎備援已就緒 (FAILOVER READY)
+              </span>
+            {/if}
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -292,7 +391,14 @@
               <div class="flex items-center gap-2">
                 <Zap class="w-4 h-4 {provider === 'groq' ? 'text-signal' : 'text-ink-dim'}" />
                 <div>
-                  <div class="text-xs font-bold font-mono">GROQ LPU™</div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold font-mono">GROQ LPU™</span>
+                    {#if provider === 'groq'}
+                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">主力</span>
+                    {:else if groqKey.trim()}
+                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">備援</span>
+                    {/if}
+                  </div>
                   <div class="text-[9px] text-ink-dim font-sans">超低延遲 · Llama 3.3 70B</div>
                 </div>
               </div>
@@ -309,7 +415,14 @@
               <div class="flex items-center gap-2">
                 <Cpu class="w-4 h-4 {provider === 'gemini' ? 'text-signal' : 'text-ink-dim'}" />
                 <div>
-                  <div class="text-xs font-bold font-mono">GOOGLE GEMINI</div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold font-mono">GOOGLE GEMINI</span>
+                    {#if provider === 'gemini'}
+                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">主力</span>
+                    {:else if geminiKey.trim()}
+                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">備援</span>
+                    {/if}
+                  </div>
                   <div class="text-[9px] text-ink-dim font-sans">多模態智庫 · Flash 2.0</div>
                 </div>
               </div>
@@ -323,9 +436,22 @@
         <!-- 金鑰輸入區 -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">
-              // {provider.toUpperCase()} API KEY
-            </span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-ink-muted uppercase tracking-wider block">
+                // {provider.toUpperCase()} API KEY
+              </span>
+              {#if isFetchingModels}
+                <span class="text-[9px] text-signal flex items-center gap-1 animate-pulse">
+                  <RefreshCw class="w-2.5 h-2.5 animate-spin" />
+                  <span>即時同步可用模型中...</span>
+                </span>
+              {:else if currentAutoStatus === 'success'}
+                <span class="text-[9px] text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 class="w-2.5 h-2.5" />
+                  <span>已更新 {currentModelsCount} 個可用模型</span>
+                </span>
+              {/if}
+            </div>
             <button
               type="button"
               onclick={() => (showKeys = !showKeys)}
@@ -347,6 +473,7 @@
               <input
                 type={showKeys ? 'text' : 'password'}
                 bind:value={groqKey}
+                oninput={() => triggerAutoExplore('groq')}
                 placeholder="gsk_..."
                 class="bg-transparent text-xs text-ink placeholder-ink-dim focus:outline-none w-full font-mono"
               />
@@ -354,6 +481,7 @@
               <input
                 type={showKeys ? 'text' : 'password'}
                 bind:value={geminiKey}
+                oninput={() => triggerAutoExplore('gemini')}
                 placeholder="AIzaSy..."
                 class="bg-transparent text-xs text-ink placeholder-ink-dim focus:outline-none w-full font-mono"
               />
@@ -370,9 +498,10 @@
               onclick={handleExploreModels}
               disabled={isFetchingModels}
               class="flex items-center gap-1 text-[10px] text-signal hover:text-white cursor-pointer disabled:opacity-50"
+              title="重新整理模型列表"
             >
               <RefreshCw class="w-3 h-3 {isFetchingModels ? 'animate-spin' : ''}" />
-              <span>探勘即時可用模型</span>
+              <span>手動重新整理</span>
             </button>
           </div>
 
