@@ -58,7 +58,7 @@ async function fetchGroqChat(
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.3,
-    max_tokens: 1800
+    max_tokens: useJsonObject ? 2800 : 3200
   };
   if (useJsonObject) {
     bodyPayload.response_format = { type: 'json_object' };
@@ -118,13 +118,15 @@ export async function getSceneRecommendation(
     // 優先嘗試 JSON Object 約束模式
     let groqRes = await fetchGroqChat(apiKey, groqModel, systemPrompt, userPrompt, true);
 
-    // 若伺服器端驗證器失敗 (如 json_validate_failed) 或特定模型約束下回傳空內容，自動降級為標準對話模式重試
+    // 若伺服器端驗證器失敗 (如 json_validate_failed、failed to generate JSON、max tokens 截斷等) 或回傳空內容，自動降級為標準對話模式重試
     const shouldFallback =
       !groqRes.ok &&
       groqRes.status === 400 &&
-      (groqRes.text.toLowerCase().includes('failed to validate json') ||
-        groqRes.text.toLowerCase().includes('response_format') ||
-        groqRes.text.toLowerCase().includes('json_object'));
+      (groqRes.text.toLowerCase().includes('json') ||
+        groqRes.text.toLowerCase().includes('validate') ||
+        groqRes.text.toLowerCase().includes('generate') ||
+        groqRes.text.toLowerCase().includes('token') ||
+        groqRes.text.toLowerCase().includes('response_format'));
 
     if (shouldFallback || (groqRes.ok && !groqRes.content?.trim())) {
       console.warn('[Groq Scene] 觸發 JSON 約束限制或回傳為空，自動降級為標準對話模式重試 (Fallback)');
@@ -159,7 +161,7 @@ export async function getSceneRecommendation(
         ],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 1800,
+          maxOutputTokens: 2800,
           responseMimeType: 'application/json'
         }
       })
