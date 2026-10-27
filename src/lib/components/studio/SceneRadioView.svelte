@@ -50,6 +50,43 @@
   // 滾動容器參考
   let chatScrollElement = $state<HTMLDivElement | null>(null);
 
+  const SESSION_KEY = 'pua_scene_chat_session_v1';
+
+  // 初始化時還原先前對話與策展狀態（切換分頁不遺失）
+  onMount(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        messages = saved.messages || [];
+        activeMatchedGenres = saved.activeMatchedGenres || [];
+        externalRecommendations = saved.externalRecommendations || [];
+        if (activeMatchedGenres.length > 0 && artists.length > 0) {
+          localMatches = matchLocalArtists(artists, activeMatchedGenres);
+        }
+        scrollToBottom();
+      }
+    } catch (e) {
+      console.warn('[SceneRadio] 無法讀取對話 session:', e);
+    }
+  });
+
+  // 自動同步至 SessionStorage
+  function saveSession() {
+    try {
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          messages,
+          activeMatchedGenres,
+          externalRecommendations
+        })
+      );
+    } catch (e) {
+      console.warn('[SceneRadio] 儲存對話 session 失敗:', e);
+    }
+  }
+
   // 當對話更新時自動捲動到底部
   async function scrollToBottom() {
     await tick();
@@ -87,6 +124,7 @@
 
       // 即時比對本地庫
       localMatches = matchLocalArtists(artists, result.matchedGenres);
+      saveSession();
       scrollToBottom();
     } catch (err: any) {
       console.error('[SceneRadio] 推薦失敗:', err);
@@ -105,7 +143,7 @@
     }
   }
 
-  // 重設對話
+  // 開啟新對話並清空當前歷程
   function handleReset() {
     messages = [];
     userInput = '';
@@ -113,7 +151,8 @@
     externalRecommendations = [];
     localMatches = [];
     errorMessage = null;
-    showToast?.('已重設 AI 智慧推薦對話歷程');
+    sessionStorage.removeItem(SESSION_KEY);
+    showToast?.('已開啟全新情境對話');
   }
 
   // 快速將庫內藝人排入聆賞隊列
@@ -156,11 +195,11 @@
           <button
             type="button"
             onclick={handleReset}
-            class="px-2 py-1 text-[11px] text-ink-muted hover:text-signal hover:bg-panel border border-wire transition-colors rounded-[2px] flex items-center gap-1 cursor-pointer"
-            title="清空對話歷程"
+            class="px-2.5 py-1 text-[11px] text-ink-muted hover:text-signal hover:bg-panel border border-wire hover:border-signal/50 transition-colors rounded-[2px] flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="清空對話並開啟新話題"
           >
-            <RotateCcw class="w-3 h-3" />
-            <span>重設</span>
+            <Plus class="w-3.5 h-3.5 text-signal" />
+            <span class="font-sans">開啟新對話</span>
           </button>
         {/if}
       </div>
@@ -242,7 +281,7 @@
         </button>
       </div>
       <div class="flex justify-between items-center text-[10px] text-ink-dim mt-2 px-1">
-        <span>支援連續對話多輪微調</span>
+        <span>支援連續微調 // 隨時可開啟新對話</span>
         <span>ENTER 發送 // SHIFT+ENTER 換行</span>
       </div>
     </div>

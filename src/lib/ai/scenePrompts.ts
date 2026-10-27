@@ -75,8 +75,9 @@ ${languageRule}
   ]
 }`;
 
-  // 組裝歷史對話
-  const historyText = conversationHistory
+  // 保留最近 6 則對話脈絡（約 3 輪問答），既能精準支援追問微調，又能大幅抑制 Token 消耗並避免 429 限流
+  const recentHistory = conversationHistory.slice(-6);
+  const historyText = recentHistory
     .map((msg) => `${msg.role === 'user' ? 'User' : 'Curator'}: ${msg.content}`)
     .join('\n\n');
 
