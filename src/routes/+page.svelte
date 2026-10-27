@@ -19,6 +19,7 @@
   import AcousticMatrixView from '$lib/components/studio/AcousticMatrixView.svelte';
   import ListeningQueueView from '$lib/components/studio/ListeningQueueView.svelte';
   import ListeningLogView from '$lib/components/studio/ListeningLogView.svelte';
+  import SceneRadioView from '$lib/components/studio/SceneRadioView.svelte';
   import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
@@ -46,7 +47,7 @@
 
   // 狀態管理 (Svelte 5 Runes)
   let artists = $state<ArtistEntry[]>([]);
-  let activeStudioView = $state<'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log'>('crate-digger');
+  let activeStudioView = $state<'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend'>('crate-digger');
   let selectedArtistId = $state<string | null>(null);
   let searchQuery = $state('');
   let isPickupModalOpen = $state(false);
@@ -794,6 +795,21 @@
           onopenInCrate={(id) => {
             selectedArtistId = id;
             activeStudioView = 'crate-digger';
+          }}
+          {showToast}
+        />
+      {:else if activeStudioView === 'ai-recommend'}
+        <!-- 視圖 6: AI 智慧推薦 (AI Recommendation & Acoustic Radio) -->
+        <SceneRadioView
+          {artists}
+          onselectArtist={(id) => {
+            selectedArtistId = id;
+            activeStudioView = 'crate-digger';
+          }}
+          onquickPickup={(name) => {
+            pickupModalInitialTab = 'input';
+            pickupModalInitialQuery = name;
+            isPickupModalOpen = true;
           }}
           {showToast}
         />

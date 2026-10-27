@@ -6,8 +6,8 @@
   import type { ArtistEntry } from '$lib/types/artist';
 
   interface Props {
-    activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log';
-    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log') => void;
+    activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend';
+    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend') => void;
     totalArtistsCount?: number;
     inboxCount?: number;
     artists?: ArtistEntry[];
@@ -87,6 +87,7 @@
     else if (e.key === '3') onselectView('acoustic-matrix');
     else if (e.key === '4') onselectView('listening-queue');
     else if (e.key === '5') onselectView('listening-log');
+    else if (e.key === '6') onselectView('ai-recommend');
   }
 
   // 6. 資料庫一鍵匯出備份
@@ -300,7 +301,7 @@
       {#if !isCollapsed}
         <div class="font-mono text-[9px] text-ink-dim uppercase tracking-[0.2em] px-2 mb-2 flex justify-between">
           <span>// MODULE_SELECT</span>
-          <span class="text-[8px] text-ink-muted">KEYS [1-5]</span>
+          <span class="text-[8px] text-ink-muted">KEYS [1-6]</span>
         </div>
       {/if}
       <nav class="flex flex-col gap-1 font-mono text-xs">
@@ -317,7 +318,7 @@
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'crate-digger'}
-            <span class="font-dot text-[10px] bg-signal text-white px-1">[ACT]</span>
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[ART]</span>
           {/if}
         </button>
 
@@ -333,8 +334,8 @@
               <span>02_藝人星系</span>
             {/if}
           </div>
-          {#if !isCollapsed}
-            <span class="text-[9px] {activeView === 'honeycomb-cluster' ? 'text-void font-bold' : 'text-ink-dim'}">HEX</span>
+          {#if !isCollapsed && activeView === 'honeycomb-cluster'}
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[HEX]</span>
           {/if}
         </button>
 
@@ -350,8 +351,8 @@
               <span>03_風格矩陣</span>
             {/if}
           </div>
-          {#if !isCollapsed}
-            <span class="text-[9px] {activeView === 'acoustic-matrix' ? 'text-void font-bold' : 'text-ink-dim'}">MTX</span>
+          {#if !isCollapsed && activeView === 'acoustic-matrix'}
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[MTX]</span>
           {/if}
         </button>
 
@@ -375,7 +376,9 @@
               {#if isAnyListening}
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" title="目前有盤片正在品鑑中"></span>
               {/if}
-              <span class="text-[9px] {activeView === 'listening-queue' ? 'text-void font-bold' : 'text-ink-dim'}">QUE</span>
+              {#if activeView === 'listening-queue'}
+                <span class="font-dot text-[10px] bg-signal text-white px-1">[QUE]</span>
+              {/if}
             </div>
           {/if}
         </button>
@@ -392,10 +395,25 @@
               <span>05_聆賞日誌</span>
             {/if}
           </div>
-          {#if !isCollapsed}
-            <div class="flex items-center gap-1">
-              <span class="text-[9px] {activeView === 'listening-log' ? 'text-void font-bold' : 'text-ink-dim'}">LOG</span>
-            </div>
+          {#if !isCollapsed && activeView === 'listening-log'}
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[LOG]</span>
+          {/if}
+        </button>
+
+        <button
+          type="button"
+          onclick={() => onselectView('ai-recommend')}
+          title="06_智慧推薦 (快捷鍵: 6)"
+          class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'ai-recommend' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] {activeView === 'ai-recommend' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">neurology</span>
+            {#if !isCollapsed}
+              <span>06_智慧推薦</span>
+            {/if}
+          </div>
+          {#if !isCollapsed && activeView === 'ai-recommend'}
+            <span class="font-dot text-[10px] bg-signal text-white px-1">[AI]</span>
           {/if}
         </button>
       </nav>

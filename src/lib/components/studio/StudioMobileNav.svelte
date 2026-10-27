@@ -3,8 +3,8 @@
   import type { ArtistEntry } from '$lib/types/artist';
 
   interface Props {
-    activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log';
-    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log') => void;
+    activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend';
+    onselectView: (view: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend') => void;
     artists?: ArtistEntry[];
   }
 
@@ -57,6 +57,12 @@
       num: '05',
       label: '日誌',
       icon: 'edit_note'
+    },
+    {
+      id: 'ai-recommend',
+      num: '06',
+      label: '推薦',
+      icon: 'neurology'
     }
   ] as const;
 </script>
