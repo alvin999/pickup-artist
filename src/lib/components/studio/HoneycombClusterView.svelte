@@ -99,6 +99,7 @@
 
   // 雷達小地圖拖曳狀態與 DOM 引用
   let isDraggingMinimap = $state(false);
+  let isMinimapExpanded = $state(false); // 手機小螢幕下雷達小地圖展開開關 (桌面預設常駐)
   let radarBoxEl = $state<HTMLElement | null>(null);
 
   // 側邊欄與 HUD 開關狀態 (點選才展開，HUD 操作一切)
@@ -1512,25 +1513,13 @@
     <!-- 深空動態星塵粒子層 (Stardust Particles Powered by tsparticles) -->
     <div id={particlesDomId} class="absolute inset-0 pointer-events-none z-0"></div>
 
-    <!-- 深空天文底片微粒噪點層 (Film Grain ISO Texture) -->
-    <svg
-      class="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-30 mix-blend-overlay"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <filter id="celestial-film-grain" x="0%" y="0%" width="100%" height="100%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
-        <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.16 0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#celestial-film-grain)" />
-    </svg>
-
-    <!-- 深空暗角光罩 (Cosmic Vignette) -->
+    <!-- 深空暗角光罩 (Cosmic Vignette - 移除 mix-blend-overlay 噪點濾鏡以保證平移時 0 閃頻) -->
     <div class="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(4,5,7,0.78)_100%)]"></div>
 
     <!-- 頂部懸浮 HUD 巡航膠囊 (Top Floating Navigation HUD) -->
     <div class="floating-hud absolute top-3 inset-x-3 z-30 flex items-center justify-between gap-2 pointer-events-none">
       <!-- 左側：麵包屑巡航列 -->
-      <div class="pointer-events-auto flex items-center gap-1.5 bg-[#08090C]/90 backdrop-blur-md px-3 py-1.5 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-[11px] shrink-0">
+      <div class="pointer-events-auto flex items-center gap-1.5 bg-[#08090C]/96 px-3 py-1.5 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-[11px] shrink-0">
         <button
           type="button"
           onclick={resetView}
@@ -1584,7 +1573,7 @@
       </div>
 
       <!-- 中間：八大太陽系快速切換膠囊 (Google Maps 式探索 Pills，支援橫向滑動) -->
-      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/85 backdrop-blur-md p-1 rounded-[4px] border border-[#2B303C] shadow-xl overflow-x-auto max-w-[50%] md:max-w-[55%] no-scrollbar">
+      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/96 p-1 rounded-[4px] border border-[#2B303C] shadow-xl overflow-x-auto max-w-[50%] md:max-w-[55%] no-scrollbar">
         <button
           type="button"
           onclick={resetView}
@@ -1625,7 +1614,7 @@
       </div>
 
       <!-- 右側：藝人名錄檢索按鈕 & 全螢幕開關 -->
-      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/90 backdrop-blur-md p-1 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-xs shrink-0">
+      <div class="pointer-events-auto flex items-center gap-1 bg-[#08090C]/96 p-1 rounded-[4px] border border-[#2B303C] shadow-xl font-mono text-xs shrink-0">
         <button
           type="button"
           onclick={() => (isRosterDrawerOpen = !isRosterDrawerOpen)}
@@ -1651,21 +1640,46 @@
       </div>
     </div>
 
-        <!-- 畫布左下角：微型宇宙雷達小地圖 (Minimap HUD) - 完美置中，支援點擊巡航與按住拖曳 -->
+        <!-- 手機版雷達展開切換膠囊 (Mobile Mini Radar Capsule) -->
+        <button
+          type="button"
+          onclick={() => (isMinimapExpanded = !isMinimapExpanded)}
+          class="sm:hidden absolute bottom-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 bg-[#08090C]/96 rounded border border-[#2B303C] shadow-2xl text-[#FEC486] font-mono text-xs cursor-pointer pointer-events-auto"
+          title="切換雷達視野小地圖"
+        >
+          <Compass class="w-3.5 h-3.5 {isFlying ? 'animate-spin' : ''}" />
+          <span class="font-bold text-[10px] tracking-wider">RADAR</span>
+        </button>
+
+        <!-- 畫布左下角：微型宇宙雷達小地圖 (Minimap HUD) - 桌面常駐，手機支援展開/收合，移除 backdrop-blur 杜絕閃現 -->
         <div
           role="region"
           aria-label="Galaxy Minimap Radar"
-          class="minimap-radar absolute bottom-4 left-4 z-20 flex flex-col items-center bg-[#08090C]/92 backdrop-blur-md rounded border border-[#2B303C] p-2.5 shadow-2xl pointer-events-auto select-none w-[148px]"
+          class="minimap-radar absolute bottom-4 left-4 z-20 {isMinimapExpanded ? 'flex' : 'hidden sm:flex'} flex-col items-center bg-[#08090C]/96 rounded border border-[#2B303C] p-2.5 shadow-2xl pointer-events-auto select-none w-[148px]"
         >
           <!-- 頂部標題與狀態 (等寬對齊，字體精簡不換行重疊) -->
           <div class="flex items-center justify-between w-full mb-2 px-0.5 font-mono text-[9px]">
-            <span class="flex items-center gap-1 text-[#FEC486] font-bold tracking-tight">
+            <button
+              type="button"
+              onclick={() => (isMinimapExpanded = false)}
+              class="flex items-center gap-1 text-[#FEC486] font-bold tracking-tight cursor-pointer sm:cursor-default"
+            >
               <Compass class="w-3 h-3 text-[#FEC486] {isFlying ? 'animate-spin' : ''}" style="animation-duration: 4s;" />
               RADAR
-            </span>
-            <span class="text-[8px] font-mono tracking-wider uppercase font-semibold {isDraggingMinimap ? 'text-[#FEC486]' : 'text-[#8E9298]'}">
-              {isDraggingMinimap ? 'DRAGGING' : 'DRAG / CLICK'}
-            </span>
+            </button>
+            <div class="flex items-center gap-1">
+              <span class="text-[8px] font-mono tracking-wider uppercase font-semibold {isDraggingMinimap ? 'text-[#FEC486]' : 'text-[#8E9298]'}">
+                {isDraggingMinimap ? 'DRAGGING' : 'DRAG / CLICK'}
+              </span>
+              <button
+                type="button"
+                onclick={() => (isMinimapExpanded = false)}
+                class="sm:hidden text-[#8E9298] hover:text-white p-0.5"
+                title="收合雷達"
+              >
+                <X class="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
           <!-- 雷達視窗畫布本體 (124x124，卡片內置中對齊) -->
@@ -1716,14 +1730,14 @@
               style="left: 62px; top: 62px;"
             ></div>
 
-            <!-- 即時相機視口矩形框 (Camera Viewport Frame) -->
+            <!-- 即時相機視口矩形框 (Camera Viewport Frame) - translate3d 硬體加速定位，消除抖動與重排 -->
             <div
-              class="absolute border border-[#FEC486] bg-[#FEC486]/15 rounded-[1px] pointer-events-none transition-all duration-75 {isDraggingMinimap ? 'border-[#FFA552] bg-[#FFA552]/25 ring-1 ring-[#FFA552]' : ''}"
+              class="absolute top-0 left-0 border border-[#FEC486] bg-[#FEC486]/15 rounded-[1px] pointer-events-none {isDraggingMinimap ? 'border-[#FFA552] bg-[#FFA552]/25 ring-1 ring-[#FFA552]' : ''}"
               style="
-                left: {radarCameraBox.x}px;
-                top: {radarCameraBox.y}px;
                 width: {radarCameraBox.w}px;
                 height: {radarCameraBox.h}px;
+                transform: translate3d({radarCameraBox.x}px, {radarCameraBox.y}px, 0);
+                will-change: transform;
                 box-shadow: 0 0 {isDraggingMinimap ? '12px rgba(255,165,82,0.7)' : '6px rgba(254,196,134,0.4)'};
               "
             ></div>
@@ -1734,7 +1748,7 @@
         <div class="hud-controls absolute bottom-4 right-4 z-30 flex flex-col items-end gap-2 pointer-events-auto select-none">
           <!-- 質量門檻快選懸浮面板 (點擊 WT 按鈕展開) -->
           {#if isWeightSliderOpen}
-            <div class="p-3 bg-[#08090C]/95 backdrop-blur-md rounded border border-[#2B303C] shadow-2xl flex flex-col gap-2 font-mono text-xs w-64 animate-fadeIn">
+            <div class="p-3 bg-[#08090C]/96 rounded border border-[#2B303C] shadow-2xl flex flex-col gap-2 font-mono text-xs w-64 animate-fadeIn">
               <div class="flex items-center justify-between text-[#8E9298]">
                 <span class="flex items-center gap-1 text-[#FEC486] font-bold">
                   <Sliders class="w-3.5 h-3.5" />
@@ -1761,7 +1775,7 @@
           {/if}
 
           <!-- 控制塢主工具列 -->
-          <div class="flex items-center gap-1 bg-[#08090C]/90 backdrop-blur-md p-1.5 rounded border border-[#2B303C] shadow-2xl font-mono text-xs">
+          <div class="flex items-center gap-1 bg-[#08090C]/96 p-1.5 rounded border border-[#2B303C] shadow-2xl font-mono text-xs">
             <!-- 縮小按鈕 -->
             <button
               type="button"
