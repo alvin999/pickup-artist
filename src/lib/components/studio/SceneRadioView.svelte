@@ -8,6 +8,7 @@
   } from '$lib/services/aiSceneService';
   import type { SceneChatMessage, ExternalArtistRecommendation } from '$lib/ai/scenePrompts';
   import { listeningQueue } from '$lib/services/listeningQueue';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
   import {
     Send,
     RotateCcw,
@@ -95,19 +96,21 @@
     }
   }
 
-  // 發送情境對話
-  async function handleSendMessage() {
-    const trimmed = userInput.trim();
-    if (!trimmed || isLoading) return;
+  // 發送情境對話（支援自定義追問文字）
+  async function handleSendMessage(overrideText?: string) {
+    const textToSend = (overrideText !== undefined ? overrideText : userInput).trim();
+    if (!textToSend || isLoading) return;
 
     errorMessage = null;
     const newHistory: SceneChatMessage[] = [
       ...messages,
-      { role: 'user', content: trimmed }
+      { role: 'user', content: textToSend }
     ];
 
     messages = newHistory;
-    userInput = '';
+    if (overrideText === undefined) {
+      userInput = '';
+    }
     isLoading = true;
     scrollToBottom();
 
@@ -133,6 +136,13 @@
     } finally {
       isLoading = false;
     }
+  }
+
+  // 一鍵請 AI 深度介紹特定藝人與推薦專輯
+  function handleAskAboutArtist(artistName: string) {
+    if (isLoading) return;
+    const prompt = `請為我深入介紹音樂人「${artistName}」的風格脈絡與聆聽重點，並推薦其最值得一聽的代表專輯與入門曲目。`;
+    handleSendMessage(prompt);
   }
 
   // 鍵盤送出 (Enter 送出, Shift+Enter 換行)
@@ -272,7 +282,7 @@
         />
         <button
           type="button"
-          onclick={handleSendMessage}
+          onclick={() => handleSendMessage()}
           disabled={!userInput.trim() || isLoading}
           class="absolute right-1.5 p-1.5 bg-signal text-void hover:bg-signal/90 disabled:opacity-30 disabled:hover:bg-signal transition-all rounded-[2px] cursor-pointer"
           title="發送 (Enter)"
@@ -350,11 +360,29 @@
                 </div>
               </div>
 
-              <div class="flex items-center gap-1 shrink-0">
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onclick={() => handleAskAboutArtist(match.artist.name)}
+                  disabled={isLoading}
+                  class="px-1.5 py-1 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="請 AI 深入介紹風格脈絡與聆聽重點"
+                >
+                  <Sparkles class="w-3 h-3 text-signal" />
+                  <span class="hidden sm:inline">介紹</span>
+                </button>
+
+                <StreamingTrigger
+                  artistName={match.artist.name}
+                  albumTitle={match.artist.analysis?.notableAlbums?.[0]?.title}
+                  appleMusicUrl={match.artist.appleMusicUrl}
+                  variant="subtle"
+                />
+
                 <button
                   type="button"
                   onclick={() => handleEnqueueArtist(match.artist)}
-                  class="p-1.5 text-ink-muted hover:text-emerald-400 hover:bg-void border border-transparent hover:border-wire rounded-[2px] transition-colors cursor-pointer"
+                  class="p-1 text-ink-muted hover:text-emerald-400 hover:bg-void border border-wire hover:border-emerald-500/50 rounded-[2px] transition-colors cursor-pointer"
                   title="加入聆賞隊列"
                 >
                   <Plus class="w-3.5 h-3.5" />
@@ -387,27 +415,45 @@
           {#each externalRecommendations as ext}
             <div class="p-2.5 bg-panel/50 hover:bg-panel border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex flex-col gap-1.5">
               <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-sans text-xs font-bold text-ink">{ext.name}</span>
-                  <span class="text-[9px] px-1 py-0.2 bg-signal-dim border border-signal/40 text-signal rounded-[2px]">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="font-sans text-xs font-bold text-ink truncate">{ext.name}</span>
+                  <span class="text-[9px] px-1 py-0.2 bg-signal-dim border border-signal/40 text-signal rounded-[2px] shrink-0">
                     {ext.subGenre}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  disabled={addedExternalNames.has(ext.name)}
-                  onclick={() => handlePickupExternal(ext.name)}
-                  class="px-2 py-0.5 text-[10px] border {addedExternalNames.has(ext.name) ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-wire hover:border-signal text-ink-muted hover:text-signal bg-void'} rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-default"
-                  title="拾音收錄此藝人"
-                >
-                  {#if addedExternalNames.has(ext.name)}
-                    <Check class="w-3 h-3" />
-                    <span>已拾音</span>
-                  {:else}
-                    <Plus class="w-3 h-3" />
-                    <span>拾音</span>
-                  {/if}
-                </button>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onclick={() => handleAskAboutArtist(ext.name)}
+                    disabled={isLoading}
+                    class="px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                    title="請 AI 深入介紹風格脈絡與聆聽重點"
+                  >
+                    <Sparkles class="w-3 h-3 text-signal" />
+                    <span>介紹</span>
+                  </button>
+
+                  <StreamingTrigger
+                    artistName={ext.name}
+                    variant="subtle"
+                  />
+
+                  <button
+                    type="button"
+                    disabled={addedExternalNames.has(ext.name)}
+                    onclick={() => handlePickupExternal(ext.name)}
+                    class="px-2 py-0.5 text-[10px] border {addedExternalNames.has(ext.name) ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-wire hover:border-signal text-ink-muted hover:text-signal bg-void'} rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-default"
+                    title="拾音收錄此藝人"
+                  >
+                    {#if addedExternalNames.has(ext.name)}
+                      <Check class="w-3 h-3" />
+                      <span>已拾音</span>
+                    {:else}
+                      <Plus class="w-3 h-3" />
+                      <span>拾音</span>
+                    {/if}
+                  </button>
+                </div>
               </div>
 
               <p class="text-[11px] font-sans text-ink-dim leading-relaxed">
