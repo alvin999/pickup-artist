@@ -834,6 +834,13 @@
 
   // Google Maps 式游標中心智慧滾輪縮放與手勢
   function handleWheel(e: WheelEvent) {
+    // 若滾輪事件發生在浮動抽屜面板 (如藝人解剖艙 aside、藝人名錄、手冊彈窗等)，
+    // 保留瀏覽器內部原生捲動，不攔截也不觸發背景星系縮放
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('aside, .guide-modal-container, .floating-hud, [data-prevent-canvas-wheel]')) {
+      return;
+    }
+
     e.preventDefault();
 
     // 1. Alt + 滾輪：快速增減選取藝人的引力質量 Weight (±2)
@@ -1129,7 +1136,7 @@
 
 {#snippet dossierBody(artist: ArtistEntry)}
   {@const weight = artist.weight ?? 20}
-  <div class="p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-2">
+  <div class="p-4 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0 pr-2">
     <!-- 藝人抬頭與類別 -->
     <div>
       <div class="flex items-center justify-between mb-1.5">
@@ -2305,6 +2312,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
+            onwheel={(e) => e.stopPropagation()}
             class="guide-modal-container absolute inset-0 z-40 bg-[#040507]/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-200"
             onclick={(e) => {
               if (e.target === e.currentTarget) showGuideModal = false;
@@ -2468,6 +2476,7 @@
         <!-- 桌面版：右側懸浮半透明毛玻璃解剖艙抽屜 (Slide-over Dossier Panel) -->
         {#if isDossierOpen && selectedArtist}
           <aside
+            onwheel={(e) => e.stopPropagation()}
             class="hidden xl:flex absolute top-14 bottom-4 right-4 z-40 w-[420px] max-w-[calc(100vw-2rem)] bg-[#090B0E]/95 backdrop-blur-xl border border-[#2B303C] rounded-[6px] shadow-2xl flex-col overflow-hidden animate-fadeIn"
           >
             <!-- 抽屜頂部控制列 -->
@@ -2503,6 +2512,7 @@
         <!-- 浮動藝人名錄檢索抽屜 (Roster Drawer - Slide-over) -->
         {#if isRosterDrawerOpen}
           <aside
+            onwheel={(e) => e.stopPropagation()}
             class="absolute top-14 bottom-4 left-4 z-40 w-[360px] max-w-[calc(100vw-2rem)] bg-[#090B0E]/95 backdrop-blur-xl border border-[#2B303C] rounded-[6px] shadow-2xl flex flex-col overflow-hidden animate-fadeIn"
           >
             {@render rosterDrawer()}
