@@ -24,6 +24,7 @@
   import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
   import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
   import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
+  import StudioFooter from '$lib/components/studio/StudioFooter.svelte';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
   import { loadSecureAISettings } from '$lib/ai/vault';
   import { fetchMoreSimilarArtists, fetchMoreNotableAlbums } from '$lib/ai/client';
