@@ -6,6 +6,7 @@
   import SpecBadge from '$lib/components/SpecBadge.svelte';
   import TactileButton from '$lib/components/TactileButton.svelte';
   import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
+  import GravityGauge from '$lib/components/studio/GravityGauge.svelte';
   import {
     ACOUSTIC_SECTORS,
     GALAXY_CANVAS_SIZE,
@@ -1197,72 +1198,13 @@
       </button>
     </div>
 
-    <!-- Weight 引力權重步進調節面板 (1 ~ 100) -->
-    <div class="p-3 bg-[#050608] border border-[#2B303C] rounded-[4px] flex flex-col gap-2">
-      <div class="flex items-center justify-between">
-        <span class="font-mono text-[11px] text-[#8E9298] font-bold flex items-center gap-1.5">
-          <Flame class="w-3.5 h-3.5 text-[#FEC486]" />
-          <span>天體引力質量 (GRAVITY WEIGHT)</span>
-        </span>
-        <span class="font-mono text-base font-bold text-[#FEC486] font-tabular">
-          {weight} <span class="text-[10px] text-[#8E9298] font-normal">/ 100</span>
-        </span>
-      </div>
-
-      <div class="flex items-center gap-1.5 pt-1">
-        <button
-          type="button"
-          onclick={() => changeWeight(artist.id, weight - 5)}
-          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-          title="調降權重 -5"
-        >
-          -5
-        </button>
-        <button
-          type="button"
-          onclick={() => changeWeight(artist.id, weight - 1)}
-          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FA383E] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-          title="調降權重 -1"
-        >
-          -1
-        </button>
-
-        <div class="flex-[3] px-2 flex items-center">
-          <input
-            type="range"
-            min="1"
-            max="100"
-            step="1"
-            value={weight}
-            oninput={(e) => changeWeight(artist.id, +(e.currentTarget as HTMLInputElement).value)}
-            class="w-full accent-[#FEC486] cursor-pointer"
-          />
-        </div>
-
-        <button
-          type="button"
-          onclick={() => changeWeight(artist.id, weight + 1)}
-          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-          title="調升權重 +1"
-        >
-          +1
-        </button>
-        <button
-          type="button"
-          onclick={() => changeWeight(artist.id, weight + 5)}
-          class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] font-mono text-[11px] font-bold cursor-pointer"
-          title="調升權重 +5"
-        >
-          +5
-        </button>
-      </div>
-      <div class="flex justify-between font-mono text-[9px] text-[#52565E] pt-0.5">
-        <span>小行星 (1)</span>
-        <span>岩質星 (20)</span>
-        <span>氣態巨星 (70)</span>
-        <span>超重恆星 (100)</span>
-      </div>
-    </div>
+    <!-- Weight 引力權重半圓儀表與精準調節面板 (1 ~ 100) -->
+    <GravityGauge
+      variant="detailed"
+      label="天體引力質量 (GRAVITY WEIGHT)"
+      weight={weight}
+      onchange={(w) => changeWeight(artist.id, w)}
+    />
 
     <!-- 操作按鈕列 -->
     <div class="flex items-center gap-2">

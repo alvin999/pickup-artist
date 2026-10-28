@@ -12,6 +12,7 @@
     PenLine
   } from 'lucide-svelte';
   import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
+  import GravityGauge from '$lib/components/studio/GravityGauge.svelte';
   import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
   import type { QueueState } from '$lib/services/analysisQueue';
 
@@ -915,31 +916,16 @@
               </div>
               <div class="flex items-center justify-between text-[10px]">
                 <div class="flex items-center gap-1 text-ink-dim truncate">
-                  <span>GRAVITY:</span>
                   {#if onupdateWeight}
-                    <button
-                      type="button"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        changeWeight(artist.id, (artist.weight ?? 20) - 5);
-                      }}
-                      class="px-1 py-0.2 rounded bg-void hover:bg-chassis border border-wire hover:border-signal text-ink-muted hover:text-signal font-bold cursor-pointer transition-colors"
-                      title="調降權重 -5"
-                    >-</button>
-                  {/if}
-                  <span class="font-bold {(artist.weight ?? 20) >= 70 ? 'text-[#FEC486]' : 'text-ink'}">
-                    W-{artist.weight || 20}
-                  </span>
-                  {#if onupdateWeight}
-                    <button
-                      type="button"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        changeWeight(artist.id, (artist.weight ?? 20) + 5);
-                      }}
-                      class="px-1 py-0.2 rounded bg-void hover:bg-chassis border border-wire hover:border-signal text-ink-muted hover:text-signal font-bold cursor-pointer transition-colors"
-                      title="調升權重 +5"
-                    >+</button>
+                    <GravityGauge
+                      variant="compact"
+                      weight={artist.weight ?? 20}
+                      onchange={(w) => changeWeight(artist.id, w)}
+                    />
+                  {:else}
+                    <span class="font-bold {(artist.weight ?? 20) >= 70 ? 'text-[#FEC486]' : 'text-ink'}">
+                      W-{artist.weight || 20}
+                    </span>
                   {/if}
                 </div>
                 {#if artist.personalNotes && artist.personalNotes.trim().length > 0}
@@ -1198,69 +1184,14 @@
             {/if}
 
             <!-- 聲學引力權重步進調節面板 (Gravitational Weight Control) -->
-            <div class="mt-3 p-3 bg-chassis border border-wire rounded-[2px] flex flex-col gap-2 font-mono text-[10px]">
-              <div class="flex items-center justify-between">
-                <span class="text-ink-dim font-bold flex items-center gap-1.5">
-                  <Flame class="w-3.5 h-3.5 {isSelectedGasGiant ? 'text-[#FEC486]' : 'text-signal'}" />
-                  <span>聲學引力質量 (GRAVITY WEIGHT)</span>
-                </span>
-                <div class="flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.2 rounded text-[9px] font-bold {isSelectedGasGiant ? 'bg-[#2E1E10] text-[#FEC486] border border-[#E0A96D]/40' : 'bg-void text-ink-muted border border-wire'}">
-                    {selectedArtistWeight >= 100 ? '超重力恆星' : selectedArtistWeight >= 70 ? '氣態巨星' : selectedArtistWeight >= 20 ? '岩質標準星' : '小行星'}
-                  </span>
-                  <span class="text-sm font-bold {isSelectedGasGiant ? 'text-[#FEC486]' : 'text-signal'} font-tabular">
-                    W{selectedArtistWeight} <span class="text-[9px] text-ink-dim font-normal">/ 100</span>
-                  </span>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onclick={() => changeWeight(selectedArtist.id, selectedArtistWeight - 5)}
-                  class="flex-1 py-1 px-1 bg-void hover:bg-panel text-ink-dim hover:text-signal rounded border border-wire hover:border-signal font-bold cursor-pointer transition-colors"
-                  title="調降權重 -5"
-                >
-                  -5
-                </button>
-                <button
-                  type="button"
-                  onclick={() => changeWeight(selectedArtist.id, selectedArtistWeight - 1)}
-                  class="flex-1 py-1 px-1 bg-void hover:bg-panel text-ink-dim hover:text-signal rounded border border-wire hover:border-signal font-bold cursor-pointer transition-colors"
-                  title="調降權重 -1"
-                >
-                  -1
-                </button>
-
-                <div class="flex-[3] px-2 flex items-center">
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    step="1"
-                    value={selectedArtistWeight}
-                    oninput={(e) => changeWeight(selectedArtist.id, +(e.currentTarget as HTMLInputElement).value)}
-                    class="w-full accent-signal cursor-pointer"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onclick={() => changeWeight(selectedArtist.id, selectedArtistWeight + 1)}
-                  class="flex-1 py-1 px-1 bg-void hover:bg-panel text-ink-dim hover:text-signal rounded border border-wire hover:border-signal font-bold cursor-pointer transition-colors"
-                  title="調升權重 +1"
-                >
-                  +1
-                </button>
-                <button
-                  type="button"
-                  onclick={() => changeWeight(selectedArtist.id, selectedArtistWeight + 5)}
-                  class="flex-1 py-1 px-1 bg-void hover:bg-panel text-ink-dim hover:text-signal rounded border border-wire hover:border-signal font-bold cursor-pointer transition-colors"
-                  title="調升權重 +5"
-                >
-                  +5
-                </button>
-              </div>
+            <div class="mt-3">
+              <GravityGauge
+                variant="detailed"
+                label="聲學引力質量 (GRAVITY WEIGHT)"
+                weight={selectedArtistWeight}
+                disabled={!onupdateWeight}
+                onchange={(w) => changeWeight(selectedArtist.id, w)}
+              />
             </div>
 
             <!-- 動作按鈕與 AI 深度解剖核心觸發區 (Action Buttons & AI Ingestion Control) -->
