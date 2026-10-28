@@ -121,9 +121,9 @@
 
   // Google Maps 式觸控與指針互動引擎 (單指平移、慣性物理滑行、雙指捏合縮放、雙擊放大)
   const activePointers = new Map<number, { x: number; y: number }>();
-  let touchStartDist = 0;
-  let touchStartZoom = 60;
-  let touchStartMid = { x: 0, y: 0 };
+  let isPinching = $state(false);            // 雙指捏合縮放中狀態 (手勢期間鎖定 transition: none 徹底消除閃爍)
+  let pinchPrevDist = 0;                     // 雙指前一幀間距 (增量式縮放)
+  let pinchPrevMid = { x: 0, y: 0 };         // 雙指前一幀重心幾何中心 (精確錨定焦點)
   let pointerStartPos = { x: 0, y: 0 };
   let hasMovedSignificantly = false;
   let lastPointerMoveTime = 0;
@@ -586,24 +586,25 @@
       startCanvasPanY = e.clientY - panY;
       hasMovedSignificantly = false;
       isPanningCanvas = true;
+      isPinching = false;
       lastPointerMoveTime = performance.now();
       lastPointerPos = { x: e.clientX, y: e.clientY };
       velocity = { x: 0, y: 0 };
     } else if (activePointers.size === 2) {
       const points = Array.from(activePointers.values());
-      touchStartDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-      touchStartZoom = zoomLevel;
-      touchStartMid = {
+      pinchPrevDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      pinchPrevMid = {
         x: (points[0].x + points[1].x) / 2,
         y: (points[0].y + points[1].y) / 2
       };
       hasMovedSignificantly = true;
+      isPinching = true;
       isPanningCanvas = false;
       velocity = { x: 0, y: 0 };
     }
   }
 
-  // 畫布指針移動：支援單指平移、雙指捏合縮放 (Pinch-to-zoom)
+  // 畫布指針移動：支援單指平移、雙指捏合縮放 (Google Maps 式連續增量捏合與焦點錨定)
   function handleCanvasPointerMove(e: PointerEvent) {
     if (!activePointers.has(e.pointerId)) return;
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -640,8 +641,9 @@
       return;
     }
 
-    // 2. 雙指捏合縮放 (Pinch-to-zoom with Focal Center)
+    // 2. 雙指捏合縮放 (Pinch-to-zoom with Focal Center Anchor - Google Maps 增量演算法)
     if (activePointers.size === 2) {
+      isPinching = true;
       const points = Array.from(activePointers.values());
       const currentDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
       const currentMid = {
@@ -649,34 +651,36 @@
         y: (points[0].y + points[1].y) / 2
       };
 
-      if (touchStartDist > 0 && canvasViewportEl) {
-        const ratio = currentDist / touchStartDist;
-        const targetZoom = Math.max(30, Math.min(220, Math.round(touchStartZoom * ratio)));
+      if (pinchPrevDist > 0 && canvasViewportEl) {
+        const scaleDelta = currentDist / pinchPrevDist;
+        const currentZoom = zoomLevel;
+        // 支援浮點精度縮放，消除整數跳變導致的畫面抖動與閃爍
+        const targetZoom = Math.max(30, Math.min(220, currentZoom * scaleDelta));
+        const effectiveRatio = targetZoom / currentZoom;
 
-        if (targetZoom !== zoomLevel) {
-          const rect = canvasViewportEl.getBoundingClientRect();
-          const mouseOffsetX = currentMid.x - (rect.left + rect.width / 2);
-          const mouseOffsetY = currentMid.y - (rect.top + rect.height / 2);
-          const zoomRatio = targetZoom / zoomLevel;
+        // 計算雙指幾何中心相對於視口中心的偏移
+        const rect = canvasViewportEl.getBoundingClientRect();
+        const focalOffsetX = currentMid.x - (rect.left + rect.width / 2);
+        const focalOffsetY = currentMid.y - (rect.top + rect.height / 2);
 
-          panX = Math.round(panX * zoomRatio - mouseOffsetX * (zoomRatio - 1));
-          panY = Math.round(panY * zoomRatio - mouseOffsetY * (zoomRatio - 1));
-          zoomLevel = targetZoom;
-        }
+        // 幾何焦點錨定計算：縮放補償 + 雙指中心即時平移
+        const dMidX = currentMid.x - pinchPrevMid.x;
+        const dMidY = currentMid.y - pinchPrevMid.y;
 
-        const dMidX = currentMid.x - touchStartMid.x;
-        const dMidY = currentMid.y - touchStartMid.y;
-        panX += dMidX * 0.5;
-        panY += dMidY * 0.5;
-        touchStartMid = currentMid;
+        panX = panX * effectiveRatio - focalOffsetX * (effectiveRatio - 1) + dMidX;
+        panY = panY * effectiveRatio - focalOffsetY * (effectiveRatio - 1) + dMidY;
+        zoomLevel = targetZoom;
       }
+
+      pinchPrevDist = currentDist;
+      pinchPrevMid = currentMid;
       return;
     }
 
     // 3. 單指平移畫布 (Pan)
     if (activePointers.size === 1 && isPanningCanvas) {
       const moveDist = Math.hypot(e.clientX - pointerStartPos.x, e.clientY - pointerStartPos.y);
-      if (moveDist > 8) {
+      if (moveDist > 6) {
         hasMovedSignificantly = true;
       }
 
@@ -696,7 +700,7 @@
     }
   }
 
-  // 畫布指針放開：處理慣性物理滑行或單擊/雙擊事件
+  // 畫布指針放開：處理慣性物理滑行、雙指轉單指無縫接軌或單擊/雙擊事件
   function handleCanvasPointerUp(e: PointerEvent) {
     try {
       (e.currentTarget as HTMLElement)?.releasePointerCapture?.(e.pointerId);
@@ -705,6 +709,7 @@
     activePointers.delete(e.pointerId);
 
     if (activePointers.size === 0) {
+      isPinching = false;
       if (hasMovedSignificantly) {
         startInertia();
       } else {
@@ -712,9 +717,14 @@
       }
       isPanningCanvas = false;
     } else if (activePointers.size === 1) {
+      isPinching = false;
+      // 雙指捏合縮放後放開一指：無縫接軌為單指平移
       const remaining = Array.from(activePointers.values())[0];
+      pointerStartPos = { ...remaining };
       startCanvasPanX = remaining.x - panX;
       startCanvasPanY = remaining.y - panY;
+      hasMovedSignificantly = true;
+      isPanningCanvas = true;
       lastPointerMoveTime = performance.now();
       lastPointerPos = { ...remaining };
       velocity = { x: 0, y: 0 };
@@ -723,6 +733,7 @@
 
   function handleCanvasPointerCancel(e: PointerEvent) {
     activePointers.delete(e.pointerId);
+    isPinching = false;
     isPanningCanvas = false;
     stopInertia();
   }
@@ -1768,7 +1779,7 @@
               class="px-2 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#FEC486] hover:text-[#FFA552] text-xs font-bold rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
               title="重設為 1:1 標準比例 (100%)"
             >
-              <span>{zoomLevel}%</span>
+              <span>{Math.round(zoomLevel)}%</span>
             </button>
 
             <!-- 放大按鈕 -->
@@ -1848,11 +1859,14 @@
           style="
             width: {GALAXY_CANVAS_SIZE}px;
             height: {GALAXY_CANVAS_SIZE}px;
-            transform: translate({panX}px, {panY}px) scale({zoomLevel / 100});
+            transform: translate3d({panX}px, {panY}px, 0) scale({zoomLevel / 100});
             transform-origin: center center;
+            will-change: transform;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
             transition: {isFlying
               ? 'transform 650ms cubic-bezier(0.16, 1, 0.3, 1)'
-              : isPanningCanvas || draggingArtistId || isWheelZooming
+              : isPanningCanvas || isPinching || draggingArtistId || isWheelZooming
               ? 'none'
               : 'transform 80ms ease-out'};
           "
@@ -1893,14 +1907,13 @@
             <!-- 1. 太陽母星三大層級星雲氣旋與天文星盤軌道環 (480px 領地輝光) -->
             {#each hierarchicalData.suns as sun}
               {@const isSunActive = activeSectorFilter === sun.key || activeSectorFilter === 'all'}
-              <!-- 巨集星雲光暈領地 (Radius 480px) 加上微擾動濾鏡消除純平滑色帶 -->
+              <!-- 巨集星雲光暈領地 (Radius 480px)：以純 5 階漸層渲染日冕，避免行動裝置 GPU 縮放時引發 feDisplacementMap 紋理崩潰閃爍 -->
               <circle
                 cx={sun.x}
                 cy={sun.y}
                 r="480"
                 fill="url(#sun-glow-{sun.key})"
                 opacity={isSunActive ? 0.95 : 0.16}
-                filter="url(#nebula-dust-filter)"
                 class="transition-opacity duration-500"
               />
               <!-- 精密天文度盤外刻度環 (Radius 210px) -->
