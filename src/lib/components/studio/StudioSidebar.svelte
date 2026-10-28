@@ -145,7 +145,10 @@
   });
 </script>
 
-<aside class="fixed left-0 top-0 h-full {isCollapsed ? 'w-16' : 'w-60'} bg-chassis/95 backdrop-blur-xl border-r border-wire z-40 flex flex-col justify-between select-none transition-[width] duration-300 ease-in-out overflow-hidden">
+<aside
+  class="fixed left-0 top-0 h-full {isCollapsed ? 'w-16' : 'w-60'} bg-chassis/98 border-r border-wire z-40 flex flex-col justify-between select-none transition-[width] duration-300 ease-in-out overflow-hidden"
+  style="transform: translateZ(0); -webkit-transform: translateZ(0);"
+>
   <div>
     <!-- 頂部系統狀態模組 (動態連動 AI 解剖佇列) -->
     {#if isCollapsed}

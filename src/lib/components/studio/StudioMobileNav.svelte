@@ -70,8 +70,8 @@
 <!-- 行動端底部發燒友機架導航欄 (僅在螢幕寬度小於 lg 時顯示) -->
 <nav
   aria-label="行動端模組導航"
-  class="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-void/95 backdrop-blur-xl border-t border-wire shadow-[0_-4px_24px_rgba(0,0,0,0.85)] font-mono select-none"
-  style="padding-bottom: env(safe-area-inset-bottom, 0px);"
+  class="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-void/98 border-t border-wire shadow-[0_-4px_24px_rgba(0,0,0,0.85)] font-mono select-none"
+  style="padding-bottom: env(safe-area-inset-bottom, 0px); transform: translateZ(0); -webkit-transform: translateZ(0);"
 >
   <div class="grid grid-cols-6 h-14 items-stretch">
     {#each NAV_ITEMS as item}

@@ -1495,7 +1495,7 @@
   </div>
 {/snippet}
 
-<div class="relative w-full h-[calc(100dvh-5.25rem)] min-h-[580px] text-[#EEF0F2] select-none rounded-[6px] border border-[#1F2228] overflow-hidden bg-[#040507] shadow-2xl flex flex-col">
+<div class="relative w-full h-full min-h-0 text-[#EEF0F2] select-none rounded-[6px] border border-[#1F2228] overflow-hidden bg-[#040507] shadow-2xl flex flex-col">
   <!-- 滿版深空畫布視口 (Edge-to-Edge Cosmic Viewport) -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
@@ -1865,6 +1865,17 @@
               <HelpCircle class="w-3.5 h-3.5 text-[#FEC486]" />
             </button>
           </div>
+
+          <!-- 微型法律合規條款標籤 (Google Maps 式右下角輕量連結，不佔據文檔高度) -->
+          <div class="hidden sm:flex items-center gap-2 pr-1 font-mono text-[9px] text-[#52565E]">
+            <a
+              href="/privacy"
+              class="hover:text-[#FEC486] transition-colors"
+              title="隱私權政策與服務條款 (Privacy Policy & Terms)"
+            >
+              PRIVACY & TERMS
+            </a>
+          </div>
         </div>
 
         <!-- 宇宙深空本體 (2600 x 2600 空間，Google Map 式航行平滑過渡) -->
@@ -2159,7 +2170,7 @@
 
               <!-- 外部懸浮完整子流派全名標籤 (不遮擋、不裁切) -->
               <div
-                class="absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 z-35 pointer-events-none px-2 py-0.5 rounded-[3px] bg-[#080A0F]/90 backdrop-blur-md border border-[#262C38] shadow-md text-center whitespace-nowrap max-w-[130px] group-hover:border-[#FEC486]/60 transition-colors"
+                class="absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 z-35 pointer-events-none px-2 py-0.5 rounded-[3px] bg-[#080A0F]/96 border border-[#262C38] shadow-md text-center whitespace-nowrap max-w-[130px] group-hover:border-[#FEC486]/60 transition-colors"
               >
                 <span class="font-serif text-[10px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486] leading-tight block truncate">
                   {sub.name}
@@ -2302,7 +2313,7 @@
                   class="absolute top-[calc(100%+5px)] left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center transition-all duration-200 {isSelected ? 'scale-105' : 'group-hover:scale-105'}"
                 >
                   <div
-                    class="px-2 py-0.5 rounded-[3px] bg-[#07090E]/92 backdrop-blur-md border {isSelected
+                    class="px-2 py-0.5 rounded-[3px] bg-[#07090E]/96 border {isSelected
                       ? 'border-[#FEC486] shadow-[0_2px_10px_rgba(254,196,134,0.35)]'
                       : 'border-[#262C38] group-hover:border-[#FEC486]/70'} shadow-lg flex flex-col items-center text-center whitespace-nowrap max-w-[140px] transition-colors"
                   >
@@ -2487,7 +2498,17 @@
 
               <!-- 彈窗底部狀態列 -->
               <div class="flex items-center justify-between border-t border-[#1F232E] pt-3 font-mono text-[11px] text-[#8E9298]">
-                <span>提示：隨時按下 <kbd class="px-1.5 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> 鍵可開啟或關閉本手冊</span>
+                <div class="flex items-center gap-2 text-[10px]">
+                  <span>隨時按 <kbd class="px-1 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> 開關</span>
+                  <span class="text-[#2B303C]">|</span>
+                  <a
+                    href="/privacy"
+                    class="hover:text-[#FEC486] underline transition-colors"
+                    title="檢視隱私權政策與服務條款"
+                  >
+                    隱私權與條款 (Privacy & Terms)
+                  </a>
+                </div>
                 <button
                   type="button"
                   onclick={() => (showGuideModal = false)}

@@ -156,7 +156,10 @@
   });
 </script>
 
-<header class="fixed top-0 left-0 {isSidebarCollapsed ? 'lg:left-16' : 'lg:left-60'} right-0 h-16 z-30 bg-void/90 backdrop-blur-md border-b border-wire flex items-center justify-between px-2.5 sm:px-6 transition-[left] duration-300 ease-in-out">
+<header
+  class="fixed top-0 left-0 {isSidebarCollapsed ? 'lg:left-16' : 'lg:left-60'} right-0 h-16 z-30 bg-void/98 border-b border-wire flex items-center justify-between px-2.5 sm:px-6 transition-[left] duration-300 ease-in-out"
+  style="transform: translateZ(0); -webkit-transform: translateZ(0);"
+>
   <!-- 品牌銘牌 -->
   <div class="flex items-center gap-2 sm:gap-6 shrink-0">
     <div class="flex items-baseline gap-2 sm:gap-3">

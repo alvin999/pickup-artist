@@ -638,7 +638,7 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<div class="min-h-screen bg-void text-ink flex flex-col font-sans bg-dot-matrix selection:bg-signal selection:text-white">
+<div class="min-h-screen {activeStudioView === 'honeycomb-cluster' ? 'h-dvh overflow-hidden' : ''} bg-void text-ink flex flex-col font-sans bg-dot-matrix selection:bg-signal selection:text-white">
   <!-- 429 冷卻倒數提示條 (Rate Limit Cooldown Banner) -->
   {#if queueState.status === 'cooling_down'}
     <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-[#17110e] border border-amber-500 text-amber-200 rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(245,158,11,0.35)] flex items-center gap-2.5 animate-in fade-in">
@@ -733,9 +733,9 @@
     ontoggleSidebar={toggleSidebar}
   />
 
-  <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移) -->
-  <div class="{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out">
-    <main class="flex-1 {activeStudioView === 'honeycomb-cluster' ? 'p-1 sm:p-2 pb-20 lg:pb-2' : 'p-3 sm:p-4 md:p-6 pb-20 lg:pb-6'} w-full">
+  <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移，星系視圖鎖定視窗高度) -->
+  <div class="{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out {activeStudioView === 'honeycomb-cluster' ? 'h-[calc(100dvh-4rem)] overflow-hidden' : ''}">
+    <main class="flex-1 {activeStudioView === 'honeycomb-cluster' ? 'p-1 sm:p-2 pb-16 lg:pb-2 h-full overflow-hidden' : 'p-3 sm:p-4 md:p-6 pb-20 lg:pb-6'} w-full">
       <!-- Session 過期引導橫幅 (Local-First Fallback & One-Click Re-Auth) -->
       {#if cloudSyncState.status === 'session_expired'}
         <div class="mb-4 p-3.5 bg-[#1a150e]/95 border border-amber-500/50 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 font-mono text-xs shadow-lg backdrop-blur-sm animate-fadeIn">
@@ -869,10 +869,12 @@
       {/if}
     </main>
 
-    <!-- Google OAuth / Google APIs Terms & AI NCII 合規性宣告頁尾 -->
-    <div class="px-3 sm:px-4 md:px-6">
-      <StudioFooter />
-    </div>
+    <!-- Google OAuth / Google APIs Terms & AI NCII 合規性宣告頁尾 (星系全螢幕漫遊視圖隱藏以保證電腦端滿版沈浸與零垂直滾動) -->
+    {#if activeStudioView !== 'honeycomb-cluster'}
+      <div class="px-3 sm:px-4 md:px-6">
+        <StudioFooter />
+      </div>
+    {/if}
   </div>
 
   <!-- 行動端底部發燒友機架導航 (螢幕寬度小於 1024px 時常駐) -->
