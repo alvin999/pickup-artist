@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
 		<meta name="theme-color" content="#08090A" />
-		<meta name="description" content="Pickup Artist (大音悉聲) - Local-first artist intelligence, music curation, and audiophile workstation." />
+		<meta name="description" content="Pickup Artist (大音悉聲) - Local-first personal music curation, vinyl record cataloging, and audiophile crate digger workstation. Strictly compliant with Google APIs Terms of Service and does not use Google APIs for AI-generated Non-Consensual Intimate Imagery (AI NCII)." />
 		<!-- Google Search Console 網站擁有權驗證標記 -->
 		<meta name="google-site-verification" content="ldccKpI493LNTxM6J513jQLzExmt1Ui49YRkkI8kADE" />
 		<title>大音悉聲 · Pickup Artist (PUA)</title>
@@ -30,5 +30,15 @@
 	</head>
 	<body data-sveltekit-preload-data="hover" class="bg-[#050505] text-[#f4f4f6] antialiased selection:bg-[#ff2a3c] selection:text-white bg-dot-matrix">
 		<div style="display: contents">%sveltekit.body%</div>
+
+		<!-- 供無 JS 爬蟲與安全稽核直接抓取之合規規格宣告 (不佔用有 JS 時的正常佈局高度) -->
+		<noscript>
+			<div style="padding: 16px; font-family: monospace; font-size: 10px; color: #8e94a0; background: #050505; border-top: 1px solid #1a1d24;">
+				<p><strong>PICKUP ARTIST (大音悉聲)</strong> - Local-first vinyl curation, music cataloging, and audiophile listening log workstation.</p>
+				<p><strong>APPLICATION PURPOSE:</strong> Personal music library &amp; vinyl record cataloging. All data stored in IndexedDB.</p>
+				<p><strong>GOOGLE APIS &amp; AI NCII:</strong> Uses <code>drive.appdata</code> solely for JSON catalog backups. Strictly complies with Google APIs Terms of Service and does not use Google APIs for AI NCII (AI-generated Non-Consensual Intimate Imagery).</p>
+				<p><a href="/privacy" style="color: #ff2a3c;">Privacy Policy &amp; Terms of Service</a></p>
+			</div>
+		</noscript>
 	</body>
 </html>
