@@ -1270,11 +1270,11 @@
           </div>
         {/if}
 
-        <!-- 推薦專輯卡片矩陣 -->
+        <!-- 代表作品卡片矩陣 -->
         {#if artist.analysis.notableAlbums && artist.analysis.notableAlbums.length > 0}
           <div>
             <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1.5">
-              推薦唱片精選 (Notable Works)
+              代表作品精選 (Notable Works)
             </h4>
             <div class="flex flex-col gap-2">
               {#each artist.analysis.notableAlbums as album}

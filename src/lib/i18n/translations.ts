@@ -26,7 +26,7 @@ export const translations = {
     spec_hires: 'Hi-Res 24/96',
     spec_lossless: 'Lossless',
     spec_dr: '動態範疇',
-    spec_vinyl: '黑膠母帶',
+    spec_vinyl: '類比母帶',
     
     // 操作按鈕
     action_open_apple_music: '在 Apple Music 開啟',
@@ -38,7 +38,7 @@ export const translations = {
     
     // 詳情抽屜
     dossier_biography: '創作脈絡與時代精神',
-    dossier_albums: '經典代表專輯',
+    dossier_albums: '代表作品精選',
     dossier_acoustics: '演奏特色與曲義精神',
     dossier_similar: '相似風格系譜',
     dossier_personal_notes: '私藏聆聽筆記',
@@ -76,7 +76,7 @@ export const translations = {
     
     status_inbox: 'INBOX',
     status_analyzed: 'ANALYZED',
-    tab_all: 'All Crates',
+    tab_all: 'All Artists',
     tab_inbox: 'Fast Inbox',
     tab_analyzed: 'Dossier Vault',
     search_placeholder: 'Search artists, genres, or aliases...',
@@ -84,7 +84,7 @@ export const translations = {
     spec_hires: 'Hi-Res 24/96',
     spec_lossless: 'Lossless',
     spec_dr: 'Dynamic Range',
-    spec_vinyl: 'Vinyl Matrix',
+    spec_vinyl: 'Analog Master',
     
     action_open_apple_music: 'Open in Apple Music',
     action_analyze_ai: 'AI Sonic Analysis',
@@ -94,7 +94,7 @@ export const translations = {
     action_sync: 'Sync Vault',
     
     dossier_biography: 'Creative Philosophy & Evolution',
-    dossier_albums: 'Notable Discography',
+    dossier_albums: 'Notable Works',
     dossier_acoustics: 'Performance Nuance & Lyrical Depth',
     dossier_similar: 'Related Lineage',
     dossier_personal_notes: 'Listening Journal',
@@ -138,7 +138,7 @@ export const translations = {
     spec_hires: 'Hi-Res 24/96',
     spec_lossless: 'ロスレス',
     spec_dr: 'ダイナミックレンジ',
-    spec_vinyl: 'アナログ原盤',
+    spec_vinyl: 'アナログマスター',
     
     action_open_apple_music: 'Apple Musicで開く',
     action_analyze_ai: 'AI音響解析',
@@ -148,7 +148,7 @@ export const translations = {
     action_sync: 'クラウド同期',
     
     dossier_biography: '音響の変遷と創作の軌跡',
-    dossier_albums: '代表的アルバム群',
+    dossier_albums: '代表作品群',
     dossier_acoustics: '演奏の美学と楽曲精神',
     dossier_similar: '関連アーティスト系譜',
     dossier_personal_notes: '試聴ノート',

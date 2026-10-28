@@ -11,6 +11,9 @@ export interface NotableAlbum {
   dynamicRangeScore?: number;             // DR 動態值 (如 14+)
 }
 
+/** 語意別名：本專案以 Artist 為本體核心，notableAlbums 投影為藝人代表作品 (Notable Works) */
+export type NotableWork = NotableAlbum;
+
 // 蜂巢 8 軸全景星系羅盤 (Level 1 固定大板塊)
 export type AcousticSector =
   | 'ROCK'        // 0°: 搖滾 (含 Indie Rock, Math Rock, Post-Rock, Prog)
@@ -73,12 +76,12 @@ export interface ArtistEntry {
   audiophileGrade?: 'Reference' | 'Hi-Res Lossless' | 'Standard';
   dynamicRange?: number;           // DR 分數（例如 14）
   
-  // 發燒友唱片架與刻號欄位 (Crate Digger Spec)
+  // 發燒友發行規格與識別欄位 (Audiophile Release Spec)
   catalogNumber?: string;          // 例如 'CAT# XQIF-1003'
   runoutMatrix?: string;           // 例如 'RUNOUT: A-1 SST'
   formatSpec?: string;             // 例如 'DR 14 // 96kHz 24bit'
   fileSize?: string;               // 例如 '1.18 GB FLAC'
-  coverImage?: string;             // 專輯或藝人封面
+  coverImage?: string;             // 藝人或代表作品封面
   countryCode?: string;            // 產地/版本標記 (如 'JP', 'TW', 'US', 'NO')
   
   // 藝人歷史時空與音樂史定位 (Artist Origin & Canon Telemetry)
@@ -95,7 +98,7 @@ export interface ArtistEntry {
   // 聆賞手札擴充 (Listening Journal)
   listeningContext?: {
     scene?: 'headphone' | 'speaker' | 'on-the-go' | 'night-solitude'; // 極簡聆聽情境 (最低限度)
-    pickedAlbums?: string[];       // 點選喜愛的代表專輯名稱 (源自 notableAlbums)
+    pickedAlbums?: string[];       // 點選喜愛的代表作品名稱 (源自 notableAlbums)
     favoriteTracks?: string[];     // 心頭好曲目 (點擊標記或自填)
     moodTags?: string[];           // 氛圍標籤 (點擊即選)
     lastLoggedAt?: number;         // 最後記述時間戳

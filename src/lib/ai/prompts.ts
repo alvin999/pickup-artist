@@ -56,9 +56,9 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
 1. subGenre: 代表性二級風格子流派。
 2. summary: 創作靈魂、精神核心、時代文化背景與生命哲學（約 150-250 字）。
 3. instrumentationNotes: 【演奏特色與曲義精神】專注於演奏手感、樂器對位對話、留白美學與歌曲核心曲義哲思。
-4. notableAlbums: 推薦 2 張代表性專輯：
-   - tier "milestone": 生涯藝術精神巔峰代表作（理解其哲學的基石）。
-   - tier "hidden-treasure": 具備深刻人文意境或獨特演奏神采之作（含 rarityReason 藝術堅持與背景、audiophileHighlight 演奏神髓或曲義精華）。
+4. notableAlbums: 推薦 2 部代表性作品：
+   - tier "milestone": 時代基石，定義其藝術巔峰或哲學核心之作。
+   - tier "hidden-treasure": 深埋寶藏，具備獨特演奏神采或深刻探索性之作。
 5. aliases: 客觀收錄該音樂人所有正式的多語異名（包含本國母語原生書寫表記、國際通用標準羅馬化表記、官方英文藝名或代表性稱號）。
 6. Output MUST be a single strictly valid JSON object matching the requested keys without markdown fences.`;
 
@@ -66,7 +66,7 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
   let disambiguationNotice = '';
   if (context && (context.albumTitle || context.releaseYear || context.genre)) {
     const details = [
-      context.albumTitle ? `代表作/專輯：《${context.albumTitle}》` : '',
+      context.albumTitle ? `代表作品：《${context.albumTitle}》` : '',
       context.releaseYear ? `活躍/發行年代：${context.releaseYear}` : '',
       context.genre ? `主要領域/曲風：${context.genre}` : ''
     ].filter(Boolean).join('、');
@@ -99,13 +99,13 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
   "similarArtists": ["精神或美學相通的音樂人 1", "音樂人 2", "音樂人 3", "音樂人 4"],
   "notableAlbums": [
     {
-      "title": "里程碑經典專輯名",
+      "title": "核心推薦作品名稱",
       "year": "年份",
       "tier": "milestone",
       "description": "理解其音樂哲學與精神核心的必備基石。"
     },
     {
-      "title": "深埋私藏瑰寶專輯名",
+      "title": "深埋寶藏作品名稱",
       "year": "年份",
       "tier": "hidden-treasure",
       "description": "具備深厚人文意境或演奏神采之深刻作解析。",
@@ -171,10 +171,10 @@ Respond in valid JSON format:
 }
 
 /**
- * 推薦更多代表盤與深刻寶藏專用 Prompt
+ * 推薦更多代表作品與深刻寶藏專用 Prompt
  * 
  * 設計意圖與架構決策 (Why & Design Trade-offs)：
- * 1. 注入既有已收錄專輯（excludeAlbums），確保 AI 挖掘該藝人生涯中其他未收錄的藝術精品或私藏代表作。
+ * 1. 注入既有已收錄作品（excludeAlbums），確保 AI 挖掘該藝人生涯中其他未收錄的藝術精品或私藏代表作。
  * 2. 嚴禁負面約束與具體範例，全數採用正向規則與格式抽象定義，確保 Harness 穩定。
  * 3. 純 JSON 輸出，維持低 Token 消耗與高解析穩定性。
  */
@@ -190,15 +190,15 @@ export function buildMoreNotableAlbumsPrompt(
 } {
   const languageRules =
     locale === 'zh-TW'
-      ? `請以繁體中文撰寫說明、創作背景與演奏曲義精華；專輯名稱請維持其官方原始發行名稱。`
+      ? `請以繁體中文撰寫說明、創作背景與演奏曲義精華；作品名稱請維持其官方原始發行名稱。`
       : locale === 'ja'
-      ? `解説・創作背景・演奏特性は日本語で記述し、アルバム名は公式表記を維持してください。`
-      : `Write descriptions and performance highlights in English; maintain official album titles.`;
+      ? `解説・創作背景・演奏特性は日本語で記述し、作品名は公式表記を維持してください。`
+      : `Write descriptions and performance highlights in English; maintain official work or album titles.`;
 
-  const systemPrompt = `You are an insightful music discography archivist and researcher for "Pickup Artist (大音悉聲)".
-Your mission is to explore and recommend 2 to 3 ADDITIONAL standout albums for the artist "${artistName}".
+  const systemPrompt = `You are an insightful musicologist and artistic archivist for "Pickup Artist (大音悉聲)".
+Your mission is to explore and recommend 2 to 3 ADDITIONAL standout works for the artist "${artistName}".
 
-【雙軌唱片推薦標準】
+【雙軌代表作推薦標準】
 1. 【時代基石 (milestone)】：定義其音樂生涯分水嶺、精神核心或代表性經典之作。
 2. 【深埋寶藏 (hidden-treasure)】：挖掘具備深刻人文意境、演奏神采或深刻探索性的代表作。
 3. ${languageRules}
@@ -211,20 +211,20 @@ Your mission is to explore and recommend 2 to 3 ADDITIONAL standout albums for t
   ].filter(Boolean).join('、');
 
   const cleanExclude = Array.from(new Set(excludeAlbums.map((t) => t.trim()).filter(Boolean))).slice(0, 30);
-  const excludeText = cleanExclude.length > 0 ? `\n【已收錄專輯清單】：\n${cleanExclude.join('、')}\n` : '';
+  const excludeText = cleanExclude.length > 0 ? `\n【已收錄作品清單】：\n${cleanExclude.join('、')}\n` : '';
 
-  const userPrompt = `Explore 2 to 3 additional notable albums or treasure records for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+  const userPrompt = `Explore 2 to 3 additional notable works or treasure releases for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
 Output format strictly matching:
 {
   "notableAlbums": [
     {
-      "title": "Album Title",
+      "title": "核心推薦作品名稱",
       "year": "年份",
       "tier": "milestone",
       "description": "簡明評述該作品之藝術成就與精神核心"
     },
     {
-      "title": "Hidden Gem Album Title",
+      "title": "深埋寶藏作品名稱",
       "year": "年份",
       "tier": "hidden-treasure",
       "description": "深刻藝術價值之作品解說",
@@ -262,14 +262,14 @@ export function buildListeningResonancePrompt(
 Your mission is to help a listener articulate their emotional connection with the music of "${artistName}".
 
 【人文美學與情感共振引領 (Positive Affirmative Guidance)】
-1. 深度同理與專屬呼應：將使用者描繪的每一處情緒、感官印記（如雨夜微涼、城市漫步、舊日時光或某段器樂音色）視為手札的靈魂，以真摯細膩的文筆將其昇華，展現專屬而深刻的心靈對話。
+1. 深度同理與專屬呼應：真摯回應使用者所描繪的真實心境感受與情緒印記，提煉細膩溫潤的心靈共鳴。
 2. 純粹文學與生活語境：聚焦於文字的呼吸感、詩意留白、情感撫慰與生活當下的共振。
 3. 契合選曲：精選與該心境特質最為呼應相通的代表曲目與氛圍標籤。
 4. ${languageRules}
 5. 請直接輸出標準結構的單一 JSON 物件。`;
 
   const albumsHint = availableAlbums.length > 0
-    ? `\n該藝人代表專輯參考：${availableAlbums.join('、')}`
+    ? `\n該藝人代表作品參考：${availableAlbums.join('、')}`
     : '';
 
   const notesHint = userNotes.trim().length > 0
@@ -281,10 +281,10 @@ ${notesHint}
 
 請輸出符合下列嚴格 JSON 格式：
 {
-  "userEchoQuote": "提煉使用者心境的簡短共鳴金句（約 15-25 字，例如：雨夜獨處時，被那段延遲吉他切開了思緒）",
+  "userEchoQuote": "提煉使用者心境的簡短共鳴金句（約 15-25 字）",
   "enhancedNote": "精煉的人文聽感隨筆（約 60-120 字，文字優雅溫潤，深刻呼應並昇華使用者的感觸）",
-  "recommendedTracks": ["代表曲1", "代表曲2"],
-  "moodTags": ["雨天沉思", "深夜獨處", "詩意吉他"],
+  "recommendedTracks": ["代表曲目名稱 1", "代表曲目名稱 2"],
+  "moodTags": ["心境氛圍標籤 1", "心境氛圍標籤 2", "風格特質標籤 3"],
   "suggestedScene": "night-solitude"
 }
 (備註：suggestedScene 僅限從 headphone, speaker, on-the-go, night-solitude 中擇一)`;

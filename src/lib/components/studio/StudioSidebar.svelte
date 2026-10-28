@@ -315,7 +315,7 @@
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'crate-digger' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-[18px]">album</span>
+            <span class="material-symbols-outlined text-[18px]">person</span>
             {#if !isCollapsed}
               <span>01_藝人展間</span>
             {/if}

@@ -10,7 +10,7 @@
       <div class="flex flex-wrap items-center gap-x-2 text-[#717682]">
         <span class="font-bold tracking-wider text-[#8e94a0]">PICKUP ARTIST</span>
         <span class="text-[#363a42]">/</span>
-        <span>Local-first Vinyl & Music Curation Workstation</span>
+        <span>Local-first Artist Knowledge & Music Curation Workstation</span>
         <span class="text-[#363a42]">/</span>
         <a
           href="/privacy"
@@ -26,7 +26,7 @@
 
     <!-- 微型安規與合規註腳 (如同音響後面板 FCC/CE 認證標記，低調內斂) -->
     <div class="text-[9px] text-[#464a52] flex flex-wrap items-center gap-x-2 pt-0.5">
-      <span>PURPOSE: Personal music library & vinyl records cataloging.</span>
+      <span>PURPOSE: Personal artist intelligence & music curation catalog.</span>
       <span class="text-[#2e323a]">|</span>
       <span>
         GOOGLE API & AI NCII: Uses <code class="text-[#606570]">drive.appdata</code> solely for JSON catalog backups. Strictly complies with Google APIs Terms of Service and does not use Google APIs for AI NCII (AI-generated Non-Consensual Intimate Imagery).

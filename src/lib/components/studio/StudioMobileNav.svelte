@@ -31,7 +31,7 @@
       id: 'crate-digger',
       num: '01',
       label: '展間',
-      icon: 'album'
+      icon: 'person'
     },
     {
       id: 'honeycomb-cluster',

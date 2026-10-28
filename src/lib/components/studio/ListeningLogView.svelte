@@ -719,12 +719,12 @@
               </div>
             {/if}
 
-            <!-- 方式 B: 手動鍵入自訂專輯名稱 (因無列舉或想自訂時) -->
+            <!-- 方式 B: 手動鍵入自訂作品名稱 (因無列舉或想自訂時) -->
             <div class="flex items-center gap-1.5">
               <input
                 type="text"
                 bind:value={modalCustomAlbumInput}
-                placeholder="手動填寫專輯名稱（例如：自選黑膠版、Live 現場盤...）後按 Enter"
+                placeholder="手動填寫作品名稱（例如：經典單曲、Live 現場版...）後按 Enter"
                 onkeydown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();

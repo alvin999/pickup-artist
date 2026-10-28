@@ -742,9 +742,9 @@
             </div>
           {:else}
             <div class="flex flex-col gap-1">
-              <div class="text-sm font-bold text-ink uppercase tracking-wider">黑膠展間尚無藝人收錄 // CRATE_STANDBY</div>
+              <div class="text-sm font-bold text-ink uppercase tracking-wider">藝人展間尚無收錄 // DOSSIER_STANDBY</div>
               <p class="text-xs text-ink-muted max-w-sm leading-relaxed">
-                點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一張聲學發燒友檔案解剖。
+                點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一位音樂人聲學檔案解剖。
               </p>
             </div>
           {/if}
@@ -1614,11 +1614,11 @@
               </div>
             </div>
 
-            <!-- 雙軌唱片挖掘：核心推薦專輯 ✕ 深埋發燒寶藏 (Dual-Track Archives) -->
+            <!-- 雙軌代表作精選：核心代表作品 ✕ 深埋發燒寶藏 (Dual-Track Works) -->
             {#if selectedArtist.analysis}
               <div class="font-mono flex flex-col gap-2">
                 <div class="flex items-center justify-between text-[10px]">
-                  <span class="text-ink-muted uppercase tracking-widest">// RECORD_ARCHIVES [推薦專輯 ✕ 深埋寶藏]</span>
+                  <span class="text-ink-muted uppercase tracking-widest">// ARTIST_WORKS [代表作品 ✕ 深埋寶藏]</span>
                   <div class="flex items-center gap-1.5">
                     {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
                       <span class="text-signal">0{selectedArtist.analysis.notableAlbums.length}_ENCODED</span>
@@ -1628,7 +1628,7 @@
                         type="button"
                         onclick={() => handleNextAlbumBatch(selectedArtist!.analysis!.notableAlbums.length)}
                         class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                        title="在已推薦專輯清單中輪播換一批"
+                        title="在已推薦作品清單中輪播換一批"
                       >
                         <span class="material-symbols-outlined text-[11px]">sync</span>
                         <span>換一批 ({Math.floor(albumOffset / 2) + 1}/{Math.ceil(selectedArtist.analysis.notableAlbums.length / 2)})</span>
@@ -1639,7 +1639,7 @@
                       onclick={() => onrecommendMoreAlbums?.(selectedArtist!)}
                       disabled={isRecommendingAlbums}
                       class="corner-cut-sm text-[9px] px-2 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="請 AI 深入唱片脈絡挖掘更多代表盤與發燒寶藏"
+                      title="請 AI 深入挖掘更多代表作品與發燒寶藏"
                     >
                       {#if isRecommendingAlbums}
                         <span class="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
@@ -1681,7 +1681,7 @@
                               type="button"
                               onclick={() => onaddToQueue?.(selectedArtist!, alb)}
                               class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                              title="將此盤加入聆賞隊列"
+                              title="加入聆賞隊列"
                             >
                               <span class="material-symbols-outlined text-[11px]">queue_music</span>
                               <span>+ 聆賞</span>
@@ -1722,7 +1722,7 @@
                   </div>
                 {:else}
                   <div class="border border-dashed border-wire p-3 text-center text-ink-dim text-[11px]">
-                    尚未收錄代表作品，點擊右上方「AI 推薦更多」進行唱片挖掘
+                    尚未收錄代表作品，點擊右上方「AI 推薦更多」進行探索
                   </div>
                 {/if}
               </div>
