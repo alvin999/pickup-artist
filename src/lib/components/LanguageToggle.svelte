@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { i18n, type SupportedLocale } from '$lib/i18n/index.svelte';
+  import { i18n, t, type SupportedLocale } from '$lib/i18n/index.svelte';
   import { ChevronDown } from 'lucide-svelte';
 
   const locales: { id: SupportedLocale; shortLabel: string; label: string }[] = [
     { id: 'zh-TW', shortLabel: '繁中', label: '繁體中文' },
     { id: 'en', shortLabel: 'EN', label: 'English' },
-    { id: 'ja', shortLabel: '日語', label: '日本語' }
+    { id: 'ja', shortLabel: '日本語', label: '日本語' }
   ];
 
   let isOpen = $state(false);
@@ -58,7 +58,7 @@
 <div
   bind:this={containerEl}
   role="region"
-  aria-label="語言切換選單"
+  aria-label={t('lang_aria_menu')}
   class="relative inline-block select-none"
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
@@ -70,7 +70,7 @@
       if (closeTimer) clearTimeout(closeTimer);
       isOpen = !isOpen;
     }}
-    title="切換介面語言 (Switch Language)"
+    title={t('lang_toggle_title')}
     class="flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-wire-bright text-ink-muted hover:text-ink font-mono text-[11px] rounded-[2px] transition-all cursor-pointer shadow-inner"
   >
     <span class="font-bold text-ink leading-none">{currentLocale.shortLabel}</span>
@@ -92,7 +92,7 @@
 
       <div class="bg-[#0c0d12]/95 backdrop-blur-xl border border-[#2b2d36] shadow-[0_8px_24px_rgba(0,0,0,0.85)] rounded-[2px] py-1">
         <div class="px-2.5 py-1 border-b border-wire/60 text-[9px] text-ink-dim uppercase tracking-wider flex items-center justify-between">
-          <span>LOCALE // 語系</span>
+          <span>{t('lang_header_label')}</span>
         </div>
 
         <div class="flex flex-col py-0.5">

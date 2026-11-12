@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Flame } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   interface Props {
     weight?: number;
@@ -54,18 +55,18 @@
   });
 
   const tierName = $derived.by(() => {
-    if (clampedWeight >= 100) return '超重恆星';
-    if (clampedWeight >= 70) return '氣態巨星';
-    if (clampedWeight >= 20) return '岩質星';
-    return '小行星';
+    if (clampedWeight >= 100) return t('gravity_tier_supergiant');
+    if (clampedWeight >= 70) return t('gravity_tier_gas_giant');
+    if (clampedWeight >= 20) return t('gravity_tier_terrestrial');
+    return t('gravity_tier_asteroid');
   });
 
   // 天體行星質量基準階級 (點擊快速吸附 Snap)
   const PLANET_TIERS = [
-    { label: '小行星', value: 1, min: 1, max: 19, color: '#8E9298' },
-    { label: '岩質星', value: 20, min: 20, max: 69, color: '#4080FF' },
-    { label: '氣態巨星', value: 70, min: 70, max: 99, color: '#FEC486' },
-    { label: '超重星', value: 100, min: 100, max: 100, color: '#FA383E' }
+    { labelKey: 'gravity_tier_asteroid', value: 1, min: 1, max: 19, color: '#8E9298' },
+    { labelKey: 'gravity_tier_terrestrial', value: 20, min: 20, max: 69, color: '#4080FF' },
+    { labelKey: 'gravity_tier_gas_giant', value: 70, min: 70, max: 99, color: '#FEC486' },
+    { labelKey: 'gravity_tier_supergiant_short', value: 100, min: 100, max: 100, color: '#FA383E' }
   ] as const;
 
   // 循環切換天體階級
@@ -207,7 +208,7 @@
         handleStep(e.shiftKey ? -5 : -1);
       }}
       class="w-4 h-4 flex items-center justify-center rounded-[2px] bg-void hover:bg-chassis border border-wire hover:border-signal text-ink-muted hover:text-signal text-[10px] font-bold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      title="調降引力 -1 (按住 Shift -5)"
+      title={t('gravity_dec_1')}
     >
       -
     </button>
@@ -225,7 +226,7 @@
       onpointermove={handlePointerMove}
       onpointerup={handlePointerUp}
       onpointercancel={handlePointerUp}
-      title="點擊、拖曳或滾輪微調天體引力質量 ({tierName})"
+      title={t('gravity_dial_title', { tier: tierName })}
     >
       <!-- 動態引力波微擴散環 (Shockwave) -->
       {#key rippleKey}
@@ -289,7 +290,7 @@
             }
           }}
         >
-          <title>點擊切換至氣態巨星 (W-70)</title>
+          <title>{t('gravity_switch_gas_giant')}</title>
         </circle>
 
         <!-- 類比機械旋轉指針 (Needle) -->
@@ -333,7 +334,7 @@
         }}
         {disabled}
         class="w-5 text-[10px] font-bold font-mono bg-transparent text-center outline-none p-0 m-0 {clampedWeight >= 70 ? 'text-[#FEC486]' : 'text-ink'}"
-        title="直接手動輸入 1~100 (按 Enter 確認，↑↓ 微調)"
+        title={t('gravity_manual_input_title')}
       />
     </div>
 
@@ -346,7 +347,7 @@
         handleStep(e.shiftKey ? 5 : 1);
       }}
       class="w-4 h-4 flex items-center justify-center rounded-[2px] bg-void hover:bg-chassis border border-wire hover:border-signal text-ink-muted hover:text-signal text-[10px] font-bold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      title="調升引力 +1 (按住 Shift +5)"
+      title={t('gravity_inc_1')}
     >
       +
     </button>
@@ -376,7 +377,7 @@
           }}
           class="px-1.5 py-0.2 rounded text-[9px] font-bold border transition-all cursor-pointer hover:brightness-125 active:scale-95"
           style="background-color: {clampedWeight >= 70 ? '#2E1E10' : '#101216'}; color: {tierColor}; border-color: {tierColor}40;"
-          title="點擊依序切換天體階級 (1 ➔ 20 ➔ 70 ➔ 100)"
+          title={t('gravity_cycle_tier_title')}
         >
           {tierName}
         </button>
@@ -399,7 +400,7 @@
       onpointermove={handlePointerMove}
       onpointerup={handlePointerUp}
       onpointercancel={handlePointerUp}
-      title="按住滑動、點擊刻度或滾輪微調"
+      title={t('gravity_slider_title')}
     >
       <!-- 引力震盪脈衝光環 (Breakthrough Flash) -->
       {#key rippleKey}
@@ -487,7 +488,7 @@
         >
           <circle cx="113.8" cy="22.6" r="3" fill="#FEC486" style="filter: drop-shadow(0 0 2px #FEC486);" class="group-hover/tick70:scale-125 transition-transform" />
           <text x="118" y="19" fill="#FEC486" font-size="7.5" font-family="JetBrains Mono" font-weight="bold" class="group-hover/tick70:underline">70</text>
-          <title>點擊直接切換至氣態巨星 (W-70)</title>
+          <title>{t('gravity_switch_gas_giant')}</title>
         </g>
 
         <!-- 類比指針 (Needle) -->
@@ -524,7 +525,7 @@
         {disabled}
         onclick={() => handleStep(-5)}
         class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-signal rounded border border-[#2B303C] hover:border-signal font-mono text-[11px] font-bold cursor-pointer transition-colors"
-        title="調降權重 -5"
+        title={t('gravity_dec_5')}
       >
         -5
       </button>
@@ -533,7 +534,7 @@
         {disabled}
         onclick={() => handleStep(-1)}
         class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-signal rounded border border-[#2B303C] hover:border-signal font-mono text-[11px] font-bold cursor-pointer transition-colors"
-        title="調降權重 -1"
+        title={t('gravity_dec_1_short')}
       >
         -1
       </button>
@@ -558,7 +559,7 @@
           {disabled}
           class="w-10 text-xs font-bold font-mono bg-transparent text-center outline-none p-0 m-0"
           style="color: {tierColor};"
-          title="直接手動輸入 1~100 (按 Enter 確認，↑↓ 微調)"
+          title={t('gravity_manual_input_title')}
         />
         <span class="text-[9px] text-[#52565E] font-normal select-none">/100</span>
       </div>
@@ -568,7 +569,7 @@
         {disabled}
         onclick={() => handleStep(1)}
         class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] hover:border-[#FEC486] font-mono text-[11px] font-bold cursor-pointer transition-colors"
-        title="調升權重 +1"
+        title={t('gravity_inc_1_short')}
       >
         +1
       </button>
@@ -577,7 +578,7 @@
         {disabled}
         onclick={() => handleStep(5)}
         class="flex-1 py-1 px-1 bg-[#14161B] hover:bg-[#1E222A] text-[#8E9298] hover:text-[#FEC486] rounded border border-[#2B303C] hover:border-[#FEC486] font-mono text-[11px] font-bold cursor-pointer transition-colors"
-        title="調升權重 +5"
+        title={t('gravity_inc_5')}
       >
         +5
       </button>
@@ -598,9 +599,9 @@
             ? 'bg-[#181B22] font-bold shadow-sm'
             : 'bg-transparent border-transparent text-[#686E7C] hover:bg-[#12141A] hover:text-[#EEF0F2]'}"
           style={isActive ? `border-color: ${pt.color}70; color: ${pt.color};` : ''}
-          title={`點擊切換至 ${pt.label} (W-${pt.value})`}
+          title={t('gravity_switch_preset_title', { tier: t(pt.labelKey), value: pt.value })}
         >
-          {pt.label} ({pt.value})
+          {t(pt.labelKey)} ({pt.value})
         </button>
       {/each}
     </div>

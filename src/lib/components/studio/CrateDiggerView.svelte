@@ -633,7 +633,7 @@
         class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-colors {activeFilter === 'inbox' ? 'border border-signal bg-signal-dim text-signal font-bold' : 'border border-wire bg-void text-ink-muted hover:border-ink hover:text-ink'}"
       >
         <span class="w-1.5 h-1.5 bg-signal"></span>
-        <span>INBOX_待解剖 [{inboxCount}]</span>
+        <span>{t('crate_inbox_btn', { count: inboxCount })}</span>
       </button>
 
       {#if inboxCount > 0 && onanalyzeAllInbox}
@@ -641,11 +641,11 @@
           type="button"
           onclick={onanalyzeAllInbox}
           disabled={isAnalyzing}
-          title="將所有待解剖藝人排入背景 AI 分析佇列（自動控管速率）"
+          title={t('crate_analyze_all_title')}
           class="flex items-center gap-1 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-all border border-signal/60 bg-signal/15 hover:bg-signal hover:text-white text-signal font-bold rounded-[2px] disabled:opacity-50"
         >
           <Sparkles class="w-3 h-3 {isAnalyzing ? 'animate-spin' : ''}" />
-          <span>{isAnalyzing ? 'AI 佇列解析中...' : `一鍵解剖全部 (${inboxCount})`}</span>
+          <span>{isAnalyzing ? t('crate_analyzing_queue') : t('crate_analyze_all_btn', { count: inboxCount })}</span>
         </button>
       {/if}
 
@@ -680,7 +680,7 @@
             type="button"
             onclick={() => (activeLetter = null)}
             class="hover:text-white cursor-pointer flex items-center"
-            title="清除首字母過濾"
+            title={t('crate_clear_initial_title')}
           >
             <span class="material-symbols-outlined text-[12px]">close</span>
           </button>
@@ -696,7 +696,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="快速快搜藝人..."
+          placeholder={t('crate_quick_search_placeholder')}
           class="bg-transparent text-ink placeholder-ink-dim text-[10px] font-mono outline-none w-24 sm:w-32 focus:w-40 transition-all"
         />
         {#if searchQuery}
@@ -704,7 +704,7 @@
             type="button"
             onclick={() => (searchQuery = '')}
             class="text-ink-dim hover:text-signal cursor-pointer flex items-center"
-            title="清除搜尋"
+            title={t('crate_clear_search_title')}
           >
             <span class="material-symbols-outlined text-[12px]">close</span>
           </button>
@@ -722,11 +722,11 @@
           style="color-scheme: dark;"
           class="bg-transparent {sortBy === 'recent' ? 'text-signal font-bold' : 'text-ink'} font-mono text-[10px] focus:outline-none cursor-pointer uppercase [color-scheme:dark]"
         >
-          <option value="recent" class="bg-[#0a0a0c] text-signal font-bold">RECENT_PLAY 最近聆聽</option>
-          <option value="weight" class="bg-[#0a0a0c] text-ink">GRAVITY_WEIGHT 引力權重 (1-100)</option>
-          <option value="cat" class="bg-[#0a0a0c] text-ink">CAT# 矩陣刻號</option>
-          <option value="dr" class="bg-[#0a0a0c] text-ink">DYNAMIC_RANGE 動態值</option>
-          <option value="audiophile" class="bg-[#0a0a0c] text-ink">AUDIOPHILE 發燒等級</option>
+          <option value="recent" class="bg-[#0a0a0c] text-signal font-bold">{t('crate_sort_recent')}</option>
+          <option value="weight" class="bg-[#0a0a0c] text-ink">{t('crate_sort_weight')}</option>
+          <option value="cat" class="bg-[#0a0a0c] text-ink">{t('crate_sort_cat')}</option>
+          <option value="dr" class="bg-[#0a0a0c] text-ink">{t('crate_sort_dr')}</option>
+          <option value="audiophile" class="bg-[#0a0a0c] text-ink">{t('crate_sort_audiophile')}</option>
         </select>
       </div>
     </div>
@@ -747,10 +747,10 @@
           {#if globalSearchQuery.trim()}
             <div class="flex flex-col items-center gap-2 max-w-md">
               <div class="text-sm font-bold text-ink uppercase tracking-wider">
-                未在收藏庫找到「<span class="text-signal">{globalSearchQuery.trim()}</span>」
+                {t('crate_search_not_found_pre')}<span class="text-signal">{globalSearchQuery.trim()}</span>{t('crate_search_not_found_post')}
               </div>
               <p class="text-xs text-ink-muted leading-relaxed">
-                發燒友檔案庫中尚未收錄此藝人。您可以直接透過 Apple Music 智慧檢索並知悉入庫，開啟發燒級深度聲學解剖。
+                {t('crate_search_not_found_desc')}
               </p>
               <button
                 type="button"
@@ -758,14 +758,14 @@
                 class="mt-2 px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-2 cursor-pointer shadow-[0_0_15px_rgba(255,42,60,0.35)]"
               >
                 <span class="material-symbols-outlined text-[16px]">person_add</span>
-                <span>立即知悉「{globalSearchQuery.trim()}」入庫</span>
+                <span>{t('crate_quick_pickup_btn', { query: globalSearchQuery.trim() })}</span>
               </button>
             </div>
           {:else}
             <div class="flex flex-col items-center gap-2 max-w-lg">
-              <div class="text-sm font-bold text-ink uppercase tracking-wider">藝人展間尚無收錄 // DOSSIER_STANDBY</div>
+              <div class="text-sm font-bold text-ink uppercase tracking-wider">{t('crate_empty_title')}</div>
               <p class="text-xs text-ink-muted leading-relaxed">
-                從零打造專屬你的發燒友音樂智庫。可以透過「聲學好手氣」隨機邂逅、前往「智慧推薦」依聆聽情境探勘，或直接輸入喜愛的音樂人開始解剖。
+                {t('crate_empty_desc')}
               </p>
               <div class="flex flex-wrap items-center justify-center gap-2.5 mt-3">
                 {#if onopenLuckyModal}
@@ -775,7 +775,7 @@
                     class="px-4 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.18)]"
                   >
                     <span>🎲</span>
-                    <span>聲學好手氣</span>
+                    <span>{t('crate_lucky_btn')}</span>
                   </button>
                 {/if}
                 {#if onopenRecommend}
@@ -785,7 +785,7 @@
                     class="px-4 py-2 bg-chassis hover:bg-ink hover:text-void text-ink border border-wire font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <span class="material-symbols-outlined text-[15px] text-signal">neurology</span>
-                    <span>06_智慧推薦</span>
+                    <span>{t('crate_recommend_btn')}</span>
                   </button>
                 {/if}
                 {#if onopenPickupModal}
@@ -795,7 +795,7 @@
                     class="px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
                   >
                     <span class="material-symbols-outlined text-[15px]">add</span>
-                    <span>手動知悉藝人</span>
+                    <span>{t('crate_manual_pickup_btn')}</span>
                   </button>
                 {/if}
               </div>
@@ -808,14 +808,14 @@
           <div class="xl:hidden mb-3 p-2 bg-[#101218] border border-signal/40 flex items-center justify-between text-xs font-mono rounded-[2px] shadow-sm animate-in fade-in">
             <div class="flex items-center gap-2 truncate">
               <span class="w-2 h-2 rounded-full bg-signal shrink-0 animate-pulse"></span>
-              <span class="text-ink truncate">已選取：<strong class="text-signal">{selectedArtist.name}</strong></span>
+              <span class="text-ink truncate">{t('crate_mobile_selected')}<strong class="text-signal">{selectedArtist.name}</strong></span>
             </div>
             <button
               type="button"
               onclick={() => (isMobileDrawerOpen = true)}
               class="shrink-0 px-2.5 py-1 bg-signal text-white font-bold text-[10px] uppercase tracking-wider rounded-[2px] hover:bg-white hover:text-void transition-colors cursor-pointer flex items-center gap-1"
             >
-              <span>展開解剖艙</span>
+              <span>{t('crate_mobile_open_dossier')}</span>
               <span class="material-symbols-outlined text-[13px]">open_in_full</span>
             </button>
           </div>
@@ -854,9 +854,9 @@
                     type="button"
                     onclick={(e) => handleConfirmCardDelete(e, artist.id)}
                     class="px-1.5 py-0.5 bg-signal text-white font-mono text-[9px] font-bold rounded-[2px] animate-pulse flex items-center gap-1 shadow-[0_0_8px_rgba(255,42,60,0.6)] cursor-pointer z-10"
-                    title="再次點擊以確認自展間移除此藝人"
+                    title={t('crate_card_confirm_delete_title')}
                   >
-                    <span>⚠️ 確認? ({cardDeleteCountdown}s)</span>
+                    <span>{t('crate_card_confirm_delete', { seconds: cardDeleteCountdown })}</span>
                   </button>
                 {:else}
                   {#if artist.status === 'analyzed' || artist.analysis}
@@ -868,7 +868,7 @@
                   <button
                     type="button"
                     onclick={(e) => handleStartCardDelete(e, artist.id)}
-                    title={`從展間移除 ${artist.name}`}
+                    title={t('crate_card_remove_title', { name: artist.name })}
                     class="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 text-ink-dim hover:text-signal transition-all cursor-pointer rounded-[2px] hover:bg-signal-dim/40 z-10"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
@@ -936,20 +936,20 @@
                       type="button"
                       disabled
                       class="px-2 py-0.5 bg-signal/25 border border-signal text-signal text-[9px] font-bold rounded-[2px] flex items-center gap-1 animate-pulse cursor-not-allowed shadow-[0_0_8px_rgba(255,42,60,0.5)]"
-                      title="AI 深度聲學解剖進行中"
+                      title={t('crate_status_analyzing_title')}
                     >
                       <Sparkles class="w-3 h-3 animate-spin text-signal" />
-                      <span>AI 解剖中...</span>
+                      <span>{t('crate_status_analyzing')}</span>
                     </button>
                   {:else if isQueued}
                     <button
                       type="button"
                       disabled
                       class="px-2 py-0.5 bg-panel border border-wire text-ink-muted text-[9px] font-bold rounded-[2px] flex items-center gap-1 cursor-not-allowed"
-                      title="已排入背景批次解剖佇列等候中"
+                      title={t('crate_status_queued_title')}
                     >
                       <span class="w-1.5 h-1.5 rounded-full bg-signal animate-ping"></span>
-                      <span>等候佇列中</span>
+                      <span>{t('crate_status_queued')}</span>
                     </button>
                   {:else}
                     <button
@@ -958,11 +958,11 @@
                         e.stopPropagation();
                         onanalyzeArtist(artist);
                       }}
-                      title="立即啟動此藝人的 AI 深度解剖"
+                      title={t('crate_status_analyze_title')}
                       class="px-2 py-0.5 bg-signal/15 hover:bg-signal border border-signal/50 hover:border-signal text-signal hover:text-white text-[9px] font-bold rounded-[2px] flex items-center gap-1 transition-all cursor-pointer group/btn shadow-[0_0_8px_rgba(255,42,60,0.15)] hover:shadow-[0_0_12px_rgba(255,42,60,0.4)]"
                     >
                       <Sparkles class="w-3 h-3 text-signal group-hover/btn:text-white transition-colors" />
-                      <span>啟動 AI 分析</span>
+                      <span>{t('crate_status_analyze_btn')}</span>
                     </button>
                   {/if}
                 {/if}
@@ -989,7 +989,7 @@
                       onopenInLog?.(artist.id);
                     }}
                     class="text-signal hover:text-white bg-signal/15 hover:bg-signal border border-signal/40 px-1.5 py-0.5 rounded-[2px] font-bold flex items-center gap-1 text-[9px] transition-all cursor-pointer group shadow-sm"
-                    title="點擊跳轉至此藝人的聆賞手札"
+                    title={t('crate_log_open_title')}
                   >
                     <span class="w-1.5 h-1.5 rounded-full bg-signal group-hover:bg-white animate-pulse"></span>
                     <span>LOGGED</span>
@@ -1003,7 +1003,7 @@
                       onopenInLog?.(artist.id);
                     }}
                     class="text-ink-dim hover:text-signal hover:bg-panel border border-transparent hover:border-wire px-1.5 py-0.5 rounded-[2px] text-[9px] transition-all cursor-pointer flex items-center gap-0.5"
-                    title="點擊為此藝人開啟第一篇手札"
+                    title={t('crate_log_new_title')}
                   >
                     <span>NO_LOG</span>
                     <PenLine class="w-2.5 h-2.5" />
@@ -1022,11 +1022,11 @@
                 class="py-8 text-center text-xs font-mono text-ink-dim flex items-center justify-center gap-2 border-t border-wire/40 mt-6"
               >
                 <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
-                <span>聲學檔案自動深勘加載中... ({displayedArtists.length} / {processedArtists.length})</span>
+                <span>{t('crate_loading_more', { shown: displayedArtists.length, total: processedArtists.length })}</span>
               </div>
             {:else if processedArtists.length > CHUNK_SIZE}
               <div class="py-6 text-center text-[10px] font-mono text-ink-dim/60 border-t border-wire/20 mt-6 tracking-widest uppercase">
-                // END_OF_ROSTER: 已加載全數 {processedArtists.length} 位音樂人檔案 //
+                {t('crate_end_of_roster', { total: processedArtists.length })}
               </div>
             {/if}
           </div>
@@ -1034,7 +1034,7 @@
           <!-- 側邊垂直微型字母索引軌道 (支援手機手勢滑動與桌面滑鼠拖曳) -->
           <nav
             bind:this={alphabetNavEl}
-            aria-label="藝人首字母快速索引"
+            aria-label={t('crate_initial_index_aria')}
             onpointerdown={handlePointerDown}
             onpointermove={handlePointerMove}
             onpointerup={handlePointerUp}
@@ -1045,7 +1045,7 @@
               type="button"
               data-letter="ALL"
               onclick={() => (activeLetter = null)}
-              title="顯示全數藝人"
+              title={t('crate_show_all_title')}
               class="w-5 py-0.5 mb-1 text-[8px] tracking-tighter text-center rounded-[1px] transition-colors cursor-pointer {activeLetter === null ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
             >
               ALL
@@ -1065,7 +1065,7 @@
                       activeLetter = isSelected ? null : letter;
                     }
                   }}
-                  title={count > 0 ? `${letter} (${count} 位藝人)` : `${letter} (無藝人)`}
+                  title={count > 0 ? t('crate_initial_count_title', { letter, count }) : t('crate_initial_empty_title', { letter })}
                   class="w-4 h-3.5 sm:h-4 flex items-center justify-center rounded-[1px] text-[8px] sm:text-[9px] leading-none transition-all cursor-pointer
                     {isSelected
                       ? 'bg-signal text-white font-bold shadow-[0_0_8px_rgba(255,42,60,0.5)] z-10'
@@ -1109,7 +1109,7 @@
         onclick={() => (isMobileDrawerOpen = false)}
         onkeydown={(e) => e.key === 'Escape' && (isMobileDrawerOpen = false)}
         class="xl:hidden fixed inset-0 bg-void/80 backdrop-blur-xs z-40 transition-opacity"
-        aria-label="收合解剖艙"
+        aria-label={t('crate_collapse_dossier_aria')}
       ></div>
     {/if}
 
@@ -1133,7 +1133,7 @@
             <div class="flex items-center justify-between">
               <span class="font-mono text-xs text-signal font-bold flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
-                <span>藝人發燒解剖艙 // DOSSIER</span>
+                <span>{t('crate_mobile_dossier_title')}</span>
               </span>
               <button
                 type="button"
@@ -1141,7 +1141,7 @@
                 class="px-2.5 py-1 bg-void hover:bg-signal-dim border border-wire hover:border-signal text-ink-muted hover:text-signal font-mono text-[10px] rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <span class="material-symbols-outlined text-[13px]">keyboard_arrow_down</span>
-                <span>收合面板</span>
+                <span>{t('crate_collapse_panel')}</span>
               </button>
             </div>
           </div>
@@ -1240,7 +1240,7 @@
             <div class="mt-3">
               <GravityGauge
                 variant="detailed"
-                label="聲學引力質量 (GRAVITY WEIGHT)"
+                label={t('crate_gravity_label')}
                 weight={selectedArtistWeight}
                 disabled={!onupdateWeight}
                 onchange={(w) => changeWeight(selectedArtist.id, w)}
@@ -1255,7 +1255,7 @@
                   <div class="flex items-center justify-between text-[10px] text-signal">
                     <span class="flex items-center gap-1.5 font-bold tracking-wider">
                       <span class="w-1.5 h-1.5 rounded-full bg-signal animate-ping"></span>
-                      AWAITING_AI_INGESTION // 等待資料解剖
+                      {t('crate_awaiting_ingestion')}
                     </span>
                     <span class="text-[9px] opacity-75">STANDBY</span>
                   </div>
@@ -1268,13 +1268,13 @@
                   >
                     <div class="flex items-center gap-2">
                       <Sparkles class="w-4 h-4 {isAnalyzing ? 'animate-spin text-white' : 'text-white'}" />
-                      <span>{isAnalyzing ? 'AI 深度解剖分析中...' : '啟動 AI 深度解剖'}</span>
+                      <span>{isAnalyzing ? t('crate_deep_analyzing') : t('crate_start_deep_analysis')}</span>
                     </div>
                     <span class="text-[10px] opacity-90">[GET_DATA ↗]</span>
                   </button>
 
                   <p class="text-[10px] text-ink-muted leading-relaxed font-sans">
-                    點擊以調用 AI 模型分析此藝人之聲學星系定位、風格脈絡與發燒推薦專輯。
+                    {t('crate_awaiting_desc')}
                   </p>
                 </div>
               {:else}
@@ -1284,10 +1284,10 @@
                     type="button"
                     onclick={() => onaddToQueue?.(selectedArtist)}
                     class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    title="將整位藝人加入聆賞隊列"
+                    title={t('crate_add_to_queue_title')}
                   >
                     <span class="material-symbols-outlined text-[14px]">queue_music</span>
-                    <span>+ 藝人排入隊列</span>
+                    <span>{t('crate_add_to_queue_btn')}</span>
                   </button>
 
                   <button
@@ -1295,10 +1295,10 @@
                     disabled={isAnalyzing}
                     onclick={() => onanalyzeArtist(selectedArtist)}
                     class="corner-cut flex items-center justify-center gap-1.5 px-3 py-2 bg-panel hover:bg-signal text-ink hover:text-white border border-wire font-mono text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    title="重新調用 AI 進行深度解剖分析"
+                    title={t('crate_reanalyze_title')}
                   >
                     <Sparkles class="w-3.5 h-3.5 text-signal" />
-                    <span>{isAnalyzing ? 'AI 深度掃描中...' : 'AI 深度解剖'}</span>
+                    <span>{isAnalyzing ? t('crate_reanalyze_loading') : t('crate_reanalyze_btn')}</span>
                   </button>
                 </div>
               {/if}
@@ -1577,7 +1577,7 @@
                     ></span>
                     <div>
                       <div class="text-sm font-bold text-ink leading-tight flex items-center gap-2">
-                        <span>{activeSectorDef?.nameTw || '等待星系掃描'}</span>
+                        <span>{activeSectorDef?.nameTw || t('crate_awaiting_scan_title')}</span>
                         <span class="text-[10px] text-ink-dim font-normal">({activeSectorDef?.id || 'STANDBY'})</span>
                       </div>
                       <span class="text-[10px] text-ink-muted block mt-0.5">
@@ -1596,16 +1596,16 @@
 
                 <!-- 完整聲學特徵描述 (清晰大字體不截斷) -->
                 <div>
-                  <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1">ACOUSTIC_PROFILE // 聲學特質</span>
+                  <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1">{t('crate_acoustic_profile_label')}</span>
                   <p class="text-xs text-ink-muted leading-relaxed font-sans">
-                    {activeSectorDef?.description || '尚未鎖定此藝人的聲學蜂巢坐標，點擊下方「AI 深度音樂學解剖」即可啟動全景分析。'}
+                    {activeSectorDef?.description || t('crate_acoustic_profile_empty')}
                   </p>
                 </div>
 
                 <!-- 代表子風格標籤群 (Sub-genre Pillars) -->
                 {#if activeSectorDef?.subGenreExamples && activeSectorDef.subGenreExamples.length > 0}
                   <div class="pt-2 border-t border-wire border-dashed">
-                    <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1.5">PILLAR_SUBGENRES // 代表子流派</span>
+                    <span class="text-[8px] text-ink-dim uppercase tracking-wider block mb-1.5">{t('crate_pillar_subgenres')}</span>
                     <div class="flex flex-wrap gap-1">
                       {#each activeSectorDef.subGenreExamples as subG}
                         <span class="text-[9px] px-2 py-0.5 bg-chassis border border-wire text-ink hover:border-signal hover:text-signal transition-colors">
@@ -1620,18 +1620,18 @@
                 <div class="pt-1 text-[9px] flex items-center justify-between text-ink-dim border-t border-wire/40">
                   {#if hoveredSectorId}
                     <span class="text-amber-400 flex items-center gap-1">
-                      <span>● 預覽模式</span>
-                      <span class="text-ink-dim">(滑鼠移開後自動返回本藝人坐標)</span>
+                      <span>● {t('crate_preview_mode')}</span>
+                      <span class="text-ink-dim">{t('crate_preview_hint')}</span>
                     </span>
                   {:else if selectedArtist.analysis?.sector}
                     <span class="text-emerald-400 flex items-center gap-1">
-                      <span>✓ 當前藝人所在星系板塊</span>
+                      <span>✓ {t('crate_current_sector_badge')}</span>
                       {#if selectedArtist.analysis.subGenre}
                         <span class="text-ink-muted">({selectedArtist.analysis.subGenre})</span>
                       {/if}
                     </span>
                   {:else}
-                    <span class="text-ink-dim">● 等待聲學掃描</span>
+                    <span class="text-ink-dim">● {t('crate_waiting_scan_badge')}</span>
                   {/if}
                 </div>
               </div>
@@ -1644,21 +1644,21 @@
               <div class="flex items-center justify-between border-b border-wire pb-2 font-mono">
                 <div class="flex items-center gap-1.5">
                   <span class="text-signal text-xs">■</span>
-                  <span class="font-dot text-xs text-ink tracking-wider">AI_HUMANISTIC_DOSSIER [人文脈絡精析]</span>
+                  <span class="font-dot text-xs text-ink tracking-wider">{t('crate_humanistic_header')}</span>
                 </div>
                 <span class="text-[9px] text-ink-dim">LLAMA-3.3 // GEMINI</span>
               </div>
 
               <div class="space-y-3">
                 <div class="border-l-2 border-signal pl-3 py-0.5">
-                  <span class="font-mono text-[10px] text-signal font-bold tracking-wider block mb-1">01 // ARTIST_ESSENCE [創作哲學與人文脈絡]</span>
+                  <span class="font-mono text-[10px] text-signal font-bold tracking-wider block mb-1">{t('crate_essence_header')}</span>
                   <p class="text-xs text-ink-muted leading-relaxed">
                     {selectedArtist.analysis.summary}
                   </p>
                 </div>
                 {#if selectedArtist.analysis.instrumentationNotes}
                   <div class="border-l-2 border-amber-400 pl-3 py-0.5">
-                    <span class="font-mono text-[10px] text-amber-400 font-bold tracking-wider block mb-1">02 // LISTENING_FOCUS [演奏特色與曲義精神]</span>
+                    <span class="font-mono text-[10px] text-amber-400 font-bold tracking-wider block mb-1">{t('crate_listening_focus_header')}</span>
                     <p class="text-xs text-ink-muted leading-relaxed">
                       {selectedArtist.analysis.instrumentationNotes}
                     </p>
@@ -1671,7 +1671,7 @@
             {#if selectedArtist.analysis}
               <div class="font-mono flex flex-col gap-2">
                 <div class="flex items-center justify-between text-[10px]">
-                  <span class="text-ink-muted uppercase tracking-widest">// ARTIST_WORKS [代表作品 ✕ 深埋寶藏]</span>
+                  <span class="text-ink-muted uppercase tracking-widest">{t('crate_works_header')}</span>
                   <div class="flex items-center gap-1.5">
                     {#if selectedArtist.analysis.notableAlbums && selectedArtist.analysis.notableAlbums.length > 0}
                       <span class="text-signal">0{selectedArtist.analysis.notableAlbums.length}_ENCODED</span>
@@ -1681,10 +1681,10 @@
                         type="button"
                         onclick={() => handleNextAlbumBatch(selectedArtist!.analysis!.notableAlbums.length)}
                         class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                        title="在已推薦作品清單中輪播換一批"
+                        title={t('crate_rotate_albums_title')}
                       >
                         <span class="material-symbols-outlined text-[11px]">sync</span>
-                        <span>換一批 ({Math.floor(albumOffset / 2) + 1}/{Math.ceil(selectedArtist.analysis.notableAlbums.length / 2)})</span>
+                        <span>{t('crate_rotate_btn', { current: Math.floor(albumOffset / 2) + 1, total: Math.ceil(selectedArtist.analysis.notableAlbums.length / 2) })}</span>
                       </button>
                     {/if}
                     <button
@@ -1692,14 +1692,14 @@
                       onclick={() => onrecommendMoreAlbums?.(selectedArtist!)}
                       disabled={isRecommendingAlbums}
                       class="corner-cut-sm text-[9px] px-2 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="請 AI 深入挖掘更多代表作品與發燒寶藏"
+                      title={t('crate_more_albums_title')}
                     >
                       {#if isRecommendingAlbums}
                         <span class="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
-                        <span>探勘中...</span>
+                        <span>{t('crate_exploring')}</span>
                       {:else}
                         <span class="material-symbols-outlined text-[11px]">auto_awesome</span>
-                        <span>AI 推薦更多</span>
+                        <span>{t('crate_ai_more')}</span>
                       {/if}
                     </button>
                   </div>
@@ -1719,9 +1719,9 @@
                         <div class="flex items-center justify-between">
                           <div class="flex items-center gap-2 min-w-0">
                             {#if isHidden}
-                              <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold shrink-0">深埋寶藏</span>
+                              <span class="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold shrink-0">{t('badge_hidden_treasure')}</span>
                             {:else}
-                              <span class="text-[9px] px-1.5 py-0.2 bg-signal-dim text-signal border border-signal/40 font-bold shrink-0">核心推薦</span>
+                              <span class="text-[9px] px-1.5 py-0.2 bg-signal-dim text-signal border border-signal/40 font-bold shrink-0">{t('crate_badge_core_rec')}</span>
                             {/if}
                             <span class="text-[10px] text-ink-dim font-bold shrink-0">{alb.year || 'HIST'}</span>
                             <span class="font-sans text-xs text-ink font-bold truncate">{alb.title}</span>
@@ -1734,10 +1734,10 @@
                               type="button"
                               onclick={() => onaddToQueue?.(selectedArtist!, alb)}
                               class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                              title="加入聆賞隊列"
+                              title={t('crate_add_album_queue_title')}
                             >
                               <span class="material-symbols-outlined text-[11px]">queue_music</span>
-                              <span>+ 聆賞</span>
+                              <span>{t('crate_add_album_queue_btn')}</span>
                             </button>
                             <StreamingTrigger
                               artistName={selectedArtist.name}
@@ -1758,13 +1758,13 @@
                           <div class="pt-1.5 mt-0.5 border-t border-amber-500/20 text-[10px] flex flex-col gap-1 pl-1">
                             {#if alb.rarityReason}
                               <div class="text-ink-dim flex items-start gap-1">
-                                <span class="text-amber-400 shrink-0 font-bold">[挖寶理由]</span>
+                                <span class="text-amber-400 shrink-0 font-bold">{t('lq_rarity_reason')}</span>
                                 <span class="text-ink-muted">{alb.rarityReason}</span>
                               </div>
                             {/if}
                             {#if alb.audiophileHighlight}
                               <div class="text-ink-dim flex items-start gap-1">
-                                <span class="text-emerald-400 shrink-0 font-bold">[聲學亮點]</span>
+                                <span class="text-emerald-400 shrink-0 font-bold">{t('lq_audiophile_highlight')}</span>
                                 <span class="text-ink-muted">{alb.audiophileHighlight}</span>
                               </div>
                             {/if}
@@ -1775,7 +1775,7 @@
                   </div>
                 {:else}
                   <div class="border border-dashed border-wire p-3 text-center text-ink-dim text-[11px]">
-                    尚未收錄代表作品，點擊右上方「AI 推薦更多」進行探索
+                    {t('crate_no_albums_empty')}
                   </div>
                 {/if}
               </div>
@@ -1785,17 +1785,17 @@
             {#if selectedArtist.analysis}
               <div class="font-mono flex flex-col gap-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-[10px] text-ink-muted uppercase tracking-widest">// ACOUSTIC_AFFINITY [相似頻率推薦]</span>
+                  <span class="text-[10px] text-ink-muted uppercase tracking-widest">{t('crate_affinity_header')}</span>
                   <div class="flex items-center gap-1.5">
                     {#if uncollectedSimilar.length > 3}
                       <button
                         type="button"
                         onclick={handleNextSimilarBatch}
                         class="corner-cut-sm text-[9px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                        title="在本地累積未收錄名單中輪播換一批"
+                        title={t('crate_rotate_similar_title')}
                       >
                         <span class="material-symbols-outlined text-[11px]">sync</span>
-                        <span>換一批 ({Math.floor(similarOffset / 3) + 1}/{Math.ceil(uncollectedSimilar.length / 3)})</span>
+                        <span>{t('crate_rotate_btn', { current: Math.floor(similarOffset / 3) + 1, total: Math.ceil(uncollectedSimilar.length / 3) })}</span>
                       </button>
                     {/if}
                     <button
@@ -1803,14 +1803,14 @@
                       onclick={() => onrecommendMoreSimilar?.(selectedArtist)}
                       disabled={isRecommendingMore}
                       class="corner-cut-sm text-[9px] px-2 py-0.5 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="請 AI 深入聲學網絡探索更多未被發掘的相似音樂人"
+                      title={t('crate_more_similar_title')}
                     >
                       {#if isRecommendingMore}
                         <span class="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
-                        <span>探勘中...</span>
+                        <span>{t('crate_exploring')}</span>
                       {:else}
                         <span class="material-symbols-outlined text-[11px]">auto_awesome</span>
-                        <span>AI 推薦更多</span>
+                        <span>{t('crate_ai_more')}</span>
                       {/if}
                     </button>
                   </div>
@@ -1824,13 +1824,13 @@
                           <div class="text-xs text-ink font-bold truncate flex items-center gap-1" title={slot.name}>
                             <span class="truncate">{slot.name}</span>
                             {#if slot.isCollected}
-                              <span class="text-[9px] text-[#63C78B] font-mono shrink-0" title="已收錄於收藏庫">✓</span>
+                              <span class="text-[9px] text-[#63C78B] font-mono shrink-0" title={t('crate_collected_title')}>✓</span>
                             {/if}
                           </div>
                           <div class="text-[9px] text-signal mt-0.5 flex items-center justify-between">
                             <span>SYNC: {92 - idx * 4}%</span>
                             {#if slot.isCollected}
-                              <span class="text-[8px] text-ink-muted uppercase">已收錄</span>
+                              <span class="text-[8px] text-ink-muted uppercase">{t('crate_collected_badge')}</span>
                             {/if}
                           </div>
                         </div>
@@ -1840,10 +1840,10 @@
                             type="button"
                             onclick={() => onselectArtist(slot.existingArtist!.id)}
                             class="w-full py-0.5 bg-panel hover:bg-chassis text-ink-muted hover:text-ink text-[9px] border border-wire transition-colors cursor-pointer flex items-center justify-center gap-1"
-                            title="跳轉並檢視此已收錄藝人"
+                            title={t('crate_jump_artist_title')}
                           >
                             <span class="material-symbols-outlined text-[11px]">explore</span>
-                            <span>跳轉定位</span>
+                            <span>{t('crate_jump_artist_btn')}</span>
                           </button>
                         {:else}
                           <button
@@ -1851,7 +1851,7 @@
                             onclick={() => onpickupSimilar(slot.name)}
                             class="w-full py-0.5 bg-panel hover:bg-signal text-ink hover:text-white text-[9px] border border-wire transition-colors cursor-pointer"
                           >
-                            + 拾取
+                            {t('crate_pickup_plus')}
                           </button>
                         {/if}
                       </div>
@@ -1859,7 +1859,7 @@
                   </div>
                 {:else}
                   <div class="border border-wire border-dashed p-3 text-center text-xs text-ink-muted font-mono bg-void/50">
-                    尚無相似音樂人推薦，點擊上方「AI 推薦更多」啟動探勘
+                    {t('crate_no_similar_empty')}
                   </div>
                 {/if}
               </div>
@@ -1869,20 +1869,20 @@
           <!-- 本地私密試聽筆記 (Hardware Impressions) -->
           <div class="border border-wire border-dashed bg-void/80 p-3 font-mono flex flex-col gap-2">
             <div class="flex items-center justify-between text-[10px]">
-              <span class="text-ink-muted uppercase tracking-wider">// LOCAL_IMPRESSIONS [私密試聽鏈路]</span>
+              <span class="text-ink-muted uppercase tracking-wider">{t('crate_impressions_header')}</span>
               <button
                 type="button"
                 onclick={() => onopenInLog?.(selectedArtist.id)}
                 class="text-signal hover:text-white bg-signal/15 hover:bg-signal border border-signal/40 px-2 py-0.5 rounded-[2px] text-[9px] flex items-center gap-1 transition-all cursor-pointer"
-                title="在聆賞日誌中開啟或抒寫完整手札"
+                title={t('crate_open_in_log_title')}
               >
-                <span>在日誌中開啟</span>
+                <span>{t('crate_open_in_log_btn')}</span>
                 <span class="material-symbols-outlined text-[10px]">open_in_new</span>
               </button>
             </div>
             <textarea
               bind:value={selectedArtist.personalNotes}
-              placeholder="輸入私藏監聽耳機搭配、管機音色或現場聆聽筆記..."
+              placeholder={t('crate_notes_placeholder')}
               rows="2"
               class="w-full bg-void text-xs text-ink placeholder-ink-dim p-2 border border-wire focus:border-signal focus:outline-none resize-none font-mono"
             ></textarea>
@@ -1898,10 +1898,10 @@
                 : 'bg-void hover:bg-signal-dim text-ink-muted hover:text-signal border border-wire hover:border-signal/50'}"
             >
               {#if deleteConfirmPending}
-                <span>⚠️ 確認移除「{selectedArtist.name}」？ ({deleteCountdown}s)</span>
+                <span>{t('crate_confirm_remove', { name: selectedArtist.name, seconds: deleteCountdown })}</span>
               {:else}
                 <Trash2 class="w-3.5 h-3.5 text-ink-muted" />
-                <span>自智庫與展間中移除藝人</span>
+                <span>{t('crate_remove_artist')}</span>
               {/if}
             </button>
           </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '$lib/i18n';
   import { tsParticles } from '@tsparticles/engine';
   import { loadSlim } from '@tsparticles/slim';
   import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
@@ -187,10 +188,10 @@
       : null
   );
 
-  // 取得大分類完整全名顯示字串 (繁中全名 + 英文全名)
+  // 取得大分類完整全名顯示字串 (全名 + 英文全名)
   function getSectorDisplayName(sectorKey?: string | null): string {
     if (!sectorKey) return 'RAW INBOX';
-    if (sectorKey === 'inbox' || sectorKey === 'RAW INBOX') return '待探索彗星 (RAW INBOX)';
+    if (sectorKey === 'inbox' || sectorKey === 'RAW INBOX') return t('galaxy_raw_inbox');
     const sec = ACOUSTIC_SECTORS.find((s) => s.key === sectorKey);
     if (sec) return `${sec.name} (${sec.nameEn})`;
     return sectorKey;
@@ -198,8 +199,8 @@
 
   // 衍生運算：當前分類名稱與主題色
   const currentCategoryTitle = $derived.by(() => {
-    if (activeSectorFilter === 'inbox') return '待探索彗星 (RAW INBOX)';
-    if (activeSectorFilter === 'all') return '全宇宙全星系';
+    if (activeSectorFilter === 'inbox') return t('galaxy_raw_inbox');
+    if (activeSectorFilter === 'all') return t('galaxy_all_universe');
     return activeSectorDef ? `${activeSectorDef.name} (${activeSectorDef.nameEn})` : activeSectorFilter;
   });
 
@@ -1195,7 +1196,7 @@
           }
         }}
         class="px-2 py-0.5 rounded bg-[#171A21] text-[#FEC486] font-mono text-xs border border-[#E0A96D]/40 font-bold flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
-        title="點擊切換至此母星系"
+        title={t('galaxy_switch_sun_title')}
       >
         <Sun class="w-3 h-3 text-[#FEC486]" />
         <span>{getSectorDisplayName(artist.analysis?.sector || artist.clusterSector)}</span>
@@ -1210,17 +1211,17 @@
           if (sub) selectedSubGenre = sub;
         }}
         class="px-2 py-0.5 rounded bg-[#101217] text-[#EEF0F2] font-mono text-xs border border-[#2B303C] flex items-center gap-1 hover:border-[#FEC486] cursor-pointer"
-        title="點擊過濾此子流派"
+        title={t('galaxy_filter_sub_title')}
       >
         <Layers class="w-3 h-3 text-[#FEC486]" />
-        <span>{artist.analysis?.subGenre || '未定流派'}</span>
+        <span>{artist.analysis?.subGenre || t('galaxy_unassigned_subgenre')}</span>
       </button>
     </div>
 
     <!-- Weight 引力權重半圓儀表與精準調節面板 (1 ~ 100) -->
     <GravityGauge
       variant="detailed"
-      label="天體引力質量 (GRAVITY WEIGHT)"
+      label={t('galaxy_gravity_label')}
       weight={weight}
       onchange={(w) => changeWeight(artist.id, w)}
     />
@@ -1241,7 +1242,7 @@
         class="flex-1 py-2 text-xs"
       >
         <Sparkles class="w-3.5 h-3.5 mr-1 text-[#FEC486]" />
-        <span>AI 聲學解剖</span>
+        <span>{t('galaxy_ai_scan_btn')}</span>
       </TactileButton>
     </div>
 
@@ -1251,7 +1252,7 @@
         <!-- 聲響脈絡介紹 -->
         <div>
           <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-            聲響脈絡 (Summary)
+            {t('galaxy_summary_header')}
           </h4>
           <p class="font-sans text-xs text-[#CCCFD6] leading-relaxed bg-[#050608] p-3 rounded border border-[#1A1D23]">
             {artist.analysis.summary}
@@ -1262,7 +1263,7 @@
         {#if artist.analysis.instrumentationNotes}
           <div>
             <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-              錄音質地與聲學評註
+              {t('galaxy_texture_header')}
             </h4>
             <p class="font-mono text-xs text-[#E0A96D]/90 bg-[#12100A] p-3 rounded border border-[#E0A96D]/30 leading-relaxed">
               {artist.analysis.instrumentationNotes}
@@ -1274,7 +1275,7 @@
         {#if artist.analysis.notableAlbums && artist.analysis.notableAlbums.length > 0}
           <div>
             <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1.5">
-              代表作品精選 (Notable Works)
+              {t('galaxy_notable_works_header')}
             </h4>
             <div class="flex flex-col gap-2">
               {#each artist.analysis.notableAlbums as album}
@@ -1284,7 +1285,7 @@
                       {album.title} ({album.year})
                     </span>
                     <span class="font-mono text-[9px] uppercase px-1.5 py-0.2 rounded font-bold {album.tier === 'hidden-treasure' ? 'bg-[#3A1418] text-[#FA383E] border border-[#FA383E]/40' : 'bg-[#1C1F26] text-[#FEC486]'}">
-                      {album.tier === 'hidden-treasure' ? '深埋寶藏' : '時代基石'}
+                      {album.tier === 'hidden-treasure' ? t('badge_hidden_treasure') : t('badge_milestone')}
                     </span>
                   </div>
                   <p class="text-[11px] text-[#8E9298] leading-normal">
@@ -1292,7 +1293,7 @@
                   </p>
                   {#if album.audiophileHighlight}
                     <div class="text-[10px] text-[#E0A96D] font-mono mt-0.5">
-                      ★ 聲學亮點: {album.audiophileHighlight}
+                      {t('galaxy_audiophile_highlight', { text: album.audiophileHighlight })}
                     </div>
                   {/if}
                 </div>
@@ -1305,7 +1306,7 @@
         {#if artist.analysis.similarArtists && artist.analysis.similarArtists.length > 0}
           <div>
             <h4 class="font-mono text-[11px] uppercase text-[#8E9298] font-bold mb-1">
-              AI 相似頻率藝人 (點擊知悉入庫)
+              {t('galaxy_similar_pickup_header')}
             </h4>
             <div class="flex flex-wrap gap-1.5">
               {#each artist.analysis.similarArtists as sim}
@@ -1330,9 +1331,9 @@
       {:else}
         <div class="py-8 text-center text-[#8E9298] font-mono text-xs bg-[#050608] rounded border border-[#1A1D23] p-4 flex flex-col items-center gap-2">
           <Sparkles class="w-6 h-6 text-[#FEC486] animate-pulse" />
-          <span class="font-bold text-[#EEF0F2]">此星體尚未進行 AI 聲學解剖</span>
+          <span class="font-bold text-[#EEF0F2]">{t('galaxy_unscanned_title')}</span>
           <p class="text-[11px] text-[#52565E]">
-            點擊上方「AI 聲學解剖」，由音樂學家分析雙層分類歸屬與深埋寶藏專輯。
+            {t('galaxy_unscanned_desc')}
           </p>
         </div>
       {/if}
@@ -1349,10 +1350,10 @@
       >
         {#if deleteConfirmPending}
           <AlertTriangle class="w-4 h-4 text-white" />
-          <span>確認移除「{artist.name}」？ ({deleteCountdown}s)</span>
+          <span>{t('galaxy_confirm_remove', { name: artist.name, seconds: deleteCountdown })}</span>
         {:else}
           <Trash2 class="w-3.5 h-3.5 text-[#8E9298]" />
-          <span>自星系與庫存中移除藝人</span>
+          <span>{t('galaxy_remove_artist')}</span>
         {/if}
       </button>
     </div>
@@ -1365,13 +1366,13 @@
     <div class="flex items-center justify-between pb-2 border-b border-[#1F2228]">
       <div class="flex items-center gap-2">
         <Users class="w-4 h-4 text-[#FEC486]" />
-        <span class="font-serif text-sm font-bold text-[#EEF0F2]">藝人天體名錄 ({rosterArtists.length})</span>
+        <span class="font-serif text-sm font-bold text-[#EEF0F2]">{t('galaxy_roster_title', { count: rosterArtists.length })}</span>
       </div>
       <button
         type="button"
         onclick={() => (isRosterDrawerOpen = false)}
         class="p-1 text-[#8E9298] hover:text-white rounded hover:bg-[#1F2228] cursor-pointer"
-        title="關閉名錄 [Esc]"
+        title={t('galaxy_close_roster_title')}
       >
         <X class="w-4 h-4" />
       </button>
@@ -1384,7 +1385,7 @@
         <input
           type="text"
           bind:value={rosterSearchQuery}
-          placeholder="搜尋藝人名稱或風格..."
+          placeholder={t('galaxy_search_roster_placeholder')}
           class="w-full pl-8 pr-7 py-1.5 bg-[#050608] border border-[#1F2228] focus:border-[#FEC486]/60 rounded-[3px] text-xs text-[#EEF0F2] placeholder-[#52565E] outline-none font-mono"
         />
         {#if rosterSearchQuery}
@@ -1403,7 +1404,7 @@
           type="button"
           onclick={() => (rosterSortBy = 'weight')}
           class="px-2 py-0.5 rounded cursor-pointer {rosterSortBy === 'weight' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298]'}"
-          title="按質量排序"
+          title={t('galaxy_sort_weight_title')}
         >
           WT
         </button>
@@ -1411,7 +1412,7 @@
           type="button"
           onclick={() => (rosterSortBy = 'name')}
           class="px-2 py-0.5 rounded cursor-pointer {rosterSortBy === 'name' ? 'bg-[#1C2027] text-[#FEC486] font-bold' : 'text-[#8E9298]'}"
-          title="按名稱字母排序"
+          title={t('galaxy_sort_alpha_title')}
         >
           A-Z
         </button>
@@ -1428,7 +1429,7 @@
             ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#FEC486]/40'
             : 'bg-[#0E1015] text-[#8E9298] border border-[#1F2228] hover:text-[#EEF0F2]'}"
         >
-          全部
+          {t('galaxy_all_filter')}
         </button>
         {#each availableSubGenres as subItem}
           <button
@@ -1449,7 +1450,7 @@
     <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-1.5">
       {#if rosterArtists.length === 0}
         <div class="py-8 text-center text-[#8E9298] font-mono text-xs">
-          無符合之藝人
+          {t('galaxy_no_matching_artists')}
         </div>
       {:else}
         {#each rosterArtists as artist (artist.id)}
@@ -1477,7 +1478,7 @@
                   {artist.name}
                 </span>
                 <span class="font-mono text-[9px] text-[#8E9298] truncate">
-                  {artist.analysis?.subGenre || '未定流派'}
+                  {artist.analysis?.subGenre || t('galaxy_unassigned_subgenre')}
                 </span>
               </div>
             </div>
@@ -1524,10 +1525,10 @@
           type="button"
           onclick={resetView}
           class="text-[#FEC486] hover:text-white flex items-center gap-1 font-bold cursor-pointer transition-colors"
-          title="返回全宇宙全景 (快捷鍵 R / Home / 0)"
+          title={t('galaxy_back_universe_title')}
         >
           <Compass class="w-3.5 h-3.5 text-[#FEC486]" />
-          <span class="hidden sm:inline">全宇宙</span>
+          <span class="hidden sm:inline">{t('galaxy_universe_btn')}</span>
         </button>
 
         {#if activeSectorDef}
@@ -1541,7 +1542,7 @@
             }}
             class="hover:text-white font-bold cursor-pointer transition-colors flex items-center gap-1 max-w-[90px] sm:max-w-[140px] truncate"
             style="color: {activeSectorDef.color};"
-            title="返回【{activeSectorDef.name}】"
+            title={t('galaxy_back_sector_title', { name: activeSectorDef.name })}
           >
             <span class="truncate">{activeSectorDef.name}</span>
           </button>
@@ -1553,7 +1554,7 @@
             type="button"
             onclick={() => selectSubGenreFilter(selectedSubGenre)}
             class="text-[#EEF0F2] hover:text-[#FEC486] font-bold cursor-pointer transition-colors max-w-[80px] sm:max-w-[120px] truncate"
-            title="聚焦子流派【{selectedSubGenre}】"
+            title={t('galaxy_focus_sub_title', { name: selectedSubGenre })}
           >
             <span class="truncate">{selectedSubGenre}</span>
           </button>
@@ -1565,7 +1566,7 @@
             type="button"
             onclick={focusSelected}
             class="text-[#FEC486] hover:underline font-serif font-bold truncate max-w-[80px] sm:max-w-[120px] cursor-pointer"
-            title="聚焦【{selectedArtist.name}】(快捷鍵 F)"
+            title={t('galaxy_focus_artist_title', { name: selectedArtist.name })}
           >
             {selectedArtist.name}
           </button>
@@ -1578,10 +1579,10 @@
           type="button"
           onclick={resetView}
           class="px-2.5 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 flex items-center gap-1 {activeSectorFilter === 'all' ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-          title="全宇宙"
+          title={t('galaxy_universe_pill_title')}
         >
           <Orbit class="w-3 h-3 text-[#FEC486]" />
-          <span>全宇宙 ({artists.length})</span>
+          <span>{t('galaxy_universe_pill', { count: artists.length })}</span>
         </button>
 
         {#each hierarchicalData.suns as sun}
@@ -1589,7 +1590,7 @@
             type="button"
             onclick={() => navigateToSun(sun)}
             class="px-2 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 flex items-center gap-1 {activeSectorFilter === sun.key ? 'bg-[#1C2027] text-[#FEC486] font-bold border border-[#E0A96D]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-            title="前往【{sun.name}】({sun.nameEn})"
+            title={t('galaxy_go_sun_title', { name: sun.name, nameEn: sun.nameEn })}
           >
             <span style="color: {sun.color};">
               {@render sectorIcon(sun.icon, "w-3 h-3")}
@@ -1609,7 +1610,7 @@
           }}
           class="px-2 py-1 rounded-[2px] font-mono text-[11px] cursor-pointer transition-all shrink-0 text-[#FA383E] {activeSectorFilter === 'inbox' ? 'bg-[#2B0E12] font-bold border border-[#FA383E]/50' : 'hover:bg-[#1A0A0C]'}"
         >
-          待探索 ({artists.filter((a) => a.status === 'inbox').length})
+          {t('galaxy_pending_pill', { count: artists.filter((a) => a.status === 'inbox').length })}
         </button>
       </div>
 
@@ -1619,17 +1620,17 @@
           type="button"
           onclick={() => (isRosterDrawerOpen = !isRosterDrawerOpen)}
           class="px-2 py-1 rounded-[2px] cursor-pointer transition-all flex items-center gap-1.5 {isRosterDrawerOpen ? 'bg-[#1C2027] text-[#FEC486] border border-[#FEC486]/40' : 'text-[#8E9298] hover:text-[#EEF0F2]'}"
-          title="開啟藝人名錄檢索抽屜"
+          title={t('galaxy_open_roster_title')}
         >
           <List class="w-3.5 h-3.5 text-[#FEC486]" />
-          <span class="hidden sm:inline font-bold">名錄</span>
+          <span class="hidden sm:inline font-bold">{t('galaxy_roster_btn')}</span>
         </button>
 
         <button
           type="button"
           onclick={toggleFullscreen}
           class="p-1 rounded-[2px] text-[#8E9298] hover:text-[#FEC486] transition-colors cursor-pointer"
-          title={isFullscreen ? '退出全螢幕' : '進入全螢幕漫遊'}
+          title={isFullscreen ? t('galaxy_exit_fullscreen') : t('galaxy_enter_fullscreen')}
         >
           {#if isFullscreen}
             <Minimize2 class="w-3.5 h-3.5" />
@@ -1645,7 +1646,7 @@
           type="button"
           onclick={() => (isMinimapExpanded = !isMinimapExpanded)}
           class="sm:hidden absolute bottom-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 bg-[#08090C]/96 rounded border border-[#2B303C] shadow-2xl text-[#FEC486] font-mono text-xs cursor-pointer pointer-events-auto"
-          title="切換雷達視野小地圖"
+          title={t('galaxy_toggle_radar_title')}
         >
           <Compass class="w-3.5 h-3.5 {isFlying ? 'animate-spin' : ''}" />
           <span class="font-bold text-[10px] tracking-wider">RADAR</span>
@@ -1675,7 +1676,7 @@
                 type="button"
                 onclick={() => (isMinimapExpanded = false)}
                 class="sm:hidden text-[#8E9298] hover:text-white p-0.5"
-                title="收合雷達"
+                title={t('galaxy_collapse_radar_title')}
               >
                 <X class="w-3 h-3" />
               </button>
@@ -1690,7 +1691,7 @@
             onmousedown={handleMinimapMouseDown}
             onkeydown={(e) => e.key === 'Enter' && resetView()}
             class="relative w-[124px] h-[124px] bg-[#040507] rounded border border-[#1A1D24] overflow-hidden {isDraggingMinimap ? 'cursor-grabbing' : 'cursor-grab'} group shadow-inner"
-            title="按住滑鼠左鍵可拖曳相機視野，點擊任意位置可直接飛航"
+            title={t('galaxy_radar_drag_title')}
           >
             <!-- 雷達網格與同心圓 (中心點在 62px, 62px 幾何置中) -->
             <div class="absolute inset-0 pointer-events-none opacity-20">
@@ -1720,7 +1721,7 @@
                   background-color: {sun.color};
                   box-shadow: 0 0 {isSunActive ? '8px' : '3px'} {sun.color};
                 "
-                title="前往 {sun.name} ({sun.nameEn})"
+                title={t('galaxy_radar_sun_title', { name: sun.name, nameEn: sun.nameEn })}
               ></button>
             {/each}
 
@@ -1752,7 +1753,7 @@
               <div class="flex items-center justify-between text-[#8E9298]">
                 <span class="flex items-center gap-1 text-[#FEC486] font-bold">
                   <Sliders class="w-3.5 h-3.5" />
-                  <span>天體質量過濾閥 (WT)</span>
+                  <span>{t('galaxy_wt_header')}</span>
                 </span>
                 <span class="text-[#FEC486] font-bold">
                   {minWeightFilter > 1 ? `≥ ${minWeightFilter}` : 'ALL'}
@@ -1767,9 +1768,9 @@
                 class="w-full accent-[#FEC486] cursor-pointer"
               />
               <div class="flex justify-between text-[9px] text-[#52565E]">
-                <span>全部天體 (1)</span>
-                <span>中量恆星 (40)</span>
-                <span>超重恆星 (80)</span>
+                <span>{t('galaxy_wt_all')}</span>
+                <span>{t('galaxy_wt_mid')}</span>
+                <span>{t('galaxy_wt_heavy')}</span>
               </div>
             </div>
           {/if}
@@ -1781,7 +1782,7 @@
               type="button"
               onclick={() => flyTo(panX, panY, Math.max(30, zoomLevel - 15), 300)}
               class="w-7 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-white rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
-              title="縮小視野 (快捷鍵 -)"
+              title={t('galaxy_zoom_out_title')}
             >
               <Minus class="w-3.5 h-3.5" />
             </button>
@@ -1791,7 +1792,7 @@
               type="button"
               onclick={() => flyTo(panX, panY, 100, 350)}
               class="px-2 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#FEC486] hover:text-[#FFA552] text-xs font-bold rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
-              title="重設為 1:1 標準比例 (100%)"
+              title={t('galaxy_zoom_reset_title')}
             >
               <span>{Math.round(zoomLevel)}%</span>
             </button>
@@ -1801,7 +1802,7 @@
               type="button"
               onclick={() => flyTo(panX, panY, Math.min(220, zoomLevel + 15), 300)}
               class="w-7 h-7 flex items-center justify-center bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-white rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
-              title="放大視野 (快捷鍵 +)"
+              title={t('galaxy_zoom_in_title')}
             >
               <Plus class="w-3.5 h-3.5" />
             </button>
@@ -1813,10 +1814,10 @@
               type="button"
               onclick={() => (showGravityLines = !showGravityLines)}
               class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] rounded-[3px] border transition-colors cursor-pointer {showGravityLines ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10' : 'text-[#8E9298] border-[#1F2228]'}"
-              title="跨星系 AI 引力光束開關"
+              title={t('galaxy_beams_title')}
             >
               <Layers class="w-3.5 h-3.5" />
-              <span class="hidden md:inline text-[11px] font-bold">引力束</span>
+              <span class="hidden md:inline text-[11px] font-bold">{t('galaxy_beams_btn')}</span>
             </button>
 
             <!-- 質量過濾開關 -->
@@ -1824,7 +1825,7 @@
               type="button"
               onclick={() => (isWeightSliderOpen = !isWeightSliderOpen)}
               class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] rounded-[3px] border transition-colors cursor-pointer {isWeightSliderOpen || minWeightFilter > 1 ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10' : 'text-[#8E9298] border-[#1F2228]'}"
-              title="天體質量過濾閥"
+              title={t('galaxy_wt_btn_title')}
             >
               <Sliders class="w-3.5 h-3.5" />
               <span class="hidden md:inline text-[11px] font-bold">WT:{minWeightFilter > 1 ? minWeightFilter : 'ALL'}</span>
@@ -1837,10 +1838,10 @@
               type="button"
               onclick={resetView}
               class="h-7 px-2.5 flex items-center gap-1.5 bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer group"
-              title="攝影機鏡頭拉回全宇宙 (快捷鍵 R / Home / 0)"
+              title={t('galaxy_reset_cam_title')}
             >
               <Orbit class="w-3.5 h-3.5 text-[#FEC486] group-hover:rotate-45 transition-transform duration-300" />
-              <span class="hidden lg:inline text-[11px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486]">全宇宙 [R]</span>
+              <span class="hidden lg:inline text-[11px] font-bold text-[#EEF0F2] group-hover:text-[#FEC486]">{t('galaxy_reset_cam_btn')}</span>
             </button>
 
             <!-- 聚焦藝人按鈕 -->
@@ -1849,10 +1850,10 @@
               onclick={focusSelected}
               disabled={!selectedArtist}
               class="h-7 px-2.5 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] disabled:opacity-40 text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer"
-              title="聚焦當前藝人 (快捷鍵 F)"
+              title={t('galaxy_focus_cam_title')}
             >
               <Crosshair class="w-3.5 h-3.5" />
-              <span class="hidden lg:inline text-[11px] font-bold">聚焦 [F]</span>
+              <span class="hidden lg:inline text-[11px] font-bold">{t('galaxy_focus_cam_btn')}</span>
             </button>
 
             <!-- 操作手冊按鈕 -->
@@ -1860,7 +1861,7 @@
               type="button"
               onclick={() => (showGuideModal = !showGuideModal)}
               class="h-7 px-2 flex items-center gap-1 bg-[#12141A] hover:bg-[#1C2029] text-[#8E9298] hover:text-[#FEC486] text-xs rounded-[3px] border border-[#1F2228] transition-colors cursor-pointer group {showGuideModal ? 'text-[#FEC486] border-[#FEC486]/50 bg-[#FEC486]/10 shadow-[0_0_8px_rgba(254,196,134,0.2)]' : ''}"
-              title="星系導航與操作手冊 (快捷鍵 ? 或 /)"
+              title={t('galaxy_manual_btn_title')}
             >
               <HelpCircle class="w-3.5 h-3.5 text-[#FEC486]" />
             </button>
@@ -1871,7 +1872,7 @@
             <a
               href="/privacy"
               class="hover:text-[#FEC486] transition-colors"
-              title="隱私權政策與服務條款 (Privacy Policy & Terms)"
+              title={t('galaxy_privacy_link_title')}
             >
               PRIVACY & TERMS
             </a>
@@ -2054,7 +2055,7 @@
               tabindex="0"
               onclick={() => navigateToSun(sun)}
               onkeydown={(e) => e.key === 'Enter' && navigateToSun(sun)}
-              title="點擊前往【{sun.name}】太陽系中心 (Google Map 航行)"
+              title={t('galaxy_sun_click_title', { name: sun.name, nameEn: sun.nameEn })}
               class="sun-core-node absolute flex flex-col items-center justify-center cursor-pointer group z-20 transition-transform duration-300 hover:scale-108"
               style="left: {sun.x - sun.size / 2}px; top: {sun.y - sun.size / 2}px; width: {sun.size}px; height: {sun.size}px;"
             >
@@ -2150,7 +2151,7 @@
               tabindex="0"
               onclick={() => navigateToSubNode(sub)}
               onkeydown={(e) => e.key === 'Enter' && navigateToSubNode(sub)}
-              title="點擊聚焦【{sub.name}】子流派藝人群"
+              title={t('galaxy_sub_click_title', { name: sub.name })}
               class="subgenre-node absolute flex flex-col items-center justify-center cursor-pointer group z-25 transition-transform duration-200 hover:scale-110"
               style="left: {sub.x - sub.size / 2}px; top: {sub.y - sub.size / 2}px; width: {sub.size}px; height: {sub.size}px;"
             >
@@ -2197,7 +2198,7 @@
               tabindex="0"
               onclick={() => onpickupSimilar?.(ghost.name)}
               onkeydown={(e) => e.key === 'Enter' && onpickupSimilar?.(ghost.name)}
-              title="點擊「+ 拾取」AI 推薦相似藝人：{ghost.name}"
+              title={t('galaxy_ghost_title', { name: ghost.name })}
               class="ghost-star-node absolute flex flex-col items-center justify-center z-25 cursor-pointer group transition-transform hover:scale-125"
               style="left: {ghost.x - ghost.size / 2}px; top: {ghost.y - ghost.size / 2}px; width: {ghost.size}px; height: {ghost.size}px;"
             >
@@ -2261,7 +2262,7 @@
                     <span class="text-[#8E9298] text-[9px]">➔</span>
                     <span class="text-white">W{weightFeedback.newWeight}</span>
                     {#if weightFeedback.isGasGiantBreakthrough}
-                      <span class="text-[#FA383E] text-[9px] animate-pulse">💥 氣態巨星!</span>
+                      <span class="text-[#FA383E] text-[9px] animate-pulse">{t('galaxy_gas_giant_badge')}</span>
                     {/if}
                   </div>
                 </div>
@@ -2369,9 +2370,9 @@
                   <div class="w-2.5 h-2.5 rounded-full bg-[#FEC486] shadow-[0_0_8px_#FEC486]"></div>
                   <div>
                     <h3 class="font-mono text-sm font-bold text-[#FEC486] tracking-wider uppercase">
-                      星系導航與操作手冊 · CELESTIAL NAV MANUAL
+                      {t('galaxy_manual_title')}
                     </h3>
-                    <p class="font-mono text-[10px] text-[#8E9298]">GOOGLE MAPS 級游標縮放 · 物理引力排斥 · 快捷鍵速查</p>
+                    <p class="font-mono text-[10px] text-[#8E9298]">{t('galaxy_manual_subtitle')}</p>
                   </div>
                 </div>
 
@@ -2379,7 +2380,7 @@
                   type="button"
                   onclick={() => (showGuideModal = false)}
                   class="w-7 h-7 flex items-center justify-center rounded-[3px] bg-[#14161F] hover:bg-[#202430] border border-[#2B303C] text-[#8E9298] hover:text-white transition-colors cursor-pointer"
-                  title="關閉手冊 (快捷鍵 Esc 或 ?)"
+                  title={t('galaxy_manual_close_title')}
                 >
                   <X class="w-4 h-4" />
                 </button>
@@ -2391,28 +2392,28 @@
                 <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
                   <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#FEC486] border-b border-[#181B22] pb-1.5">
                     <Compass class="w-3.5 h-3.5 text-[#FEC486]" />
-                    <span>01. 地圖航行與視角導航</span>
+                    <span>{t('galaxy_manual_s1_title')}</span>
                   </div>
                   <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">滑鼠滾輪</span>
-                      <span class="text-[#FEC486] font-bold">以游標為中心即時平滑縮放</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s1_k1')}</span>
+                      <span class="text-[#FEC486] font-bold">{t('galaxy_manual_s1_d1')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">滑鼠左鍵拖曳 / Space + 拖曳</span>
-                      <span>自由平移星系視野</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s1_k2')}</span>
+                      <span>{t('galaxy_manual_s1_d2')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">畫布空白處雙擊</span>
-                      <span>向游標點平滑拉近</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s1_k3')}</span>
+                      <span>{t('galaxy_manual_s1_d3')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">方向鍵 ↑ ↓ ← →</span>
-                      <span>平移微調 (Pan)</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s1_k4')}</span>
+                      <span>{t('galaxy_manual_s1_d4')}</span>
                     </li>
                     <li class="flex items-start justify-between">
                       <span class="text-[#EEF0F2]">R / Home / 0</span>
-                      <span class="text-[#FEC486]">一鍵復位全宇宙視角</span>
+                      <span class="text-[#FEC486]">{t('galaxy_manual_s1_d5')}</span>
                     </li>
                   </ul>
                 </div>
@@ -2421,24 +2422,24 @@
                 <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
                   <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#84D2C5] border-b border-[#181B22] pb-1.5">
                     <Orbit class="w-3.5 h-3.5 text-[#84D2C5]" />
-                    <span>02. 星體互動與動態排斥</span>
+                    <span>{t('galaxy_manual_s2_title')}</span>
                   </div>
                   <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">單擊藝人行星</span>
-                      <span>選取並開啟單星檔案</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s2_k1')}</span>
+                      <span>{t('galaxy_manual_s2_d1')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">按住拖曳藝人星體</span>
-                      <span class="text-[#84D2C5] font-bold">自由擺放 + 鄰居連鎖彈性推開</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s2_k2')}</span>
+                      <span class="text-[#84D2C5] font-bold">{t('galaxy_manual_s2_d2')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">F 鍵</span>
-                      <span class="text-[#FEC486]">鏡頭平滑飛航聚焦選中星體</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s2_k3')}</span>
+                      <span class="text-[#FEC486]">{t('galaxy_manual_s2_d3')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">Esc 鍵</span>
-                      <span>關閉指南或取消選取藝人</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s2_k4')}</span>
+                      <span>{t('galaxy_manual_s2_d4')}</span>
                     </li>
                   </ul>
                 </div>
@@ -2447,24 +2448,24 @@
                 <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
                   <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#FFA552] border-b border-[#181B22] pb-1.5">
                     <Flame class="w-3.5 h-3.5 text-[#FFA552]" />
-                    <span>03. 聲學引力質量 (Weight)</span>
+                    <span>{t('galaxy_manual_s3_title')}</span>
                   </div>
                   <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">Alt + 滾輪</span>
-                      <span class="text-[#FFA552] font-bold">快速增減選取星體質量 (±2)</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s3_k1')}</span>
+                      <span class="text-[#FFA552] font-bold">{t('galaxy_manual_s3_d1')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">+ / - 或 [ / ]</span>
-                      <span>步長微調質量 (Shift 鍵 ±10)</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s3_k2')}</span>
+                      <span>{t('galaxy_manual_s3_d2')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">質量 ≥ 70</span>
-                      <span class="text-[#FFA552]">躍遷為「氣態巨行星」輝光巨星</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s3_k3')}</span>
+                      <span class="text-[#FFA552]">{t('galaxy_manual_s3_d3')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">引力震盪波</span>
-                      <span>質量更動時釋放天體重力漣漪</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s3_k4')}</span>
+                      <span>{t('galaxy_manual_s3_d4')}</span>
                     </li>
                   </ul>
                 </div>
@@ -2473,24 +2474,24 @@
                 <div class="p-3 bg-[#07080B] rounded border border-[#1C2027] flex flex-col gap-2">
                   <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#A0B4D8] border-b border-[#181B22] pb-1.5">
                     <Layers class="w-3.5 h-3.5 text-[#A0B4D8]" />
-                    <span>04. 雷達巡航與巨集母星</span>
+                    <span>{t('galaxy_manual_s4_title')}</span>
                   </div>
                   <ul class="flex flex-col gap-1.5 text-[11px] text-[#8E9298] font-mono leading-relaxed">
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">點擊左下雷達母星</span>
-                      <span class="text-[#A0B4D8]">相機高速跳躍至指定母星系</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s4_k1')}</span>
+                      <span class="text-[#A0B4D8]">{t('galaxy_manual_s4_d1')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">按住拖曳雷達矩形框</span>
-                      <span>相機視野即時同步航行</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s4_k2')}</span>
+                      <span>{t('galaxy_manual_s4_d2')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">點擊母星核心或子流派</span>
-                      <span>聚焦母星或篩選該子類別</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s4_k3')}</span>
+                      <span>{t('galaxy_manual_s4_d3')}</span>
                     </li>
                     <li class="flex items-start justify-between">
-                      <span class="text-[#EEF0F2]">Shift + 滾輪</span>
-                      <span>水平快速平移 (Horizontal Pan)</span>
+                      <span class="text-[#EEF0F2]">{t('galaxy_manual_s4_k4')}</span>
+                      <span>{t('galaxy_manual_s4_d4')}</span>
                     </li>
                   </ul>
                 </div>
@@ -2499,14 +2500,14 @@
               <!-- 彈窗底部狀態列 -->
               <div class="flex items-center justify-between border-t border-[#1F232E] pt-3 font-mono text-[11px] text-[#8E9298]">
                 <div class="flex items-center gap-2 text-[10px]">
-                  <span>隨時按 <kbd class="px-1 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> 開關</span>
+                  <span>{t('galaxy_manual_hint_pre')} <kbd class="px-1 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> {t('galaxy_manual_hint_post')}</span>
                   <span class="text-[#2B303C]">|</span>
                   <a
                     href="/privacy"
                     class="hover:text-[#FEC486] underline transition-colors"
-                    title="檢視隱私權政策與服務條款"
+                    title={t('galaxy_privacy_link_title')}
                   >
-                    隱私權與條款 (Privacy & Terms)
+                    {t('galaxy_manual_privacy')}
                   </a>
                 </div>
                 <button
@@ -2514,7 +2515,7 @@
                   onclick={() => (showGuideModal = false)}
                   class="px-4 py-1 rounded bg-[#FEC486] hover:bg-[#FFA552] text-[#040507] font-bold transition-colors cursor-pointer"
                 >
-                  開始探索
+                  {t('galaxy_manual_start_btn')}
                 </button>
               </div>
             </div>
@@ -2531,14 +2532,14 @@
             <div class="px-4 py-3 border-b border-[#1F2228] flex items-center justify-between bg-[#050608]/80">
               <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-[#FEC486] animate-pulse"></span>
-                <span class="font-mono text-xs text-[#FEC486] font-bold">星體解剖艙 // DOSSIER</span>
+                <span class="font-mono text-xs text-[#FEC486] font-bold">{t('galaxy_dossier_drawer_title')}</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <button
                   type="button"
                   onclick={() => focusSelected()}
                   class="p-1 hover:bg-[#1C2027] text-[#8E9298] hover:text-[#FEC486] rounded text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                  title="聚焦天體 [F]"
+                  title={t('galaxy_focus_f_title')}
                 >
                   <Crosshair class="w-3.5 h-3.5" />
                 </button>
@@ -2546,7 +2547,7 @@
                   type="button"
                   onclick={() => (isDossierOpen = false)}
                   class="p-1 hover:bg-[#1C2027] text-[#8E9298] hover:text-white rounded cursor-pointer transition-colors"
-                  title="關閉卡片 [Esc]"
+                  title={t('galaxy_close_esc_title')}
                 >
                   <X class="w-4 h-4" />
                 </button>
@@ -2577,7 +2578,7 @@
       onclick={() => (isDossierOpen = false)}
       onkeydown={(e) => e.key === 'Escape' && (isDossierOpen = false)}
       class="xl:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity"
-      aria-label="收合解剖艙卡片"
+      aria-label={t('galaxy_mobile_collapse_aria')}
     ></div>
 
     <!-- 底部抽屜卡片本體 (Bottom Sheet) -->
@@ -2590,14 +2591,14 @@
         <div class="flex items-center justify-between w-full">
           <span class="font-mono text-xs text-[#FEC486] font-bold flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-[#FEC486] animate-pulse"></span>
-            <span>藝人星體檔案 // DOSSIER</span>
+            <span>{t('galaxy_mobile_dossier_title')}</span>
           </span>
           <button
             type="button"
             onclick={() => (isDossierOpen = false)}
             class="px-2.5 py-1 bg-[#14161B] border border-[#2B303C] text-[#8E9298] hover:text-[#FEC486] rounded font-mono text-[10px] transition-colors cursor-pointer"
           >
-            收合面板
+            {t('galaxy_mobile_collapse_btn')}
           </button>
         </div>
       </div>

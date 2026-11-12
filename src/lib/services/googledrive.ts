@@ -8,6 +8,7 @@
 import { db, onDatabaseChange, createVaultBackupPayload, autoHealArtistCovers, type Tombstone, type VaultBackupPayload } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
 import { listeningQueue } from '$lib/services/listeningQueue';
+import { t } from '$lib/i18n';
 
 export const GOOGLE_CLIENT_ID =
   ((import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID) as string) || '';
@@ -77,7 +78,7 @@ let tokenClient: any = null;
 function waitForGoogleScript(timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
-      return reject(new Error('Google Drive 服務僅支援瀏覽器端。'));
+      return reject(new Error(t('gdrive_err_browser_only')));
     }
 
     if (window.google?.accounts?.oauth2) {
@@ -91,7 +92,7 @@ function waitForGoogleScript(timeoutMs = 5000): Promise<void> {
         resolve();
       } else if (Date.now() - start > timeoutMs) {
         clearInterval(interval);
-        reject(new Error('Google Identity Services 腳本載入逾時，請確認網路連線是否正常。'));
+        reject(new Error(t('gdrive_err_gis_timeout')));
       }
     }, 100);
   });
@@ -133,7 +134,7 @@ export async function refreshGoogleTokenSilent(): Promise<string> {
   await waitForGoogleScript();
 
   if (!GOOGLE_CLIENT_ID) {
-    throw new Error('缺少環境變數 PUBLIC_GOOGLE_CLIENT_ID，請確認 .env 設定。');
+    throw new Error(t('gdrive_err_missing_client_id'));
   }
 
   const user = getStoredGoogleUserInfo();
@@ -151,10 +152,10 @@ export async function refreshGoogleTokenSilent(): Promise<string> {
         callback: async (resp: any) => {
           if (timeoutId) clearTimeout(timeoutId);
           if (resp.error) {
-            return reject(new Error(`Google 靜默授權失敗: ${resp.error}`));
+            return reject(new Error(t('gdrive_err_silent_auth_failed', { error: resp.error })));
           }
           if (!resp.access_token) {
-            return reject(new Error('未能取得 Google 存取憑證 (Access Token)'));
+            return reject(new Error(t('gdrive_err_no_access_token')));
           }
 
           const token = resp.access_token;
@@ -178,19 +179,19 @@ export async function refreshGoogleTokenSilent(): Promise<string> {
         },
         error_callback: (err: any) => {
           if (timeoutId) clearTimeout(timeoutId);
-          reject(new Error(err?.message || 'Google 靜默授權錯誤'));
+          reject(new Error(err?.message || t('gdrive_err_silent_auth_error')));
         }
       });
 
       // 設定 8 秒逾時防護
       timeoutId = setTimeout(() => {
-        reject(new Error('Google 靜默刷新逾時'));
+        reject(new Error(t('gdrive_err_silent_refresh_timeout')));
       }, 8000);
 
       client.requestAccessToken({ prompt: '', hint });
     } catch (err: any) {
       if (timeoutId) clearTimeout(timeoutId);
-      reject(new Error(`初始化靜默認證失敗: ${err.message}`));
+      reject(new Error(t('gdrive_err_init_silent_auth', { error: err.message })));
     }
   });
 }
@@ -208,7 +209,7 @@ export async function getValidGoogleToken(allowInteractive = false): Promise<str
       const res = await loginToGoogleDrive();
       return res.token;
     }
-    throw new Error('未登入 Google Drive');
+    throw new Error(t('gdrive_err_not_logged_in'));
   }
 
   // 優先嘗試靜默刷新
@@ -221,7 +222,7 @@ export async function getValidGoogleToken(allowInteractive = false): Promise<str
     if (!allowInteractive) {
       updateSyncState({
         status: 'session_expired',
-        errorMessage: 'Google 登入已過期，請重新驗證以繼續同步。'
+        errorMessage: t('gdrive_err_session_expired')
       });
       throw new Error('SESSION_EXPIRED');
     }
@@ -236,7 +237,7 @@ export async function loginToGoogleDrive(): Promise<{ token: string; user: Googl
   await waitForGoogleScript();
 
   if (!GOOGLE_CLIENT_ID) {
-    throw new Error('缺少環境變數 PUBLIC_GOOGLE_CLIENT_ID，請確認 .env 設定。');
+    throw new Error(t('gdrive_err_missing_client_id'));
   }
 
   return new Promise((resolve, reject) => {
@@ -247,10 +248,10 @@ export async function loginToGoogleDrive(): Promise<{ token: string; user: Googl
         prompt: 'select_account',
         callback: async (resp) => {
           if (resp.error) {
-            return reject(new Error(`Google 登入失敗: ${resp.error}`));
+            return reject(new Error(t('gdrive_err_login_failed', { error: resp.error })));
           }
           if (!resp.access_token) {
-            return reject(new Error('未能取得 Google 存取憑證 (Access Token)'));
+            return reject(new Error(t('gdrive_err_no_access_token')));
           }
 
           const token = resp.access_token;
@@ -269,19 +270,19 @@ export async function loginToGoogleDrive(): Promise<{ token: string; user: Googl
             resolve({ token, user, grantedScope });
           } catch (e: any) {
             console.warn('[GoogleDrive] 取得使用者資訊失敗，繼續執行:', e);
-            const fallbackUser = { name: 'Google 使用者', email: '' };
+            const fallbackUser = { name: t('gdrive_fallback_user'), email: '' };
             updateSyncState({ connectedAccount: fallbackUser, status: 'synced', errorMessage: undefined });
             resolve({ token, user: fallbackUser, grantedScope });
           }
         },
         error_callback: (err) => {
-          reject(new Error(err?.message || 'Google 授權視窗已被關閉或發生錯誤'));
+          reject(new Error(err?.message || t('gdrive_err_popup_closed')));
         }
       });
 
       tokenClient.requestAccessToken({ prompt: 'select_account' });
     } catch (err: any) {
-      reject(new Error(`初始化 Google 認證客戶端失敗: ${err.message}`));
+      reject(new Error(t('gdrive_err_init_client', { error: err.message })));
     }
   });
 }
@@ -291,7 +292,7 @@ export async function fetchGoogleUserInfo(token: string): Promise<GoogleUserInfo
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!resp.ok) {
-    throw new Error(`取得 Google 使用者資訊失敗 (${resp.status})`);
+    throw new Error(t('gdrive_err_userinfo_failed', { status: resp.status }));
   }
   const data = await resp.json();
   return {
@@ -341,7 +342,7 @@ export async function listGoogleDriveAppDataFiles(): Promise<DriveFileItem[]> {
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Google Drive 列出檔案失敗 (${resp.status}): ${errText}`);
+    throw new Error(t('gdrive_err_list_failed', { status: resp.status, error: errText }));
   }
 
   const json = await resp.json();
@@ -359,7 +360,7 @@ export async function findGoogleDriveFileByName(fileName: string): Promise<Drive
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Google Drive 查詢檔案失敗 (${resp.status}): ${errText}`);
+    throw new Error(t('gdrive_err_find_failed', { status: resp.status, error: errText }));
   }
 
   const json = await resp.json();
@@ -389,7 +390,7 @@ export async function uploadFileToGoogleDrive(
 
     if (!resp.ok) {
       const errText = await resp.text();
-      throw new Error(`Google Drive 覆寫檔案失敗 (${resp.status}): ${errText}`);
+      throw new Error(t('gdrive_err_overwrite_failed', { status: resp.status, error: errText }));
     }
 
     return { fileId: existing.id, name: fileName };
@@ -430,7 +431,7 @@ export async function uploadFileToGoogleDrive(
 
     if (!resp.ok) {
       const errText = await resp.text();
-      throw new Error(`Google Drive 上傳檔案失敗 (${resp.status}): ${errText}`);
+      throw new Error(t('gdrive_err_upload_failed', { status: resp.status, error: errText }));
     }
 
     const json = await resp.json();
@@ -450,7 +451,7 @@ export async function downloadFileFromGoogleDrive(fileName: string): Promise<str
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Google Drive 下載檔案失敗 (${resp.status}): ${errText}`);
+    throw new Error(t('gdrive_err_download_failed', { status: resp.status, error: errText }));
   }
 
   return await resp.text();
@@ -468,7 +469,7 @@ export async function downloadBlobFromGoogleDrive(fileName: string): Promise<Blo
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Google Drive 下載 Blob 失敗 (${resp.status}): ${errText}`);
+    throw new Error(t('gdrive_err_download_blob_failed', { status: resp.status, error: errText }));
   }
 
   return await resp.blob();
@@ -485,7 +486,7 @@ export async function deleteFileFromGoogleDrive(fileId: string): Promise<void> {
 
   if (!resp.ok && resp.status !== 404) {
     const errText = await resp.text();
-    throw new Error(`Google Drive 刪除檔案失敗 (${resp.status}): ${errText}`);
+    throw new Error(t('gdrive_err_delete_failed', { status: resp.status, error: errText }));
   }
 }
 
@@ -580,7 +581,7 @@ let isRestoring = false;
  */
 export async function restoreBackupFromGoogleDrive(): Promise<{ restoredCount: number; timestamp: number }> {
   if (isRestoring) {
-    throw new Error('還原作業進行中，請勿重複觸發');
+    throw new Error(t('gdrive_err_restore_in_progress'));
   }
 
   isRestoring = true;
@@ -593,7 +594,7 @@ export async function restoreBackupFromGoogleDrive(): Promise<{ restoredCount: n
     const changeFiles = allFiles.filter((f) => f.name.startsWith(CHANGES_PREFIX));
 
     if (!gzFile && !jsonFile && changeFiles.length === 0) {
-      throw new Error('未在 Google Drive 找到有效備份檔案或增量紀錄');
+      throw new Error(t('gdrive_err_no_backup_found'));
     }
 
     let backupData: BackupDataStructure | null = null;
@@ -728,7 +729,7 @@ export async function restoreBackupFromGoogleDrive(): Promise<{ restoredCount: n
     };
   } catch (err: any) {
     console.error('[GoogleDrive] 還原失敗:', err);
-    updateSyncState({ status: 'error', errorMessage: err?.message || '還原失敗' });
+    updateSyncState({ status: 'error', errorMessage: err?.message || t('gdrive_err_restore_failed') });
     throw err;
   } finally {
     isRestoring = false;
@@ -782,7 +783,7 @@ export function triggerGoogleDriveAutoSync(delayMs = 1500): void {
   if (debounceTimer) clearTimeout(debounceTimer);
 
   if (!navigator.onLine) {
-    updateSyncState({ status: 'offline', errorMessage: '網路已斷線' });
+    updateSyncState({ status: 'offline', errorMessage: t('gdrive_err_offline') });
     return;
   }
 
@@ -831,9 +832,9 @@ async function executeGoogleDriveSync(): Promise<void> {
   } catch (err: any) {
     console.error('[GoogleDrive AutoSync] 同步上傳失敗:', err);
     if (err?.message === 'SESSION_EXPIRED') {
-      updateSyncState({ status: 'session_expired', errorMessage: 'Google 登入已過期，請重新驗證以繼續同步。' });
+      updateSyncState({ status: 'session_expired', errorMessage: t('gdrive_err_session_expired') });
     } else {
-      updateSyncState({ status: 'error', errorMessage: err?.message || '同步失敗' });
+      updateSyncState({ status: 'error', errorMessage: err?.message || t('gdrive_err_sync_failed') });
     }
   } finally {
     isSyncInProgress = false;
@@ -872,7 +873,7 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('offline', () => {
     if (!isGoogleDriveConnected()) return;
-    updateSyncState({ status: 'offline', errorMessage: '網路已斷線' });
+    updateSyncState({ status: 'offline', errorMessage: t('gdrive_err_offline') });
   });
 }
 
@@ -891,19 +892,19 @@ export async function runGoogleDriveDiagnosticTest(
   };
 
   try {
-    log('開始進行 Google Drive API 連線診斷測試...');
-    log('1. 正在驗證登入授權...');
+    log(t('gdrive_diag_start'));
+    log(t('gdrive_diag_step1'));
     const { user, grantedScope } = await loginToGoogleDrive();
-    log(`✓ 授權成功！已登入使用者: ${user.name} (${user.email || '無公開 Email'})`, 'success');
-    log(`  已獲得權限範圍 (Scopes): ${grantedScope || '(未回傳)'}`, 'info');
+    log(t('gdrive_diag_auth_ok', { name: user.name, email: user.email || t('gdrive_diag_no_email') }), 'success');
+    log(t('gdrive_diag_scopes', { scopes: grantedScope || t('gdrive_diag_none') }), 'info');
 
     if (!grantedScope.includes('drive.appdata')) {
-      throw new Error('獲得的 Scopes 中未包含 drive.appdata，請重新授權並務必打勾核取方塊！');
+      throw new Error(t('gdrive_diag_missing_appdata_scope'));
     }
 
-    log('2. 正在查詢 Google Drive 隱藏 AppData 資料夾清單...');
+    log(t('gdrive_diag_step2'));
     const filesBefore = await listGoogleDriveAppDataFiles();
-    log(`✓ 查詢成功！目前 AppData 資料夾現存檔案數量: ${filesBefore.length} 筆`, 'success');
+    log(t('gdrive_diag_list_ok', { count: filesBefore.length }), 'success');
 
     const testFileName = `pua_diagnostic_ping_${Date.now()}.json`;
     const testPayload = JSON.stringify({
@@ -913,26 +914,26 @@ export async function runGoogleDriveDiagnosticTest(
       client: user.email
     });
 
-    log(`3. 正在上傳測試檔案 [${testFileName}] 到 AppData 資料夾...`);
+    log(t('gdrive_diag_step3', { fileName: testFileName }));
     const uploadRes = await uploadFileToGoogleDrive(testFileName, testPayload);
-    log(`✓ 上傳成功！建立之檔案 ID: ${uploadRes.fileId}`, 'success');
+    log(t('gdrive_diag_upload_ok', { fileId: uploadRes.fileId }), 'success');
 
-    log(`4. 正在下載並驗證測試檔案 [${testFileName}] 內容...`);
+    log(t('gdrive_diag_step4', { fileName: testFileName }));
     const downloaded = await downloadFileFromGoogleDrive(testFileName);
     if (downloaded === testPayload) {
-      log('✓ 內容驗證一致！資料完整度 100%', 'success');
+      log(t('gdrive_diag_verify_ok'), 'success');
     } else {
-      throw new Error('下載的檔案內容與寫入的不符！');
+      throw new Error(t('gdrive_diag_verify_mismatch'));
     }
 
-    log(`5. 正在清理測試暫存檔 [${uploadRes.fileId}]...`);
+    log(t('gdrive_diag_step5', { fileId: uploadRes.fileId }));
     await deleteFileFromGoogleDrive(uploadRes.fileId);
-    log('✓ 清理完成！測試檔案已成功移除。', 'success');
+    log(t('gdrive_diag_cleanup_ok'), 'success');
 
-    log('🎉 全部 5 項測試皆成功通過！您的 Google Drive 整合功能一切正常。', 'success');
+    log(t('gdrive_diag_all_passed'), 'success');
     return { success: true, logs };
   } catch (err: any) {
-    log(`❌ 診斷測試中斷失敗: ${err.message}`, 'error');
+    log(t('gdrive_diag_aborted', { error: err.message }), 'error');
     return { success: false, logs };
   }
 }

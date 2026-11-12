@@ -1,6 +1,7 @@
 <script lang="ts">
   import { listeningQueue } from '$lib/services/listeningQueue';
   import type { ArtistEntry } from '$lib/types/artist';
+  import { t } from '$lib/i18n';
 
   interface Props {
     activeView: 'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend';
@@ -30,38 +31,38 @@
     {
       id: 'crate-digger',
       num: '01',
-      label: '展間',
+      labelKey: 'mobile_nav_crate',
       icon: 'person'
     },
     {
       id: 'honeycomb-cluster',
       num: '02',
-      label: '星系',
+      labelKey: 'mobile_nav_galaxy',
       icon: 'hub'
     },
     {
       id: 'acoustic-matrix',
       num: '03',
-      label: '矩陣',
+      labelKey: 'mobile_nav_matrix',
       icon: 'category'
     },
     {
       id: 'listening-queue',
       num: '04',
-      label: '隊列',
+      labelKey: 'mobile_nav_queue',
       icon: 'queue_music',
       badge: true
     },
     {
       id: 'listening-log',
       num: '05',
-      label: '日誌',
+      labelKey: 'mobile_nav_log',
       icon: 'edit_note'
     },
     {
       id: 'ai-recommend',
       num: '06',
-      label: '推薦',
+      labelKey: 'mobile_nav_radio',
       icon: 'neurology'
     }
   ] as const;
@@ -69,7 +70,7 @@
 
 <!-- 行動端底部發燒友機架導航欄 (僅在螢幕寬度小於 lg 時顯示) -->
 <nav
-  aria-label="行動端模組導航"
+  aria-label={t('mobile_nav_aria')}
   class="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-void/98 border-t border-wire shadow-[0_-4px_24px_rgba(0,0,0,0.85)] font-mono select-none"
   style="padding-bottom: env(safe-area-inset-bottom, 0px); transform: translateZ(0); -webkit-transform: translateZ(0);"
 >
@@ -106,7 +107,7 @@
 
         <!-- 標籤與編號 -->
         <span class="text-[10px] tracking-tight transition-colors font-medium {isActive ? 'text-ink font-bold' : 'text-ink-dim'}">
-          {item.label}
+          {t(item.labelKey)}
         </span>
       </button>
     {/each}

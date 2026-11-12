@@ -12,6 +12,8 @@
  *    透過 localStorage 儲存預設串流平台偏好，預設為 Apple Music，隨選隨時切換。
  */
 
+import { t, type TranslationKey } from '$lib/i18n';
+
 export type StreamingPlatform =
   | 'apple_music'
   | 'spotify'
@@ -25,7 +27,8 @@ export interface StreamingPlatformInfo {
   shortLabel: string;
   brandColor: string;
   textColor: string;
-  description: string;
+  descKey: TranslationKey;
+  readonly description: string;
 }
 
 export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInfo> = {
@@ -35,7 +38,8 @@ export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInf
     shortLabel: 'Apple',
     brandColor: '#FA383E',
     textColor: '#FFFFFF',
-    description: 'Lossless / Hi-Res 無損音質串流'
+    descKey: 'stream_apple_music_desc',
+    get description() { return t('stream_apple_music_desc'); }
   },
   spotify: {
     id: 'spotify',
@@ -43,7 +47,8 @@ export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInf
     shortLabel: 'Spotify',
     brandColor: '#1DB954',
     textColor: '#000000',
-    description: '全球熱門音樂串流與動態探索'
+    descKey: 'stream_spotify_desc',
+    get description() { return t('stream_spotify_desc'); }
   },
   youtube_music: {
     id: 'youtube_music',
@@ -51,7 +56,8 @@ export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInf
     shortLabel: 'YT Music',
     brandColor: '#FF0000',
     textColor: '#FFFFFF',
-    description: 'Live 現場錄音、罕見版本與影音'
+    descKey: 'stream_youtube_music_desc',
+    get description() { return t('stream_youtube_music_desc'); }
   },
   tidal: {
     id: 'tidal',
@@ -59,7 +65,8 @@ export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInf
     shortLabel: 'Tidal',
     brandColor: '#000000',
     textColor: '#FFFFFF',
-    description: 'Hi-Fi 錄音室級高音質串流'
+    descKey: 'stream_tidal_desc',
+    get description() { return t('stream_tidal_desc'); }
   },
   bandcamp: {
     id: 'bandcamp',
@@ -67,7 +74,8 @@ export const STREAMING_PLATFORMS: Record<StreamingPlatform, StreamingPlatformInf
     shortLabel: 'Bandcamp',
     brandColor: '#1DA0C3',
     textColor: '#FFFFFF',
-    description: '獨立廠牌、地下樂團與實體黑膠'
+    descKey: 'stream_bandcamp_desc',
+    get description() { return t('stream_bandcamp_desc'); }
   }
 };
 

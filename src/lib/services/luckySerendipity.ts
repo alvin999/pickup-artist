@@ -1,6 +1,7 @@
 import type { AcousticSector, ArtistEntry } from '$lib/types/artist';
 import { ACOUSTIC_SECTORS } from '$lib/constants/sectors';
 import { fetchMoreSimilarArtists } from '$lib/ai/client';
+import { i18n } from '$lib/i18n';
 
 export type LuckySectorOption = AcousticSector | 'ALL';
 
@@ -212,7 +213,8 @@ export async function pickLuckyFromAI(
       seedArtistName,
       targetSector,
       subGenre,
-      excludeList
+      excludeList,
+      i18n.locale
     );
 
     // 在本地排除在庫藝人與近期抽取

@@ -9,7 +9,7 @@ import {
   type SceneChatMessage,
   type SceneRecommendationResult
 } from '$lib/ai/scenePrompts';
-import type { SupportedLocale } from '$lib/i18n';
+import { t, type SupportedLocale } from '$lib/i18n';
 import type { ArtistEntry } from '$lib/types/artist';
 
 export interface LocalArtistMatch {
@@ -74,7 +74,7 @@ async function fetchGroqChat(
   });
 
   if (res.status === 429) {
-    throw new RateLimitError('Groq API 呼叫頻率超標 (429 Rate Limit)，請稍候重試。', 30);
+    throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Groq' }), 30);
   }
 
   if (!res.ok) {
@@ -100,7 +100,7 @@ export async function getSceneRecommendation(
 ): Promise<SceneRecommendationResult> {
   const secureLoaded = await loadSecureAISettings();
   if (secureLoaded.isLocked) {
-    throw new Error('MASTER_PASSWORD_LOCKED: 主密碼保管庫目前已鎖定，請先解鎖以存取金鑰。');
+    throw new Error(t('ai_err_vault_locked'));
   }
 
   const settings = secureLoaded.settings;
@@ -109,7 +109,7 @@ export async function getSceneRecommendation(
 
   if (settings.provider === 'groq') {
     if (!settings.groqKey.trim()) {
-      throw new Error('未設定 Groq API Key，請至右上角 AI 設定面板配置。');
+      throw new Error(t('ai_err_groq_key_missing_panel'));
     }
 
     const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
@@ -135,14 +135,14 @@ export async function getSceneRecommendation(
 
     if (!groqRes.ok) {
       const errText = groqRes.text;
-      throw new Error(`Groq 呼叫異常: ${errText}`);
+      throw new Error(t('ai_err_groq_call_failed', { error: errText }));
     }
 
     rawJsonText = groqRes.content || '';
   } else {
     // Gemini
     if (!settings.geminiKey.trim()) {
-      throw new Error('未設定 Gemini API Key，請至右上角 AI 設定面板配置。');
+      throw new Error(t('ai_err_gemini_key_missing_panel'));
     }
 
     const rawModel = settings.geminiModel || DEFAULT_GEMINI_MODEL;
@@ -168,12 +168,12 @@ export async function getSceneRecommendation(
     });
 
     if (res.status === 429) {
-      throw new RateLimitError('Gemini API 呼叫頻率超標 (429 Rate Limit)，請稍候重試。', 30);
+      throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Gemini' }), 30);
     }
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Gemini 呼叫異常: ${errText}`);
+      throw new Error(t('ai_err_gemini_call_failed', { error: errText }));
     }
 
     const data = await res.json();
@@ -196,14 +196,14 @@ export async function getSceneRecommendation(
       if (fallbackRes.ok && fallbackRes.content) {
         parsed = cleanAndParseJson<SceneRecommendationResult>(fallbackRes.content);
       } else {
-        throw new Error(`AI 回傳內容無法解析為有效 JSON 格式 (${parseErr?.message || parseErr})`);
+        throw new Error(t('ai_err_invalid_json_parse', { error: parseErr?.message || parseErr }));
       }
     } else {
-      throw new Error(`AI 回傳內容無法解析為有效 JSON 格式 (${parseErr?.message || parseErr})`);
+      throw new Error(t('ai_err_invalid_json_parse', { error: parseErr?.message || parseErr }));
     }
   }
   return {
-    reply: parsed.reply || '已為您調配此情境的聲學風格。',
+    reply: parsed.reply || t('ai_scene_default_reply'),
     matchedGenres: Array.isArray(parsed.matchedGenres) ? parsed.matchedGenres : [],
     externalArtists: Array.isArray(parsed.externalArtists) ? parsed.externalArtists : []
   };

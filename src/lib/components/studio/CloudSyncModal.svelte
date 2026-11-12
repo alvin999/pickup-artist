@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { AccountInfo } from '@azure/msal-browser';
+  import { i18n, t } from '$lib/i18n';
   import { createVaultBackupPayload, importVaultBackupJson } from '$lib/db';
   import {
     getActiveAccount as getOneDriveAccount,
@@ -48,10 +49,16 @@
   let isLoading = $state(false);
   let statusMessage = $state<string | null>(null);
   let statusType = $state<'info' | 'success' | 'error'>('info');
+  let hasInteractionLockError = $state(false);
   let isDragOver = $state(false);
   let fileInputEl = $state<HTMLInputElement | null>(null);
 
   const isAnyCloudConnected = $derived(!!oneDriveAccount || !!googleUser);
+
+  function isLockErr(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err || '');
+    return msg === t('onedrive_err_interaction_reset') || /interaction|lock|鎖定|ロック/i.test(msg);
+  }
 
   onMount(async () => {
     await refreshAllAccountStates();
@@ -60,6 +67,7 @@
   $effect(() => {
     if (isOpen) {
       statusMessage = null;
+      hasInteractionLockError = false;
       refreshAllAccountStates();
     }
   });
@@ -94,12 +102,13 @@
   // ----------------------------------------------------
   async function handleOneDriveLogin() {
     isLoading = true;
-    statusMessage = '正在喚起微軟登入視窗...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_od_opening');
     statusType = 'info';
     try {
       oneDriveAccount = await loginToOneDrive();
       onAccountChange?.(true);
-      statusMessage = '微軟帳戶連結成功！正在同步雲端資料庫...';
+      statusMessage = t('cloud_od_connected_syncing');
       try {
         await restoreBackupFromOneDrive();
         if (onRestored) await onRestored();
@@ -107,11 +116,12 @@
         console.warn('初次同步無舊資料，上傳新備份:', e);
         await uploadBackupToOneDrive();
       }
-      statusMessage = '微軟帳戶連結成功！雲端資料庫已同步完成。';
+      statusMessage = t('cloud_od_connected_done');
       statusType = 'success';
       oneDriveMeta = await getOneDriveMetadata();
     } catch (err: any) {
-      statusMessage = err?.message || 'OneDrive 登入失敗或已取消視窗';
+      hasInteractionLockError = isLockErr(err);
+      statusMessage = err?.message || t('cloud_od_login_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -119,17 +129,18 @@
   }
 
   async function handleOneDriveLogout() {
-    if (!confirm('確定要解除與此微軟帳戶的連結嗎？')) return;
+    if (!confirm(t('cloud_od_disconnect_confirm'))) return;
     isLoading = true;
+    hasInteractionLockError = false;
     try {
       await logoutOneDrive();
       oneDriveAccount = null;
       oneDriveMeta = null;
       onAccountChange?.(!!googleUser);
-      statusMessage = '已中斷 OneDrive 連結';
+      statusMessage = t('cloud_od_disconnected');
       statusType = 'info';
     } catch (err: any) {
-      statusMessage = err?.message || 'OneDrive 登出失敗';
+      statusMessage = err?.message || t('cloud_od_logout_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -139,16 +150,18 @@
   async function handleOneDriveBackup() {
     if (!oneDriveAccount) return;
     isLoading = true;
-    statusMessage = '正在封裝資料並上傳至 OneDrive...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_od_uploading');
     statusType = 'info';
     try {
       const res = await uploadBackupToOneDrive();
       const kb = (res.size / 1024).toFixed(1);
-      statusMessage = `OneDrive 備份完成！已寫入快照 (${kb} KB)`;
+      statusMessage = t('cloud_od_upload_done', { kb });
       statusType = 'success';
       oneDriveMeta = await getOneDriveMetadata();
     } catch (err: any) {
-      statusMessage = err?.message || 'OneDrive 上傳失敗，請檢查網路';
+      hasInteractionLockError = isLockErr(err);
+      statusMessage = err?.message || t('cloud_od_upload_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -157,17 +170,19 @@
 
   async function handleOneDriveRestore() {
     if (!oneDriveAccount) return;
-    if (!confirm('確定要自 OneDrive 還原並與本機進行時間戳合併嗎？')) return;
+    if (!confirm(t('cloud_od_restore_confirm'))) return;
     isLoading = true;
-    statusMessage = '正在從 OneDrive 拉取最新備份封包...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_od_restoring');
     statusType = 'info';
     try {
       const res = await restoreBackupFromOneDrive();
-      statusMessage = `OneDrive 還原成功！已回復/合併 ${res.restoredCount} 位藝人檔案。`;
+      statusMessage = t('cloud_od_restore_done', { count: res.restoredCount });
       statusType = 'success';
       if (onRestored) await onRestored();
     } catch (err: any) {
-      statusMessage = err?.message || 'OneDrive 還原失敗';
+      hasInteractionLockError = isLockErr(err);
+      statusMessage = err?.message || t('cloud_od_restore_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -179,18 +194,19 @@
   // ----------------------------------------------------
   async function handleGoogleLogin() {
     isLoading = true;
-    statusMessage = '正在喚起 Google 授權視窗，請務必勾選權限核取方塊...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_gd_opening');
     statusType = 'info';
     try {
       const res = await loginToGoogleDrive();
       if (!res.grantedScope.includes('drive.appdata')) {
-        statusMessage = '⚠️ 授權成功但未勾選雲端硬碟權限！請點擊登出後重新登入並勾選方塊。';
+        statusMessage = t('cloud_gd_missing_scope');
         statusType = 'error';
         return;
       }
       googleUser = res.user;
       onAccountChange?.(true);
-      statusMessage = 'Google 帳戶連結成功！正在同步雲端資料庫...';
+      statusMessage = t('cloud_gd_connected_syncing');
       try {
         await restoreBackupFromGoogleDrive();
         if (onRestored) await onRestored();
@@ -198,11 +214,11 @@
         console.warn('初次同步無舊資料，上傳新備份:', e);
         await uploadBackupToGoogleDrive();
       }
-      statusMessage = 'Google 帳戶連結成功！雲端資料庫已同步完成。';
+      statusMessage = t('cloud_gd_connected_done');
       statusType = 'success';
       googleMeta = await getGoogleDriveBackupMetadata();
     } catch (err: any) {
-      statusMessage = err?.message || 'Google 登入失敗或已關閉視窗';
+      statusMessage = err?.message || t('cloud_gd_login_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -210,17 +226,18 @@
   }
 
   async function handleGoogleLogout() {
-    if (!confirm('確定要解除與此 Google 帳戶的連結嗎？')) return;
+    if (!confirm(t('cloud_gd_disconnect_confirm'))) return;
     isLoading = true;
+    hasInteractionLockError = false;
     try {
       await logoutGoogleDrive();
       googleUser = null;
       googleMeta = null;
       onAccountChange?.(!!oneDriveAccount);
-      statusMessage = '已中斷 Google Drive 連結';
+      statusMessage = t('cloud_gd_disconnected');
       statusType = 'info';
     } catch (err: any) {
-      statusMessage = err?.message || 'Google 登出失敗';
+      statusMessage = err?.message || t('cloud_gd_logout_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -230,16 +247,17 @@
   async function handleGoogleBackup() {
     if (!googleUser) return;
     isLoading = true;
-    statusMessage = '正在封裝資料並上傳至 Google Drive AppData 沙盒...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_gd_uploading');
     statusType = 'info';
     try {
       const res = await uploadBackupToGoogleDrive();
       const kb = (res.size / 1024).toFixed(1);
-      statusMessage = `Google Drive 備份完成！已寫入快照 (${kb} KB)`;
+      statusMessage = t('cloud_gd_upload_done', { kb });
       statusType = 'success';
       googleMeta = await getGoogleDriveBackupMetadata();
     } catch (err: any) {
-      statusMessage = err?.message || 'Google Drive 上傳失敗，請檢查網路';
+      statusMessage = err?.message || t('cloud_gd_upload_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -248,17 +266,18 @@
 
   async function handleGoogleRestore() {
     if (!googleUser) return;
-    if (!confirm('確定要自 Google Drive 還原並與本機進行時間戳合併嗎？')) return;
+    if (!confirm(t('cloud_gd_restore_confirm'))) return;
     isLoading = true;
-    statusMessage = '正在從 Google Drive 拉取最新備份封包...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_gd_restoring');
     statusType = 'info';
     try {
       const res = await restoreBackupFromGoogleDrive();
-      statusMessage = `Google Drive 還原成功！已回復/合併 ${res.restoredCount} 位藝人檔案。`;
+      statusMessage = t('cloud_gd_restore_done', { count: res.restoredCount });
       statusType = 'success';
       if (onRestored) await onRestored();
     } catch (err: any) {
-      statusMessage = err?.message || 'Google Drive 還原失敗';
+      statusMessage = err?.message || t('cloud_gd_restore_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -271,7 +290,8 @@
   async function handleSyncAll() {
     if (!oneDriveAccount && !googleUser) return;
     isLoading = true;
-    statusMessage = '正在執行全域多雲同步備份...';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_multi_syncing');
     statusType = 'info';
     const results: string[] = [];
 
@@ -281,7 +301,8 @@
           await uploadBackupToOneDrive();
           results.push('OneDrive ✓');
         } catch (e: any) {
-          results.push(`OneDrive ✗ (${e?.message || '失敗'})`);
+          if (isLockErr(e)) hasInteractionLockError = true;
+          results.push(`OneDrive ✗ (${e?.message || t('cloud_multi_fail_label')})`);
         }
       }
 
@@ -290,11 +311,11 @@
           await uploadBackupToGoogleDrive();
           results.push('Google Drive ✓');
         } catch (e: any) {
-          results.push(`Google Drive ✗ (${e?.message || '失敗'})`);
+          results.push(`Google Drive ✗ (${e?.message || t('cloud_multi_fail_label')})`);
         }
       }
 
-      statusMessage = `多雲同步作業完畢：${results.join(' | ')}`;
+      statusMessage = t('cloud_multi_done', { results: results.join(' | ') });
       statusType = results.some((r) => r.includes('✗')) ? 'error' : 'success';
       await refreshAllAccountStates();
     } finally {
@@ -304,7 +325,8 @@
 
   function handleResetLock() {
     clearMsalInteractionLocks();
-    statusMessage = '已清除登入鎖定快取，請重試。';
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_lock_cleared');
     statusType = 'info';
   }
 
@@ -323,10 +345,13 @@
       a.download = `PUA_VAULT_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      statusMessage = `已匯出完整備份檔 (${payload.artistsCount} 位藝人${payload.listeningQueue?.length ? `、${payload.listeningQueue.length} 筆待聽隊列` : ''})。`;
+      statusMessage = t('cloud_export_done', {
+        artists: payload.artistsCount,
+        queuePart: payload.listeningQueue?.length ? t('cloud_export_queue_part', { count: payload.listeningQueue.length }) : ''
+      });
       statusType = 'success';
     } catch (err: any) {
-      statusMessage = err?.message || '本機備份匯出失敗';
+      statusMessage = err?.message || t('cloud_export_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -335,17 +360,22 @@
 
   async function processImportedFile(file: File) {
     isLoading = true;
-    statusMessage = `正在解析並雙向合併「${file.name}」...`;
+    hasInteractionLockError = false;
+    statusMessage = t('cloud_importing', { file: file.name });
     statusType = 'info';
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const res = await importVaultBackupJson(parsed);
       if (onRestored) await onRestored();
-      statusMessage = `本機備份合併完成！共匯入/更新 ${res.importedOrUpdatedCount} 筆藝人檔案${res.queueMergedCount > 0 ? `與 ${res.queueMergedCount} 筆待聽隊列` : ''}（目前總計 ${res.totalCount} 位）。`;
+      statusMessage = t('cloud_import_done', {
+        imported: res.importedOrUpdatedCount,
+        queuePart: res.queueMergedCount > 0 ? t('cloud_import_queue_part', { count: res.queueMergedCount }) : '',
+        total: res.totalCount
+      });
       statusType = 'success';
     } catch (err: any) {
-      statusMessage = err?.message || '備份檔解析失敗，請確認檔案為有效 JSON 格式。';
+      statusMessage = err?.message || t('cloud_import_failed');
       statusType = 'error';
     } finally {
       isLoading = false;
@@ -375,9 +405,9 @@
   }
 
   function formatDateTime(isoOrTimestamp?: string | number): string {
-    if (!isoOrTimestamp) return '無紀錄';
+    if (!isoOrTimestamp) return t('cloud_no_record');
     const d = new Date(isoOrTimestamp);
-    return d.toLocaleString('zh-TW', {
+    return d.toLocaleString(i18n.dateLocale, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -406,7 +436,7 @@
           onclick={onclose}
           class="text-ink-muted hover:text-signal text-xs p-1 transition-colors cursor-pointer"
         >
-          [ESC / 關閉]
+          {t('cloud_close_esc')}
         </button>
       </div>
 
@@ -425,7 +455,7 @@
             class="px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-bold text-xs tracking-wider uppercase transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 shadow-[0_0_12px_rgba(255,42,60,0.25)]"
           >
             <span class="material-symbols-outlined text-sm {isLoading ? 'animate-spin' : ''}">sync</span>
-            <span>立即同步所有已連結雲端</span>
+            <span>{t('cloud_sync_all_btn')}</span>
           </button>
         {/if}
       </div>
@@ -436,13 +466,13 @@
           class="p-2.5 text-xs border flex items-center justify-between gap-2 {statusType === 'success' ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300' : statusType === 'error' ? 'bg-signal-dim/30 border-signal text-signal' : 'bg-void border-wire text-ink'}"
         >
           <span class="break-words leading-relaxed">{statusMessage}</span>
-          {#if statusType === 'error' && statusMessage.includes('鎖定')}
+          {#if statusType === 'error' && hasInteractionLockError}
             <button
               type="button"
               onclick={handleResetLock}
               class="shrink-0 px-2 py-0.5 border border-signal hover:bg-signal hover:text-white text-[10px] uppercase font-bold transition-colors cursor-pointer"
             >
-              重置狀態鎖
+              {t('cloud_reset_lock_btn')}
             </button>
           {/if}
         </div>
@@ -467,25 +497,25 @@
             {#if oneDriveAccount}
               <div class="space-y-1.5 text-xs mb-4">
                 <div class="text-ink font-bold truncate text-[11px]" title={oneDriveAccount.username}>
-                  帳戶：{oneDriveAccount.username}
+                  {t('cloud_account_label', { account: oneDriveAccount.username })}
                 </div>
                 <div class="text-[10px] text-ink-muted flex justify-between">
-                  <span>快照時間：</span>
+                  <span>{t('cloud_snapshot_time')}</span>
                   <span class="text-signal">{formatDateTime(oneDriveMeta?.lastModifiedDateTime)}</span>
                 </div>
                 {#if oneDriveMeta?.size}
                   <div class="text-[10px] text-ink-muted flex justify-between">
-                    <span>封包大小：</span>
+                    <span>{t('cloud_payload_size')}</span>
                     <span class="text-ink">{formatBytes(oneDriveMeta.size)}</span>
                   </div>
                 {/if}
               </div>
             {:else}
               <div class="text-xs text-ink-muted py-3 text-center space-y-1">
-                <div>尚未連結微軟帳戶</div>
+                <div>{t('cloud_od_not_connected')}</div>
                 {#if !ONEDRIVE_CLIENT_ID}
                   <div class="text-[10px] text-signal font-mono">
-                    ⚠ 未在 .env 配置 PUBLIC_ONEDRIVE_CLIENT_ID
+                    {t('cloud_od_missing_env')}
                   </div>
                 {/if}
               </div>
@@ -500,10 +530,10 @@
                 onclick={handleOneDriveLogin}
                 disabled={isLoading || !ONEDRIVE_CLIENT_ID}
                 class="w-full py-2 bg-panel hover:bg-ink hover:text-void border border-wire text-ink font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                title={!ONEDRIVE_CLIENT_ID ? '請先於 .env 設定 PUBLIC_ONEDRIVE_CLIENT_ID' : '點擊登入微軟帳戶'}
+                title={!ONEDRIVE_CLIENT_ID ? t('cloud_od_connect_title_missing') : t('cloud_od_connect_title')}
               >
                 <span class="material-symbols-outlined text-sm">cloud</span>
-                <span>{ONEDRIVE_CLIENT_ID ? '連結微軟帳戶' : '未配置 ONEDRIVE KEY'}</span>
+                <span>{ONEDRIVE_CLIENT_ID ? t('cloud_od_connect_btn') : t('cloud_od_unconfigured_btn')}</span>
               </button>
             {:else}
               <div class="grid grid-cols-2 gap-2">
@@ -511,19 +541,19 @@
                   type="button"
                   onclick={handleOneDriveBackup}
                   disabled={isLoading}
-                  title="將目前本機資料庫與聆賞隊列上傳覆寫雲端快照"
+                  title={t('cloud_od_push_title')}
                   class="py-1.5 bg-signal hover:bg-white hover:text-void text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
                 >
-                  上傳備份 (PUSH)
+                  {t('cloud_push_btn')}
                 </button>
                 <button
                   type="button"
                   onclick={handleOneDriveRestore}
                   disabled={isLoading || !oneDriveMeta}
-                  title="下載雲端快照並與本機資料進行時間戳合併（不覆蓋本機較新紀錄）"
+                  title={t('cloud_pull_title')}
                   class="py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
                 >
-                  合併還原 (PULL)
+                  {t('cloud_pull_btn')}
                 </button>
               </div>
               <button
@@ -532,7 +562,7 @@
                 disabled={isLoading}
                 class="w-full text-center py-1 text-[10px] text-ink-dim hover:text-signal transition-colors cursor-pointer"
               >
-                中斷 OneDrive 連結
+                {t('cloud_od_disconnect_btn')}
               </button>
             {/if}
           </div>
@@ -554,24 +584,24 @@
             {#if googleUser}
               <div class="space-y-1.5 text-xs mb-4">
                 <div class="text-ink font-bold truncate text-[11px]" title={googleUser.email}>
-                  帳戶：{googleUser.name} ({googleUser.email})
+                  {t('cloud_account_label', { account: `${googleUser.name} (${googleUser.email})` })}
                 </div>
                 <div class="text-[10px] text-ink-muted flex justify-between">
-                  <span>快照時間：</span>
+                  <span>{t('cloud_snapshot_time')}</span>
                   <span class="text-[#00f0ff]">{formatDateTime(googleMeta?.modifiedTime)}</span>
                 </div>
                 {#if googleMeta?.size}
                   <div class="text-[10px] text-ink-muted flex justify-between">
-                    <span>封包大小：</span>
+                    <span>{t('cloud_payload_size')}</span>
                     <span class="text-ink">{formatBytes(googleMeta.size)}</span>
                   </div>
                 {/if}
               </div>
             {:else}
               <div class="text-xs text-ink-muted py-2 space-y-1 text-center">
-                <div>尚未連結 Google 帳戶</div>
+                <div>{t('cloud_gd_not_connected')}</div>
                 <div class="text-[10px] text-primary-container">
-                  💡 授權視窗中請務必勾選權限方塊
+                  {t('cloud_gd_scope_hint')}
                 </div>
               </div>
             {/if}
@@ -585,10 +615,10 @@
                 onclick={handleGoogleLogin}
                 disabled={isLoading || !GOOGLE_CLIENT_ID}
                 class="w-full py-2 bg-panel hover:bg-ink hover:text-void border border-wire text-ink font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                title={!GOOGLE_CLIENT_ID ? '請先於 .env 設定 PUBLIC_GOOGLE_CLIENT_ID' : '點擊登入 Google 帳戶'}
+                title={!GOOGLE_CLIENT_ID ? t('cloud_gd_connect_title_missing') : t('cloud_gd_connect_title')}
               >
                 <span class="material-symbols-outlined text-sm">cloud</span>
-                <span>{GOOGLE_CLIENT_ID ? '連結 GOOGLE 帳戶' : '未配置 GOOGLE KEY'}</span>
+                <span>{GOOGLE_CLIENT_ID ? t('cloud_gd_connect_btn') : t('cloud_gd_unconfigured_btn')}</span>
               </button>
             {:else}
               <div class="grid grid-cols-2 gap-2">
@@ -596,19 +626,19 @@
                   type="button"
                   onclick={handleGoogleBackup}
                   disabled={isLoading}
-                  title="將目前本機資料庫與聆賞隊列上傳至 Google Drive AppData"
+                  title={t('cloud_gd_push_title')}
                   class="py-1.5 bg-[#00f0ff] hover:bg-white text-[#050505] font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
                 >
-                  上傳備份 (PUSH)
+                  {t('cloud_push_btn')}
                 </button>
                 <button
                   type="button"
                   onclick={handleGoogleRestore}
                   disabled={isLoading || !googleMeta}
-                  title="下載雲端快照並與本機資料進行時間戳合併（不覆蓋本機較新紀錄）"
+                  title={t('cloud_pull_title')}
                   class="py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
                 >
-                  合併還原 (PULL)
+                  {t('cloud_pull_btn')}
                 </button>
               </div>
               <button
@@ -617,7 +647,7 @@
                 disabled={isLoading}
                 class="w-full text-center py-1 text-[10px] text-ink-dim hover:text-[#00f0ff] transition-colors cursor-pointer"
               >
-                中斷 Google Drive 連結
+                {t('cloud_gd_disconnect_btn')}
               </button>
             {/if}
           </div>
@@ -628,7 +658,7 @@
       <!-- 本機離線檔案備份與還原艙 (無須帳號之跨裝置/iCloud 備份方案) -->
       <div
         role="region"
-        aria-label="本機檔案備份與還原"
+        aria-label={t('cloud_local_aria')}
         ondragover={(e) => {
           e.preventDefault();
           isDragOver = true;
@@ -647,10 +677,10 @@
         <div class="space-y-0.5 min-w-0">
           <div class="text-[10px] text-ink-dim uppercase tracking-wider flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[13px] text-signal">hard_drive</span>
-            <span>LOCAL_FILE_ARCHIVE // 離線冷備份艙（免登入帳號）</span>
+            <span>{t('cloud_local_header')}</span>
           </div>
           <p class="text-[11px] font-sans text-ink-muted leading-snug">
-            匯出 `.json` 檔案保存至 iCloud / 本機磁碟，或直接將備份檔拖曳至此進行無損合併。
+            {t('cloud_local_desc')}
           </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -661,7 +691,7 @@
             class="px-3 py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1"
           >
             <span class="material-symbols-outlined text-[14px]">download</span>
-            <span>匯出 JSON</span>
+            <span>{t('cloud_local_export')}</span>
           </button>
           <button
             type="button"
@@ -670,21 +700,21 @@
             class="px-3 py-1.5 bg-panel hover:bg-signal hover:text-white hover:border-signal border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1"
           >
             <span class="material-symbols-outlined text-[14px]">upload_file</span>
-            <span>匯入合併</span>
+            <span>{t('cloud_local_import')}</span>
           </button>
         </div>
       </div>
 
       <!-- 底部安全與雙向同步說明 -->
       <div class="text-[10px] text-ink-dim border-t border-wire pt-3 flex items-center justify-between">
-        <span>雙向時間戳比對 (Last-Write-Wins) 啟用中 · 支援雙雲端同時或獨立同步</span>
+        <span>{t('cloud_footer_lww')}</span>
         <div class="flex items-center gap-3">
           <a
             href="/privacy"
             class="text-ink-muted hover:text-signal transition-colors underline"
-            title="檢視隱私權政策 (Privacy Policy)"
+            title={t('cloud_privacy_title')}
           >
-            隱私權政策 (Privacy Policy)
+            {t('cloud_privacy_link')}
           </a>
           <span class="text-ink-muted">CLOUD_VAULT // v2.0</span>
         </div>

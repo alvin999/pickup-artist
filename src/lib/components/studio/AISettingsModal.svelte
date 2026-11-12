@@ -23,6 +23,7 @@
     getPreferredStreamingPlatform,
     setPreferredStreamingPlatform
   } from '$lib/utils/streaming';
+  import { t } from '$lib/i18n';
   import {
     type AISettings,
     DEFAULT_GROQ_MODEL,
@@ -158,7 +159,7 @@
           lastExploredGroqKey = key;
           autoExploreStatus.groq = 'success';
           if (!isSilent) {
-            statusMessage = { text: `Groq 模型矩陣已自動同步（${models.length} 個可用模型）`, type: 'success' };
+            statusMessage = { text: t('ai_set_synced_models', { provider: 'Groq', count: models.length }), type: 'success' };
           }
         }
       } else {
@@ -171,7 +172,7 @@
           lastExploredGeminiKey = key;
           autoExploreStatus.gemini = 'success';
           if (!isSilent) {
-            statusMessage = { text: `Gemini 模型矩陣已自動同步（${models.length} 個可用模型）`, type: 'success' };
+            statusMessage = { text: t('ai_set_synced_models', { provider: 'Gemini', count: models.length }), type: 'success' };
           }
         }
       }
@@ -179,7 +180,7 @@
       autoExploreStatus[targetProvider] = 'error';
       // 靜默模式或使用者正在輸入時，不以醒目大紅字打斷
       if (!isSilent && targetProvider === provider) {
-        statusMessage = { text: `自動探勘 ${targetProvider.toUpperCase()} 模型失敗，請確認 Key 正確性`, type: 'error' };
+        statusMessage = { text: t('ai_set_explore_failed', { provider: targetProvider.toUpperCase() }), type: 'error' };
       }
     } finally {
       isFetchingModels = false;
@@ -197,11 +198,11 @@
       groqModel = res.settings.groqModel;
       geminiModel = res.settings.geminiModel;
       unlockPassword = '';
-      statusMessage = { text: '保管庫已成功解鎖', type: 'success' };
+      statusMessage = { text: t('ai_set_unlocked'), type: 'success' };
       if (groqKey.trim()) runAutoExplore('groq', true);
       if (geminiKey.trim()) runAutoExplore('gemini', true);
     } else {
-      statusMessage = { text: res.error || '解鎖失敗，密碼錯誤', type: 'error' };
+      statusMessage = { text: res.error || t('ai_set_unlock_failed'), type: 'error' };
     }
   }
 
@@ -211,7 +212,7 @@
     try {
       if (provider === 'groq') {
         if (!groqKey.trim()) {
-          statusMessage = { text: '請先輸入 Groq API Key', type: 'error' };
+          statusMessage = { text: t('ai_set_enter_key_first', { provider: 'Groq' }), type: 'error' };
           return;
         }
         const models = await fetchGroqModels(groqKey);
@@ -221,10 +222,10 @@
         }
         lastExploredGroqKey = groqKey.trim();
         autoExploreStatus.groq = 'success';
-        statusMessage = { text: `成功探勘到 ${models.length} 個 Groq 可用模型`, type: 'success' };
+        statusMessage = { text: t('ai_set_found_models', { provider: 'Groq', count: models.length }), type: 'success' };
       } else {
         if (!geminiKey.trim()) {
-          statusMessage = { text: '請先輸入 Gemini API Key', type: 'error' };
+          statusMessage = { text: t('ai_set_enter_key_first', { provider: 'Gemini' }), type: 'error' };
           return;
         }
         const models = await fetchGeminiModels(geminiKey);
@@ -234,10 +235,10 @@
         }
         lastExploredGeminiKey = geminiKey.trim();
         autoExploreStatus.gemini = 'success';
-        statusMessage = { text: `成功探勘到 ${models.length} 個 Gemini 可用模型`, type: 'success' };
+        statusMessage = { text: t('ai_set_found_models', { provider: 'Gemini', count: models.length }), type: 'success' };
       }
     } catch (err: any) {
-      statusMessage = { text: err?.message || '模型探勘失敗', type: 'error' };
+      statusMessage = { text: err?.message || t('ai_set_explore_error'), type: 'error' };
     } finally {
       isFetchingModels = false;
     }
@@ -253,7 +254,7 @@
       const res = await testAIConnection(provider, currentKey, currentModel);
       statusMessage = { text: res.message, type: res.success ? 'success' : 'error' };
     } catch (e: any) {
-      statusMessage = { text: `測試失敗: ${e.message}`, type: 'error' };
+      statusMessage = { text: t('ai_set_test_failed', { error: e.message }), type: 'error' };
     } finally {
       isTesting = false;
     }
@@ -263,11 +264,11 @@
     statusMessage = null;
     if (encryptionMode === 'master_password') {
       if (!masterPassword && isVaultLocked) {
-        statusMessage = { text: '主密碼模式需設定密碼或先行解鎖', type: 'error' };
+        statusMessage = { text: t('ai_set_pw_required'), type: 'error' };
         return;
       }
       if (masterPassword && masterPassword !== masterPasswordConfirm) {
-        statusMessage = { text: '兩次輸入的主密碼不一致', type: 'error' };
+        statusMessage = { text: t('ai_set_pw_mismatch'), type: 'error' };
         return;
       }
     }
@@ -284,7 +285,7 @@
 
       await saveSecureAISettings(settingsPayload, encryptionMode, masterPassword || undefined);
       setPreferredStreamingPlatform(preferredPlatform);
-      statusMessage = { text: '系統設定與安全保管庫已成功儲存！', type: 'success' };
+      statusMessage = { text: t('ai_set_saved'), type: 'success' };
       masterPassword = '';
       masterPasswordConfirm = '';
       onsettingsSaved?.();
@@ -292,7 +293,7 @@
         onclose();
       }, 700);
     } catch (err: any) {
-      statusMessage = { text: `儲存失敗: ${err?.message || err}`, type: 'error' };
+      statusMessage = { text: t('ai_set_save_failed', { error: err?.message || err }), type: 'error' };
     } finally {
       isSaving = false;
     }
@@ -310,7 +311,7 @@
     <!-- 黑色毛玻璃背景遮罩 -->
     <button
       type="button"
-      aria-label="關閉視窗"
+      aria-label={t('fast_close_aria')}
       onclick={onclose}
       class="absolute inset-0 w-full h-full bg-void/85 backdrop-blur-md cursor-default border-0"
     ></button>
@@ -335,7 +336,7 @@
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-signal animate-pulse"></span>
           <span class="font-dot text-sm font-bold text-signal tracking-widest uppercase">
-            BYOK AI VAULT // 聲學金鑰保管庫
+            {t('ai_set_title')}
           </span>
         </div>
         <span class="text-[10px] text-ink-dim border border-wire px-1.5 py-0.5 bg-void">
@@ -348,17 +349,17 @@
         <div class="p-4 bg-void border border-signal/50 flex flex-col gap-3 rounded-[2px]">
           <div class="flex items-center gap-2 text-xs text-signal font-bold">
             <Lock class="w-4 h-4" />
-            <span>主密碼保管庫已鎖定 (VAULT LOCKED)</span>
+            <span>{t('ai_set_vault_locked_title')}</span>
           </div>
           <p class="font-sans text-xs text-ink-muted leading-relaxed">
-            您已啟動發燒友主密碼高規格加密，金鑰於記憶體中處於鎖定狀態。請輸入主密碼以解密存取。
+            {t('ai_set_vault_locked_desc')}
           </p>
           <div class="flex items-center gap-2 mt-1">
             <input
               type="password"
               bind:value={unlockPassword}
               onkeydown={(e) => e.key === 'Enter' && handleUnlock()}
-              placeholder="輸入主密碼解鎖..."
+              placeholder={t('ai_set_unlock_placeholder')}
               class="flex-1 bg-[#121318] border border-[#2b2d36] px-3 py-2 text-xs text-ink focus:outline-none focus:border-signal"
             />
             <button
@@ -366,7 +367,7 @@
               onclick={handleUnlock}
               class="px-4 py-2 bg-signal text-white text-xs font-bold hover:bg-white hover:text-void transition-colors cursor-pointer"
             >
-              解鎖
+              {t('ai_set_unlock_btn')}
             </button>
           </div>
         </div>
@@ -375,11 +376,11 @@
         <!-- 供應商切換器 (Provider Selector) -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">// 選擇推論引擎與優先主力</span>
+            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">{t('ai_set_select_engine')}</span>
             {#if groqKey.trim() && geminiKey.trim()}
               <span class="text-[9px] text-signal font-mono flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-signal animate-pulse"></span>
-                雙引擎備援已就緒 (FAILOVER READY)
+                {t('ai_set_failover_ready')}
               </span>
             {/if}
           </div>
@@ -395,12 +396,12 @@
                   <div class="flex items-center gap-1.5">
                     <span class="text-xs font-bold font-mono">GROQ LPU™</span>
                     {#if provider === 'groq'}
-                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">主力</span>
+                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">{t('ai_set_badge_primary')}</span>
                     {:else if groqKey.trim()}
-                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">備援</span>
+                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">{t('ai_set_badge_backup')}</span>
                     {/if}
                   </div>
-                  <div class="text-[9px] text-ink-dim font-sans">超低延遲 · Llama 3.3 70B</div>
+                  <div class="text-[9px] text-ink-dim font-sans">{t('ai_set_groq_subtitle')}</div>
                 </div>
               </div>
               {#if provider === 'groq'}
@@ -419,12 +420,12 @@
                   <div class="flex items-center gap-1.5">
                     <span class="text-xs font-bold font-mono">GOOGLE GEMINI</span>
                     {#if provider === 'gemini'}
-                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">主力</span>
+                      <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal border border-signal/40 font-bold">{t('ai_set_badge_primary')}</span>
                     {:else if geminiKey.trim()}
-                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">備援</span>
+                      <span class="text-[8px] px-1 py-0.2 bg-wire text-ink-dim border border-wire">{t('ai_set_badge_backup')}</span>
                     {/if}
                   </div>
-                  <div class="text-[9px] text-ink-dim font-sans">多模態智庫 · Flash 2.0</div>
+                  <div class="text-[9px] text-ink-dim font-sans">{t('ai_set_gemini_subtitle')}</div>
                 </div>
               </div>
               {#if provider === 'gemini'}
@@ -444,12 +445,12 @@
               {#if isFetchingModels}
                 <span class="text-[9px] text-signal flex items-center gap-1 animate-pulse">
                   <RefreshCw class="w-2.5 h-2.5 animate-spin" />
-                  <span>即時同步可用模型中...</span>
+                  <span>{t('ai_set_syncing_models')}</span>
                 </span>
               {:else if currentAutoStatus === 'success'}
                 <span class="text-[9px] text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 class="w-2.5 h-2.5" />
-                  <span>已更新 {currentModelsCount} 個可用模型</span>
+                  <span>{t('ai_set_updated_models', { count: currentModelsCount })}</span>
                 </span>
               {/if}
             </div>
@@ -460,10 +461,10 @@
             >
               {#if showKeys}
                 <EyeOff class="w-3 h-3" />
-                <span>隱藏</span>
+                <span>{t('ai_set_hide')}</span>
               {:else}
                 <Eye class="w-3 h-3" />
-                <span>顯示</span>
+                <span>{t('ai_set_show')}</span>
               {/if}
             </button>
           </div>
@@ -492,9 +493,7 @@
           <!-- 30 秒免費取得金鑰導引（降低一般使用者門檻） -->
           <div class="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-[#121318] border border-[#21232d] text-[10px] font-sans text-ink-muted rounded-[2px]">
             <span>
-              {provider === 'groq'
-                ? '還沒有 Groq 金鑰？註冊即可免費領取高配額（免信用卡）'
-                : '還沒有 Gemini 金鑰？Google 帳號登入即可一鍵建立免費金鑰'}
+              {provider === 'groq' ? t('ai_set_groq_key_hint') : t('ai_set_gemini_key_hint')}
             </span>
             <a
               href={provider === 'groq' ? 'https://console.groq.com/keys' : 'https://aistudio.google.com/apikey'}
@@ -502,7 +501,7 @@
               rel="noopener noreferrer"
               class="inline-flex items-center gap-1 text-signal hover:text-white font-mono font-bold transition-colors shrink-0"
             >
-              <span>免費取得 {provider === 'groq' ? 'Groq' : 'Gemini'} 金鑰</span>
+              <span>{t('ai_set_get_free_key', { provider: provider === 'groq' ? 'Groq' : 'Gemini' })}</span>
               <ExternalLink class="w-3 h-3" />
             </a>
           </div>
@@ -511,16 +510,16 @@
         <!-- 動態模型探索與選擇 -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">// 動態模型矩陣 (MODEL)</span>
+            <span class="text-[10px] text-ink-muted uppercase tracking-wider block">{t('ai_set_model_matrix')}</span>
             <button
               type="button"
               onclick={handleExploreModels}
               disabled={isFetchingModels}
               class="flex items-center gap-1 text-[10px] text-signal hover:text-white cursor-pointer disabled:opacity-50"
-              title="重新整理模型列表"
+              title={t('ai_set_refresh_models_title')}
             >
               <RefreshCw class="w-3 h-3 {isFetchingModels ? 'animate-spin' : ''}" />
-              <span>手動重新整理</span>
+              <span>{t('ai_set_manual_refresh')}</span>
             </button>
           </div>
 
@@ -552,7 +551,7 @@
               class="px-3 py-2 bg-panel hover:bg-wire border border-wire text-ink text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
             >
               <Zap class="w-3 h-3 text-signal" />
-              <span>{isTesting ? '測試中...' : '測試連線'}</span>
+              <span>{isTesting ? t('ai_set_testing') : t('ai_set_test_connection')}</span>
             </button>
           </div>
         </div>
@@ -562,7 +561,7 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 text-xs font-bold text-ink">
               <Shield class="w-3.5 h-3.5 text-signal" />
-              <span>保管庫加密規格 (SECURITY LEVEL)</span>
+              <span>{t('ai_set_security_level')}</span>
             </div>
             <span class="text-[9px] text-ink-dim">WEB CRYPTO API</span>
           </div>
@@ -575,10 +574,10 @@
               class="p-2 border text-left flex flex-col justify-between gap-1 cursor-pointer transition-all {encryptionMode === 'none' ? 'border-signal bg-panel text-ink' : 'border-wire bg-void text-ink-dim hover:text-ink'}"
             >
               <div class="flex items-center justify-between text-[10px] font-bold">
-                <span>無加密</span>
+                <span>{t('ai_set_sec_none')}</span>
                 <span class="text-[8px] px-1 py-0.2 bg-wire">PLAIN</span>
               </div>
-              <span class="text-[9px] text-ink-muted leading-tight font-sans">直接讀取，無運算負擔</span>
+              <span class="text-[9px] text-ink-muted leading-tight font-sans">{t('ai_set_sec_none_desc')}</span>
             </button>
 
             <!-- 模式 2: 裝置透明加密 -->
@@ -588,10 +587,10 @@
               class="p-2 border text-left flex flex-col justify-between gap-1 cursor-pointer transition-all {encryptionMode === 'device' ? 'border-signal bg-panel text-ink' : 'border-wire bg-void text-ink-dim hover:text-ink'}"
             >
               <div class="flex items-center justify-between text-[10px] font-bold">
-                <span>裝置透明加密</span>
-                <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal">推薦</span>
+                <span>{t('ai_set_sec_device')}</span>
+                <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal">{t('ai_set_sec_recommended')}</span>
               </div>
-              <span class="text-[9px] text-ink-muted leading-tight font-sans">本機硬體鎖，自動加解密</span>
+              <span class="text-[9px] text-ink-muted leading-tight font-sans">{t('ai_set_sec_device_desc')}</span>
             </button>
 
             <!-- 模式 3: 主密碼加密 -->
@@ -601,33 +600,33 @@
               class="p-2 border text-left flex flex-col justify-between gap-1 cursor-pointer transition-all {encryptionMode === 'master_password' ? 'border-signal bg-panel text-ink' : 'border-wire bg-void text-ink-dim hover:text-ink'}"
             >
               <div class="flex items-center justify-between text-[10px] font-bold">
-                <span>主密碼加密</span>
+                <span>{t('ai_set_sec_master')}</span>
                 <span class="text-[8px] px-1 py-0.2 bg-amber-500/20 text-amber-400">PBKDF2</span>
               </div>
-              <span class="text-[9px] text-ink-muted leading-tight font-sans">高規格防護，需密碼解鎖</span>
+              <span class="text-[9px] text-ink-muted leading-tight font-sans">{t('ai_set_sec_master_desc')}</span>
             </button>
           </div>
 
           <!-- 若選取主密碼模式，顯示密碼設定輸入框 -->
           {#if encryptionMode === 'master_password'}
             <div class="pt-2 border-t border-wire flex flex-col gap-2 animate-in fade-in">
-              <span class="text-[10px] text-amber-400 font-bold">// 設定發燒友保管庫主密碼</span>
+              <span class="text-[10px] text-amber-400 font-bold">{t('ai_set_master_pw_header')}</span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="password"
                   bind:value={masterPassword}
-                  placeholder="輸入主密碼 (Master Password)"
+                  placeholder={t('ai_set_master_pw_placeholder')}
                   class="bg-[#121318] border border-wire px-2.5 py-1.5 text-xs text-ink focus:border-amber-400 focus:outline-none"
                 />
                 <input
                   type="password"
                   bind:value={masterPasswordConfirm}
-                  placeholder="確認主密碼"
+                  placeholder={t('ai_set_master_pw_confirm')}
                   class="bg-[#121318] border border-wire px-2.5 py-1.5 text-xs text-ink focus:border-amber-400 focus:outline-none"
                 />
               </div>
               <p class="text-[9px] text-ink-dim font-sans leading-tight">
-                ＊主密碼將以 PBKDF2 (100,000 次反覆雜湊) 衍生密鑰。若遺失主密碼，本機儲存的金鑰將無法還原。
+                {t('ai_set_master_pw_note')}
               </p>
             </div>
           {/if}
@@ -640,12 +639,12 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <Radio class="w-4 h-4 text-signal" />
-            <span class="text-xs font-bold text-ink uppercase tracking-wider font-mono">// 預設串流播放器 (Streaming Target)</span>
+            <span class="text-xs font-bold text-ink uppercase tracking-wider font-mono">{t('ai_set_streaming_target')}</span>
           </div>
-          <span class="text-[9px] text-ink-dim font-mono">外連跳轉出口</span>
+          <span class="text-[9px] text-ink-dim font-mono">{t('ai_set_outbound_exit')}</span>
         </div>
         <p class="text-[10px] text-ink-muted leading-relaxed font-sans">
-          探索或檢索藝人時，主要播放按鈕將直通此服務進行線上聆賞：
+          {t('ai_set_streaming_desc')}
         </p>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {#each Object.values(STREAMING_PLATFORMS) as platform}
@@ -660,7 +659,7 @@
                   <span class="w-1.5 h-1.5 rounded-full bg-signal"></span>
                 {/if}
               </div>
-              <span class="text-[9px] text-ink-muted truncate font-sans">{platform.description}</span>
+              <span class="text-[9px] text-ink-muted truncate font-sans">{t(platform.descKey)}</span>
             </button>
           {/each}
         </div>
@@ -685,7 +684,7 @@
           onclick={onclose}
           class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
         >
-          [ESC] 關閉
+          {t('ai_set_close_esc')}
         </button>
 
         <div class="flex items-center gap-2">
@@ -695,11 +694,11 @@
               onclick={() => {
                 lockMasterPassword();
                 isVaultLocked = true;
-                statusMessage = { text: '已手動鎖定主密碼保管庫', type: 'info' };
+                statusMessage = { text: t('ai_set_manual_locked_toast'), type: 'info' };
               }}
               class="px-2.5 py-1.5 text-xs text-amber-400 hover:text-white border border-amber-500/40 bg-amber-500/10 cursor-pointer transition-colors"
             >
-              手動鎖定
+              {t('ai_set_manual_lock')}
             </button>
           {/if}
 
@@ -709,7 +708,7 @@
             disabled={isSaving}
             class="corner-cut-sm flex items-center gap-1.5 px-5 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_14px_rgba(255,42,60,0.35)] disabled:opacity-50"
           >
-            <span>{isSaving ? '寫入保管庫中...' : '儲存保管庫設定'}</span>
+            <span>{isSaving ? t('ai_set_saving') : t('ai_set_save_btn')}</span>
           </button>
         </div>
       </div>

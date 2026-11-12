@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { i18n, t } from '$lib/i18n';
   import type { ArtistEntry } from '$lib/types/artist';
   import {
     getSceneRecommendation,
@@ -115,7 +116,7 @@
     scrollToBottom();
 
     try {
-      const result = await getSceneRecommendation(newHistory);
+      const result = await getSceneRecommendation(newHistory, i18n.locale);
 
       messages = [
         ...newHistory,
@@ -131,8 +132,8 @@
       scrollToBottom();
     } catch (err: any) {
       console.error('[SceneRadio] 推薦失敗:', err);
-      errorMessage = err?.message || '推論失敗，請確認 AI 金鑰配置。';
-      showToast?.(errorMessage ?? '發生異常');
+      errorMessage = err?.message || t('radio_inference_failed');
+      showToast?.(errorMessage ?? t('radio_error_fallback'));
     } finally {
       isLoading = false;
     }
@@ -141,7 +142,7 @@
   // 一鍵請 AI 深度介紹特定藝人與推薦專輯
   function handleAskAboutArtist(artistName: string) {
     if (isLoading) return;
-    const prompt = `請為我深入介紹音樂人「${artistName}」的風格脈絡與聆聽重點，並推薦其最值得一聽的代表專輯與入門曲目。`;
+    const prompt = t('radio_ask_artist_prompt', { name: artistName });
     handleSendMessage(prompt);
   }
 
@@ -162,7 +163,7 @@
     localMatches = [];
     errorMessage = null;
     sessionStorage.removeItem(SESSION_KEY);
-    showToast?.('已開啟全新情境對話');
+    showToast?.(t('radio_new_session_toast'));
   }
 
   // 快速將庫內藝人排入聆賞隊列
@@ -170,13 +171,13 @@
     listeningQueue.add({
       artistId: artist.id,
       artistName: artist.name,
-      albumTitle: artist.analysis?.notableAlbums?.[0]?.title || '精選代表作',
+      albumTitle: artist.analysis?.notableAlbums?.[0]?.title || t('radio_featured_work_fallback'),
       albumYear: artist.analysis?.notableAlbums?.[0]?.year,
       appleMusicUrl: artist.analysis?.notableAlbums?.[0]?.appleMusicSearchUrl,
       losslessSpec: artist.analysis?.notableAlbums?.[0]?.losslessSpec,
       dynamicRangeScore: artist.analysis?.notableAlbums?.[0]?.dynamicRangeScore
     });
-    showToast?.(`已將《${artist.name}》加入聆賞隊列`);
+    showToast?.(t('radio_queued_toast', { name: artist.name }));
   }
 
   // 快速拾音外部推薦藝人
@@ -186,7 +187,7 @@
     if (onquickPickup) {
       onquickPickup(name);
     } else {
-      showToast?.(`已發起拾音：${name}`);
+      showToast?.(t('radio_pickup_toast', { name }));
     }
   }
 </script>
@@ -206,10 +207,10 @@
             type="button"
             onclick={handleReset}
             class="px-2.5 py-1 text-[11px] text-ink-muted hover:text-signal hover:bg-panel border border-wire hover:border-signal/50 transition-colors rounded-[2px] flex items-center gap-1.5 cursor-pointer shadow-sm"
-            title="清空對話並開啟新話題"
+            title={t('radio_new_chat_title')}
           >
             <Plus class="w-3.5 h-3.5 text-signal" />
-            <span class="font-sans">開啟新對話</span>
+            <span class="font-sans">{t('radio_new_chat_btn')}</span>
           </button>
         {/if}
       </div>
@@ -226,9 +227,9 @@
           <div class="w-12 h-12 rounded-full border border-wire flex items-center justify-center mb-3 bg-panel/30">
             <Compass class="w-6 h-6 text-signal/80" />
           </div>
-          <p class="text-sm font-sans text-ink mb-1">智慧聲學情境對話</p>
+          <p class="text-sm font-sans text-ink mb-1">{t('radio_welcome_title')}</p>
           <p class="text-xs text-ink-dim max-w-sm font-sans leading-relaxed">
-            透過自然對話描述您當下的身體狀態、工作活動或渴望的聽覺音景。AI 將解析深層音樂風格，即時媒合您收藏庫中的寶藏藝人，並探索庫外未知新聲音。
+            {t('radio_welcome_desc')}
           </p>
         </div>
       {:else}
@@ -244,7 +245,7 @@
               <div class="max-w-[90%] bg-panel border border-wire px-3.5 py-2.5 rounded-[2px] text-xs font-sans text-ink shadow-sm">
                 <div class="flex items-center gap-1.5 font-mono text-[10px] text-signal mb-1.5">
                   <Sparkles class="w-3 h-3" />
-                  <span>CURATOR // 策展解析</span>
+                  <span>{t('radio_curator_header')}</span>
                 </div>
                 <p class="whitespace-pre-wrap leading-relaxed text-ink/90">{msg.content}</p>
               </div>
@@ -256,7 +257,7 @@
           <div class="flex justify-start">
             <div class="bg-panel border border-wire px-3 py-2 rounded-[2px] text-xs font-mono text-ink-muted flex items-center gap-2">
               <Loader2 class="w-3.5 h-3.5 animate-spin text-signal" />
-              <span>正在解剖聲學音景並比對曲庫...</span>
+              <span>{t('radio_loading_text')}</span>
             </div>
           </div>
         {/if}
@@ -277,7 +278,7 @@
           bind:value={userInput}
           onkeydown={handleKeyDown}
           disabled={isLoading}
-          placeholder="描述當前的心情狀態、活動節奏或想沈浸的聽覺氛圍..."
+          placeholder={t('radio_input_placeholder')}
           class="w-full bg-chassis border border-wire focus:border-signal text-ink placeholder:text-ink-dim px-3.5 py-2.5 pr-12 text-xs font-sans rounded-[2px] outline-none transition-colors disabled:opacity-50"
         />
         <button
@@ -285,14 +286,14 @@
           onclick={() => handleSendMessage()}
           disabled={!userInput.trim() || isLoading}
           class="absolute right-1.5 p-1.5 bg-signal text-void hover:bg-signal/90 disabled:opacity-30 disabled:hover:bg-signal transition-all rounded-[2px] cursor-pointer"
-          title="發送 (Enter)"
+          title={t('radio_send_title')}
         >
           <Send class="w-3.5 h-3.5" />
         </button>
       </div>
       <div class="flex justify-between items-center text-[10px] text-ink-dim mt-2 px-1">
-        <span>支援連續微調 // 隨時可開啟新對話</span>
-        <span>ENTER 發送 // SHIFT+ENTER 換行</span>
+        <span>{t('radio_hint_left')}</span>
+        <span>{t('radio_hint_right')}</span>
       </div>
     </div>
   </div>
@@ -304,7 +305,7 @@
       <div class="bg-chassis border border-wire p-3 rounded-[2px]">
         <div class="flex items-center gap-1.5 text-[10px] text-ink-muted uppercase tracking-wider mb-2">
           <Disc class="w-3 h-3 text-signal" />
-          <span>MATCHED_ACOUSTIC_GENRES // 聲學風格軸</span>
+          <span>{t('radio_genres_header')}</span>
         </div>
         <div class="flex flex-wrap gap-1.5">
           {#each activeMatchedGenres as genre}
@@ -321,10 +322,10 @@
       <div class="px-3.5 py-2.5 border-b border-wire bg-void/60 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <Headphones class="w-3.5 h-3.5 text-emerald-400" />
-          <span class="text-xs text-ink font-bold font-sans">🎧 庫內匹配藝人</span>
+          <span class="text-xs text-ink font-bold font-sans">{t('radio_local_title')}</span>
         </div>
         <span class="text-[10px] text-ink-dim">
-          {localMatches.length} 位符合
+          {t('radio_local_count', { count: localMatches.length })}
         </span>
       </div>
 
@@ -332,9 +333,9 @@
         {#if localMatches.length === 0}
           <div class="h-full flex items-center justify-center text-center p-4 text-ink-dim text-xs font-sans">
             {#if activeMatchedGenres.length === 0}
-              對話開始後將自動在此檢索出庫內最契合的藝人
+              {t('radio_local_empty_idle')}
             {:else}
-              在您現有的曲庫中未找到完全吻合此風格的藝人
+              {t('radio_local_empty_none')}
             {/if}
           </div>
         {:else}
@@ -356,7 +357,7 @@
                   {/if}
                 </div>
                 <div class="text-[10px] text-ink-dim truncate mt-0.5 font-sans">
-                  命中：{match.hitGenres.join(', ')}
+                  {t('radio_hit_genres', { genres: match.hitGenres.join(', ') })}
                 </div>
               </div>
 
@@ -366,10 +367,10 @@
                   onclick={() => handleAskAboutArtist(match.artist.name)}
                   disabled={isLoading}
                   class="px-1.5 py-1 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  title="請 AI 深入介紹風格脈絡與聆聽重點"
+                  title={t('radio_ask_ai_title')}
                 >
                   <Sparkles class="w-3 h-3 text-signal" />
-                  <span class="hidden sm:inline">介紹</span>
+                  <span class="hidden sm:inline">{t('radio_ask_ai_btn')}</span>
                 </button>
 
                 <StreamingTrigger
@@ -383,7 +384,7 @@
                   type="button"
                   onclick={() => handleEnqueueArtist(match.artist)}
                   class="p-1 text-ink-muted hover:text-emerald-400 hover:bg-void border border-wire hover:border-emerald-500/50 rounded-[2px] transition-colors cursor-pointer"
-                  title="加入聆賞隊列"
+                  title={t('radio_queue_add_title')}
                 >
                   <Plus class="w-3.5 h-3.5" />
                 </button>
@@ -399,17 +400,17 @@
       <div class="px-3.5 py-2.5 border-b border-wire bg-void/60 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <Sparkles class="w-3.5 h-3.5 text-signal" />
-          <span class="text-xs text-ink font-bold font-sans">✦ 探索新聲音</span>
+          <span class="text-xs text-ink font-bold font-sans">{t('radio_external_title')}</span>
         </div>
         <span class="text-[10px] text-ink-dim">
-          AI 特選 {externalRecommendations.length} 組
+          {t('radio_external_count', { count: externalRecommendations.length })}
         </span>
       </div>
 
       <div class="flex-1 p-3 overflow-y-auto space-y-2 custom-scrollbar">
         {#if externalRecommendations.length === 0}
           <div class="h-full flex items-center justify-center text-center p-4 text-ink-dim text-xs font-sans">
-            AI 將根據對話脈絡主動挖掘未收藏的潛在寶藏
+            {t('radio_external_empty')}
           </div>
         {:else}
           {#each externalRecommendations as ext}
@@ -427,10 +428,10 @@
                     onclick={() => handleAskAboutArtist(ext.name)}
                     disabled={isLoading}
                     class="px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                    title="請 AI 深入介紹風格脈絡與聆聽重點"
+                    title={t('radio_ask_ai_title')}
                   >
                     <Sparkles class="w-3 h-3 text-signal" />
-                    <span>介紹</span>
+                    <span>{t('radio_ask_ai_btn')}</span>
                   </button>
 
                   <StreamingTrigger
@@ -443,14 +444,14 @@
                     disabled={addedExternalNames.has(ext.name)}
                     onclick={() => handlePickupExternal(ext.name)}
                     class="px-2 py-0.5 text-[10px] border {addedExternalNames.has(ext.name) ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-wire hover:border-signal text-ink-muted hover:text-signal bg-void'} rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-default"
-                    title="拾音收錄此藝人"
+                    title={t('radio_pickup_title')}
                   >
                     {#if addedExternalNames.has(ext.name)}
                       <Check class="w-3 h-3" />
-                      <span>已拾音</span>
+                      <span>{t('radio_picked_btn')}</span>
                     {:else}
                       <Plus class="w-3 h-3" />
-                      <span>拾音</span>
+                      <span>{t('radio_pickup_btn')}</span>
                     {/if}
                   </button>
                 </div>

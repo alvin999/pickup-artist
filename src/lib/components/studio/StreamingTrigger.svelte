@@ -7,6 +7,7 @@
     getStreamingSearchUrl
   } from '$lib/utils/streaming';
   import { ChevronDown, ExternalLink, Play } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   interface Props {
     artistName: string;
@@ -66,7 +67,7 @@
         type="button"
         onclick={(e) => openStream(preferredPlatform, e)}
         class="flex-1 flex items-center justify-between px-3.5 py-2 text-ink hover:text-white transition-colors cursor-pointer group"
-        title={`在 ${currentInfo.label} 聆賞`}
+        title={t('stream_listen_on', { platform: currentInfo.label })}
       >
         <div class="flex items-center gap-2">
           <span
@@ -87,7 +88,7 @@
           isMenuOpen = !isMenuOpen;
         }}
         class="px-2 border-l border-wire hover:bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer"
-        title="切換其他串流服務"
+        title={t('stream_switch_other')}
       >
         <ChevronDown class="w-3.5 h-3.5" />
       </button>
@@ -100,7 +101,7 @@
         type="button"
         onclick={(e) => openStream(preferredPlatform, e)}
         class="px-2 py-1 text-[10px] text-ink-muted hover:text-primary flex items-center gap-1 cursor-pointer transition-colors"
-        title={`在 ${currentInfo.label} 聆賞`}
+        title={t('stream_listen_on', { platform: currentInfo.label })}
       >
         <span
           class="w-1.5 h-1.5 rounded-full"
@@ -115,7 +116,7 @@
           isMenuOpen = !isMenuOpen;
         }}
         class="px-1 py-1 text-ink-dim hover:text-ink border-l border-wire cursor-pointer"
-        title="更多串流"
+        title={t('stream_more')}
       >
         <ChevronDown class="w-2.5 h-2.5" />
       </button>
@@ -128,7 +129,7 @@
         type="button"
         onclick={(e) => openStream(preferredPlatform, e)}
         class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-ink hover:text-white transition-colors cursor-pointer"
-        title={`在 ${currentInfo.label} 聆賞`}
+        title={t('stream_listen_on', { platform: currentInfo.label })}
       >
         <span
           class="w-2 h-2 rounded-full shrink-0"
@@ -143,7 +144,7 @@
           isMenuOpen = !isMenuOpen;
         }}
         class="px-1.5 border-l border-wire text-ink-muted hover:text-ink hover:bg-surface cursor-pointer transition-colors"
-        title="選擇其他串流平台"
+        title={t('stream_select_platform')}
       >
         <ChevronDown class="w-3 h-3" />
       </button>
@@ -159,7 +160,7 @@
         e.stopPropagation();
         isMenuOpen = false;
       }}
-      aria-label="關閉串流選單"
+      aria-label={t('stream_close_menu')}
     ></button>
     <div
       role="menu"
@@ -167,7 +168,7 @@
       class="absolute right-0 top-full mt-1 w-44 z-50 bg-[#121319] border border-wire-bright shadow-[0_8px_24px_rgba(0,0,0,0.7)] p-1 flex flex-col gap-0.5 rounded-[2px] animate-in fade-in"
     >
       <div class="px-2 py-1 text-[9px] text-ink-dim uppercase tracking-wider font-mono border-b border-wire/60 mb-0.5">
-        切換串流出口 (Stream To)
+        {t('stream_menu_header')}
       </div>
       {#each Object.values(STREAMING_PLATFORMS) as platform}
         <button

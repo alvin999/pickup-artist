@@ -2,6 +2,7 @@ import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
 import { db, onDatabaseChange, createVaultBackupPayload, autoHealArtistCovers, type Tombstone, type VaultBackupPayload } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
 import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
+import { t } from '$lib/i18n';
 
 export const ONEDRIVE_CLIENT_ID =
   ((import.meta.env.PUBLIC_ONEDRIVE_CLIENT_ID || import.meta.env.VITE_ONEDRIVE_CLIENT_ID) as string) || '';
@@ -45,7 +46,7 @@ export async function getMsalInstance(): Promise<PublicClientApplication> {
   }
 
   if (!ONEDRIVE_CLIENT_ID) {
-    throw new Error('缺少環境變數 PUBLIC_ONEDRIVE_CLIENT_ID，請確認專案 .env 設定。');
+    throw new Error(t('onedrive_err_missing_client_id'));
   }
 
   if (!msalInstance) {
@@ -98,7 +99,7 @@ export async function loginToOneDrive(): Promise<AccountInfo> {
     console.error('[OneDrive] Login failed:', err);
     if (err?.errorCode === 'interaction_in_progress' || err?.message?.includes('interaction_in_progress')) {
       clearMsalInteractionLocks();
-      throw new Error('前次登入視窗未正常完成（已重置狀態鎖），請再點選一次重新登入。');
+      throw new Error(t('onedrive_err_interaction_reset'));
     }
     throw err;
   }
@@ -128,7 +129,7 @@ export async function getAccessToken(allowInteractive = false): Promise<string> 
   const account = await getActiveAccount();
 
   if (!account) {
-    throw new Error('請先登入微軟帳戶');
+    throw new Error(t('onedrive_err_not_logged_in'));
   }
 
   try {
@@ -142,7 +143,7 @@ export async function getAccessToken(allowInteractive = false): Promise<string> 
     if (!allowInteractive) {
       updateSyncState({
         status: 'session_expired',
-        errorMessage: '微軟帳戶登入已過期，請重新驗證以繼續同步。',
+        errorMessage: t('onedrive_err_session_expired_sync'),
       });
       throw new Error('SESSION_EXPIRED');
     }
@@ -218,7 +219,7 @@ async function uploadToDrive(path: string, body: Blob | string, contentType = 'a
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`OneDrive 上傳 [${path}] 失敗 (${response.status}): ${errText}`);
+      throw new Error(t('onedrive_err_upload_failed', { path, status: response.status, error: errText }));
     }
   }
 
@@ -608,7 +609,7 @@ export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: numb
   try {
     const cloudData = await loadCombinedCloudData({ forceFullSnapshot: true });
     if (!cloudData) {
-      throw new Error('未在 OneDrive 找到有效備份檔案或增量紀錄');
+      throw new Error(t('onedrive_err_no_backup_found'));
     }
 
     // 寫入本機 Dexie 資料庫（使用交易保障安全性）
@@ -700,7 +701,7 @@ export function triggerAutoCloudSync(delayMs = 1500): void {
 
   // 離線防呆檢查
   if (!navigator.onLine) {
-    updateSyncState({ status: 'offline', errorMessage: '網路已斷線，無法同步至雲端' });
+    updateSyncState({ status: 'offline', errorMessage: t('onedrive_err_offline_sync') });
     return;
   }
 
@@ -775,12 +776,12 @@ async function executeCloudSync(): Promise<void> {
     if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
       updateSyncState({
         status: 'session_expired',
-        errorMessage: '微軟帳戶登入已過期，請重新驗證以繼續同步。',
+        errorMessage: t('onedrive_err_session_expired_sync'),
       });
     } else {
       updateSyncState({
         status: 'error',
-        errorMessage: err?.message || '即時同步至雲端失敗',
+        errorMessage: err?.message || t('onedrive_err_realtime_sync_failed'),
       });
     }
   } finally {
@@ -799,7 +800,7 @@ async function executeCloudSync(): Promise<void> {
 export async function syncFromCloudOnStartup(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   if (!navigator.onLine) {
-    updateSyncState({ status: 'offline', errorMessage: '離線狀態，無法載入雲端資料' });
+    updateSyncState({ status: 'offline', errorMessage: t('onedrive_err_offline_pull') });
     return false;
   }
 
@@ -931,12 +932,12 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
     if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
       updateSyncState({
         status: 'session_expired',
-        errorMessage: '微軟帳戶授權已過期，請點擊重新驗證以同步雲端資料。',
+        errorMessage: t('onedrive_err_session_expired_pull'),
       });
     } else {
       updateSyncState({
         status: 'error',
-        errorMessage: err?.message || '從雲端載入最新資料失敗',
+        errorMessage: err?.message || t('onedrive_err_pull_failed'),
       });
     }
     return false;
@@ -970,9 +971,9 @@ export async function reauthenticateAndSync(onSuccess?: () => Promise<void>): Pr
   } catch (err: any) {
     console.error('[OneDrive] 重新授權與同步失敗:', err);
     if (err?.errorCode === 'user_cancelled') {
-      updateSyncState({ status: 'session_expired', errorMessage: '使用者已取消登入驗證' });
+      updateSyncState({ status: 'session_expired', errorMessage: t('onedrive_err_reauth_cancelled') });
     } else {
-      updateSyncState({ status: 'error', errorMessage: err?.message || '重新驗證失敗' });
+      updateSyncState({ status: 'error', errorMessage: err?.message || t('onedrive_err_reauth_failed') });
     }
     throw err;
   }
@@ -1010,6 +1011,6 @@ if (typeof window !== 'undefined') {
   });
 
   window.addEventListener('offline', () => {
-    updateSyncState({ status: 'offline', errorMessage: '網路已斷線，無法同步至雲端' });
+    updateSyncState({ status: 'offline', errorMessage: t('onedrive_err_offline_sync') });
   });
 }

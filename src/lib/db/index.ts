@@ -8,6 +8,7 @@ import {
 } from '$lib/utils/appleMusic';
 import { fetchArtistPortrait } from '$lib/utils/artistImage';
 import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
+import { t } from '$lib/i18n';
 
 export interface Tombstone {
   id: string;
@@ -66,7 +67,7 @@ export function notifyDatabaseChange(event?: DbChangeEvent): void {
  */
 export function assertOnline(): void {
   if (typeof window !== 'undefined' && !navigator.onLine) {
-    throw new Error('目前處於離線狀態，無法即時同步至雲端，請檢查網路連線後再試。');
+    throw new Error(t('db_offline_sync_error'));
   }
 }
 
@@ -150,7 +151,7 @@ export async function quickPickupArtist(rawInput: string, candidate?: ArtistCand
   const trimmed = rawInput.trim();
   const { isUrl, name, cleanUrl } = extractFromAppleMusicUrl(trimmed);
 
-  const finalName = name || (isUrl ? 'Apple Music 拾音' : trimmed);
+  const finalName = name || (isUrl ? t('db_apple_music_pickup_fallback') : trimmed);
   let appleMusicUrl = cleanUrl || (isUrl ? trimmed : buildAppleMusicSearchUrl(finalName));
   let coverImage: string | undefined = undefined;
   let formatSpec = 'Lossless Hi-Res';
@@ -321,11 +322,11 @@ export async function importVaultBackupJson(rawData: unknown): Promise<{
       incomingQueue = obj.listeningQueue;
     }
   } else {
-    throw new Error('無效的備份檔案格式：請確認為 Pickup Artist JSON 備份檔。');
+    throw new Error(t('db_invalid_backup_format'));
   }
 
   if (incomingArtists.length === 0 && incomingTombstones.length === 0 && incomingQueue.length === 0) {
-    throw new Error('備份檔案中未包含有效的藝人資料或紀錄。');
+    throw new Error(t('db_empty_backup_data'));
   }
 
   let importedOrUpdatedCount = 0;

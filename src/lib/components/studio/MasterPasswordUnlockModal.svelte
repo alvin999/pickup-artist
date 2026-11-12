@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Lock, X, KeyRound, Loader2, AlertCircle } from 'lucide-svelte';
   import { unlockWithMasterPassword } from '$lib/ai/vault';
+  import { t } from '$lib/i18n';
 
   interface Props {
     open: boolean;
@@ -27,7 +28,7 @@
 
   async function handleUnlock() {
     if (!password) {
-      errorMessage = '請輸入主密碼';
+      errorMessage = t('unlock_err_empty');
       return;
     }
 
@@ -39,10 +40,10 @@
         onunlocked();
         handleClose();
       } else {
-        errorMessage = res.error || '主密碼不正確';
+        errorMessage = res.error || t('unlock_err_wrong');
       }
     } catch (e: any) {
-      errorMessage = e?.message || '解密過程異常';
+      errorMessage = e?.message || t('unlock_err_failed');
     } finally {
       isUnlocking = false;
     }
@@ -59,7 +60,7 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 font-mono select-none">
     <button
       type="button"
-      aria-label="關閉"
+      aria-label={t('unlock_close_aria')}
       onclick={handleClose}
       class="absolute inset-0 w-full h-full bg-void/85 backdrop-blur-md cursor-default border-0"
     ></button>
@@ -80,12 +81,12 @@
       <div class="flex items-center gap-2 text-xs text-signal">
         <Lock class="w-4 h-4" />
         <span class="font-dot text-sm font-bold tracking-widest uppercase">
-          VAULT UNLOCK // 解鎖發燒友金鑰
+          {t('unlock_title')}
         </span>
       </div>
 
       <p class="font-sans text-xs text-[#8e929d] leading-relaxed">
-        AI 聲學解剖需存取受主密碼保護之 API 金鑰。請輸入主密碼以解鎖當前工作階段。
+        {t('unlock_desc')}
       </p>
 
       <div class="flex items-center px-3 py-2 bg-void border border-wire focus-within:border-signal">
@@ -94,7 +95,7 @@
           type="password"
           bind:value={password}
           onkeydown={(e) => e.key === 'Enter' && handleUnlock()}
-          placeholder="輸入主密碼..."
+          placeholder={t('unlock_placeholder')}
           class="bg-transparent text-xs text-ink placeholder-ink-dim focus:outline-none w-full font-mono"
         />
       </div>
@@ -112,7 +113,7 @@
           onclick={handleClose}
           class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer"
         >
-          取消
+          {t('unlock_cancel')}
         </button>
         <button
           type="button"
@@ -122,9 +123,9 @@
         >
           {#if isUnlocking}
             <Loader2 class="w-3.5 h-3.5 animate-spin" />
-            <span>解密中...</span>
+            <span>{t('unlock_decrypting')}</span>
           {:else}
-            <span>確認解鎖</span>
+            <span>{t('unlock_confirm')}</span>
           {/if}
         </button>
       </div>

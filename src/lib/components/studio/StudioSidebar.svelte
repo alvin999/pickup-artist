@@ -107,9 +107,9 @@
       a.download = `PUA_LIBRARY_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast?.('已完成曲庫備份匯出：PUA_LIBRARY.JSON');
+      showToast?.(t('sidebar_export_success'));
     } catch {
-      showToast?.('資料庫匯出失敗');
+      showToast?.(t('sidebar_export_fail'));
     }
   }
 
@@ -122,9 +122,9 @@
       const parsed = JSON.parse(text);
       const res = await importVaultBackupJson(parsed);
       if (onRestored) await onRestored();
-      showToast?.(`已合併匯入 ${res.importedOrUpdatedCount} 筆藝人紀錄（總計 ${res.totalCount} 位）`);
+      showToast?.(t('sidebar_import_success', { imported: res.importedOrUpdatedCount, total: res.totalCount }));
     } catch (err: any) {
-      showToast?.(err?.message || '備份檔匯入失敗');
+      showToast?.(err?.message || t('sidebar_import_fail'));
     } finally {
       input.value = '';
     }
@@ -139,9 +139,9 @@
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
       const shortHash = hashHex.slice(0, 12);
-      showToast?.(`SHA-256 完整性校驗通過: [${shortHash}...] 100% OK`);
+      showToast?.(t('sidebar_sha_verified', { hash: shortHash }));
     } catch {
-      showToast?.('SHA-256 校驗就緒');
+      showToast?.(t('sidebar_sha_ready'));
     }
   }
 
@@ -179,8 +179,8 @@
         type="button"
         class="h-16 w-full flex flex-col items-center justify-center border-b border-wire bg-void/60 hover:bg-panel/40 transition-colors cursor-pointer group"
         onclick={ontoggleCollapse}
-        title={aiQueue.status === 'processing' ? `AI解剖中: ${aiQueue.currentArtist?.name ?? ''} (點擊展開側邊欄)` : isOnline ? `連線就緒 (延遲: ${latency}ms) - 點擊展開側邊欄` : '離線模式 - 點擊展開側邊欄'}
-        aria-label="展開側邊欄 (Ctrl+B)"
+        title={aiQueue.status === 'processing' ? t('sidebar_analyzing_expand', { name: aiQueue.currentArtist?.name ?? '' }) : isOnline ? t('sidebar_online_expand', { latency }) : t('sidebar_offline_expand')}
+        aria-label={t('sidebar_expand_aria')}
       >
         <span class="material-symbols-outlined text-[16px] text-ink-muted group-hover:text-signal transition-colors mb-1.5">
           chevron_right
@@ -234,8 +234,8 @@
               type="button"
               onclick={ontoggleCollapse}
               class="p-1 -mr-1 text-ink-muted hover:text-signal hover:bg-panel border border-transparent hover:border-wire transition-all cursor-pointer rounded-[2px] flex items-center justify-center"
-              title="收折側邊欄 (Ctrl+B)"
-              aria-label="收折側邊欄"
+              title={t('sidebar_collapse_title')}
+              aria-label={t('sidebar_collapse_aria')}
             >
               <span class="material-symbols-outlined text-[16px]">chevron_left</span>
             </button>
@@ -262,9 +262,9 @@
         type="button"
         class="w-full flex flex-col items-center justify-center py-3 px-1 border-b border-wire border-dashed bg-panel/40 hover:bg-panel/70 transition-colors group cursor-pointer"
         onclick={() => {
-          showToast?.(`AI 解剖進度：${analyzedCount}/${actualTotalArtists} 位音樂人已完成分析 (${coveragePercent}%)`);
+          showToast?.(t('sidebar_ai_progress_toast', { analyzed: analyzedCount, total: actualTotalArtists, percent: coveragePercent }));
         }}
-        title={`AI 解剖進度: ${coveragePercent}% (${analyzedCount}/${actualTotalArtists}) - 點擊檢視`}
+        title={t('sidebar_ai_progress_title', { percent: coveragePercent, analyzed: analyzedCount, total: actualTotalArtists })}
       >
         <span class="material-symbols-outlined text-[18px] text-ink-muted group-hover:text-signal transition-colors">
           neurology
@@ -278,9 +278,9 @@
         type="button"
         class="w-full text-left p-4 border-b border-wire border-dashed bg-panel/40 hover:bg-panel/70 transition-colors group cursor-pointer"
         onclick={() => {
-          showToast?.(`AI 解剖進度：${analyzedCount}/${actualTotalArtists} 位音樂人已完成分析 (${coveragePercent}%)`);
+          showToast?.(t('sidebar_ai_progress_toast', { analyzed: analyzedCount, total: actualTotalArtists, percent: coveragePercent }));
         }}
-        title="點擊檢視 AI 分析進度"
+        title={t('sidebar_ai_progress_click')}
       >
         <div class="flex items-center justify-between font-mono text-[10px] text-ink-muted mb-1.5">
           <span class="group-hover:text-signal transition-colors">[ANALYSIS_ARRAY]</span>
@@ -334,13 +334,13 @@
         <button
           type="button"
           onclick={() => onselectView('crate-digger')}
-          title="01_藝人展間 (快捷鍵: 1)"
+          title={t('nav_01_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'crate-digger' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[18px]">person</span>
             {#if !isCollapsed}
-              <span>01_藝人展間</span>
+              <span>{t('nav_01_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'crate-digger'}
@@ -351,13 +351,13 @@
         <button
           type="button"
           onclick={() => onselectView('honeycomb-cluster')}
-          title="02_藝人星系 (快捷鍵: 2)"
+          title={t('nav_02_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'honeycomb-cluster' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[18px] {activeView === 'honeycomb-cluster' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">hub</span>
             {#if !isCollapsed}
-              <span>02_藝人星系</span>
+              <span>{t('nav_02_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'honeycomb-cluster'}
@@ -368,13 +368,13 @@
         <button
           type="button"
           onclick={() => onselectView('acoustic-matrix')}
-          title="03_風格矩陣 (快捷鍵: 3)"
+          title={t('nav_03_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'acoustic-matrix' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[18px] {activeView === 'acoustic-matrix' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">category</span>
             {#if !isCollapsed}
-              <span>03_風格矩陣</span>
+              <span>{t('nav_03_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'acoustic-matrix'}
@@ -385,7 +385,7 @@
         <button
           type="button"
           onclick={() => onselectView('listening-queue')}
-          title="04_聆賞隊列 (快捷鍵: 4)"
+          title={t('nav_04_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'listening-queue' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5 relative">
@@ -394,13 +394,13 @@
               <span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse"></span>
             {/if}
             {#if !isCollapsed}
-              <span>04_聆賞隊列</span>
+              <span>{t('nav_04_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed}
             <div class="flex items-center gap-1.5">
               {#if isAnyListening}
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" title="目前有盤片正在品鑑中"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" title={t('sidebar_listening_now')}></span>
               {/if}
               {#if activeView === 'listening-queue'}
                 <span class="font-dot text-[10px] bg-signal text-white px-1">[QUE]</span>
@@ -412,13 +412,13 @@
         <button
           type="button"
           onclick={() => onselectView('listening-log')}
-          title="05_聆賞日誌 (快捷鍵: 5)"
+          title={t('nav_05_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'listening-log' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[18px] {activeView === 'listening-log' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">edit_note</span>
             {#if !isCollapsed}
-              <span>05_聆賞日誌</span>
+              <span>{t('nav_05_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'listening-log'}
@@ -429,13 +429,13 @@
         <button
           type="button"
           onclick={() => onselectView('ai-recommend')}
-          title="06_智慧推薦 (快捷鍵: 6)"
+          title={t('nav_06_title')}
           class="w-full group flex items-center transition-all {isCollapsed ? 'justify-center p-2.5 rounded-[2px]' : 'justify-between px-3 py-2.5 text-left'} {activeView === 'ai-recommend' ? 'bg-ink text-void font-bold' : 'text-ink-muted hover:text-ink hover:bg-panel border border-transparent hover:border-wire'}"
         >
           <div class="flex items-center gap-2.5">
             <span class="material-symbols-outlined text-[18px] {activeView === 'ai-recommend' ? 'text-void' : 'text-ink-dim group-hover:text-signal'}">neurology</span>
             {#if !isCollapsed}
-              <span>06_智慧推薦</span>
+              <span>{t('nav_06_label')}</span>
             {/if}
           </div>
           {#if !isCollapsed && activeView === 'ai-recommend'}
@@ -460,7 +460,7 @@
         type="button"
         onclick={exportDatabase}
         class="p-2 text-ink-muted hover:text-signal hover:bg-panel border border-wire/60 transition-colors cursor-pointer rounded-[2px] relative group"
-        title="資料庫掛載就緒 (點擊一鍵匯出曲庫備份)"
+        title={t('sidebar_db_ready_export')}
       >
         <span class="material-symbols-outlined text-[18px]">hard_drive</span>
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] absolute top-1 right-1"></span>
@@ -469,14 +469,14 @@
         type="button"
         onclick={() => importInputEl?.click()}
         class="p-1.5 text-ink-dim hover:text-signal hover:bg-panel border border-wire/60 transition-colors cursor-pointer rounded-[2px]"
-        title="匯入 JSON 備份檔並合併"
+        title={t('sidebar_import_merge_title')}
       >
         <span class="material-symbols-outlined text-[15px]">upload_file</span>
       </button>
       <a
         href="/privacy"
         class="p-1 text-ink-dim hover:text-signal transition-colors flex items-center justify-center"
-        title="隱私權政策與服務條款 (Privacy Policy & Terms)"
+        title={t('sidebar_privacy_title')}
       >
         <span class="material-symbols-outlined text-[15px]">policy</span>
       </a>
@@ -492,7 +492,7 @@
           type="button"
           onclick={exportDatabase}
           class="text-left w-full text-xs text-ink font-bold tracking-tight mt-0.5 hover:text-signal transition-colors cursor-pointer flex items-center justify-between group"
-          title="點擊一鍵匯出曲庫備份 (PUA_LIBRARY.JSON)"
+          title={t('sidebar_export_click_title')}
         >
           <span>PUA_LIBRARY.JSON</span>
           <span class="material-symbols-outlined text-[13px] opacity-0 group-hover:opacity-100 text-signal transition-opacity">download</span>
@@ -502,7 +502,7 @@
             type="button"
             onclick={exportDatabase}
             class="px-2 py-1 bg-void hover:bg-ink hover:text-void border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
-            title="匯出完整備份檔 (.json)"
+            title={t('sidebar_export_full_title')}
           >
             <span class="material-symbols-outlined text-[11px]">download</span>
             <span>EXPORT</span>
@@ -511,7 +511,7 @@
             type="button"
             onclick={() => importInputEl?.click()}
             class="px-2 py-1 bg-void hover:bg-signal hover:text-white hover:border-signal border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
-            title="匯入並雙向合併 .json 備份檔"
+            title={t('sidebar_import_full_title')}
           >
             <span class="material-symbols-outlined text-[11px]">upload_file</span>
             <span>IMPORT</span>
@@ -523,7 +523,7 @@
             type="button"
             onclick={verifySha256}
             class="text-signal hover:underline hover:text-signal/80 cursor-pointer font-bold tracking-wider"
-            title="點擊校驗資料庫 SHA-256 完整性雜湊"
+            title={t('sidebar_sha_click_title')}
           >
             SHA-256
           </button>
@@ -532,7 +532,7 @@
           <a
             href="/privacy"
             class="hover:text-signal transition-colors flex items-center gap-1 font-mono tracking-wider"
-            title="檢視隱私權政策與服務條款 (Privacy Policy & Terms)"
+            title={t('sidebar_privacy_full_title')}
           >
             <span class="material-symbols-outlined text-[11px]">policy</span>
             <span>PRIVACY & TERMS</span>

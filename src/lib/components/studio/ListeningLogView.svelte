@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ArtistEntry } from '$lib/types/artist';
   import { analyzeListeningResonance, type ListeningResonanceResult } from '$lib/ai/client';
-  import { i18n } from '$lib/i18n/index.svelte';
+  import { i18n, t, type TranslationKey } from '$lib/i18n';
   import {
     Sparkles,
     Search,
@@ -112,27 +112,27 @@
   // 最低限度情境選項
   const SCENE_OPTIONS: Array<{
     id: 'headphone' | 'speaker' | 'on-the-go' | 'night-solitude';
-    label: string;
+    labelKey: TranslationKey;
     icon: string;
   }> = [
-    { id: 'headphone', label: '耳機獨享', icon: 'headphones' },
-    { id: 'speaker', label: '空間揚聲', icon: 'speaker' },
-    { id: 'on-the-go', label: '路上隨行', icon: 'directions_walk' },
-    { id: 'night-solitude', label: '深夜私語', icon: 'nightlight' }
+    { id: 'headphone', labelKey: 'log_scene_headphone', icon: 'headphones' },
+    { id: 'speaker', labelKey: 'log_scene_speaker', icon: 'speaker' },
+    { id: 'on-the-go', labelKey: 'log_scene_on_the_go', icon: 'directions_walk' },
+    { id: 'night-solitude', labelKey: 'log_scene_night_solitude', icon: 'nightlight' }
   ];
 
   // 常用人文氛圍標籤 (點擊即選)
-  const QUICK_MOOD_TAGS = [
-    '雨天沉思',
-    '深夜獨處',
-    '吉他留白',
-    '詩意詞作',
-    '路上漫遊',
-    '純粹器樂',
-    '溫暖治癒',
-    '情緒宣洩',
-    '時代記憶',
-    '微醺放空'
+  const QUICK_MOOD_TAG_KEYS: TranslationKey[] = [
+    'log_mood_rainy',
+    'log_mood_night',
+    'log_mood_guitar',
+    'log_mood_poetic',
+    'log_mood_wander',
+    'log_mood_instrumental',
+    'log_mood_healing',
+    'log_mood_catharsis',
+    'log_mood_nostalgia',
+    'log_mood_tipsy'
   ];
 
   // 開啟「新增手札」Modal
@@ -224,7 +224,7 @@
     if (!val) return;
     if (!modalPickedAlbums.includes(val)) {
       modalPickedAlbums = [...modalPickedAlbums, val];
-      showToast?.(`已加入心頭好專輯《${val}》`);
+      showToast?.(t('log_album_added', { title: val }));
     }
     modalCustomAlbumInput = '';
   }
@@ -268,7 +268,7 @@
     if (!modalSelectedArtist) return;
     isAnalyzingResonance = true;
     resonancePreview = null;
-    showToast?.(`AI 正在體會您所寫下的心境，為「${modalSelectedArtist.name}」提煉共鳴...`);
+    showToast?.(t('log_ai_analyzing_toast', { name: modalSelectedArtist.name }));
 
     try {
       const availableAlbums = (modalSelectedArtist.analysis?.notableAlbums || []).map((a) => a.title);
@@ -280,10 +280,10 @@
       );
 
       resonancePreview = res;
-      showToast?.(`✨ AI 已完成共鳴體會！請在下方預覽確認`);
+      showToast?.(t('log_ai_done_toast'));
     } catch (err: any) {
       console.error('[Listening Resonance Error]:', err);
-      showToast?.(`AI 共鳴分析失敗：${err.message || '請確認 API 金鑰'}`);
+      showToast?.(t('log_ai_failed_toast', { error: err.message || t('log_ai_key_hint') }));
     } finally {
       isAnalyzingResonance = false;
     }
@@ -308,7 +308,7 @@
     modalMoodTags = Array.from(nextMoods);
 
     resonancePreview = null;
-    showToast?.('已採納 AI 題詞與推薦曲目至手札草稿！');
+    showToast?.(t('log_ai_applied_toast'));
   }
 
   // 儲存手札 (寫入資料庫並關閉 Modal)
@@ -331,12 +331,16 @@
 
     await onupdateArtist?.(updated);
     closeModal();
-    showToast?.(isEditingExisting ? `已更新「${modalSelectedArtist.name}」的聆賞手札` : `已收錄「${modalSelectedArtist.name}」的新手札！`);
+    showToast?.(
+      isEditingExisting
+        ? t('log_updated_toast', { name: modalSelectedArtist.name })
+        : t('log_created_toast', { name: modalSelectedArtist.name })
+    );
   }
 
   // 移除手札 (自日誌中解除)
   async function handleDeleteLog(artist: ArtistEntry) {
-    if (!confirm(`確定要自聆賞日誌中移除「${artist.name}」的手札紀錄嗎？`)) return;
+    if (!confirm(t('log_delete_confirm', { name: artist.name }))) return;
 
     const updated: ArtistEntry = {
       ...artist,
@@ -352,7 +356,7 @@
     };
 
     await onupdateArtist?.(updated);
-    showToast?.(`已自日誌中移除「${artist.name}」`);
+    showToast?.(t('log_deleted_toast', { name: artist.name }));
   }
 
   function formatLoggedDate(ts?: number): string {
@@ -373,18 +377,18 @@
       <div>
         <div class="flex items-center gap-2 font-mono text-xs text-signal mb-1">
           <Feather class="w-3.5 h-3.5 text-signal" />
-          <span>LISTENING_JOURNAL // 聆賞手札</span>
+          <span>{t('log_header_tag')}</span>
         </div>
         <div class="flex items-center gap-3">
           <h1 class="text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2.5">
-            <span>聆賞日誌</span>
+            <span>{t('log_title')}</span>
             <span class="font-mono text-xs font-normal px-2.5 py-0.5 border border-wire bg-panel text-[#A8ACB4]">
-              已記述 {loggedArtists.length} 篇心境隨筆
+              {t('log_count_badge', { count: loggedArtists.length })}
             </span>
           </h1>
         </div>
         <p class="text-xs text-[#A8ACB4] mt-1.5 max-w-xl font-sans leading-relaxed">
-          非強迫、無待辦。僅在某段旋律打動你時，點選「+ 記述新日誌」，記錄當下的心境碎片與生活共鳴。
+          {t('log_subtitle')}
         </p>
       </div>
 
@@ -396,7 +400,7 @@
           class="px-4 py-2 bg-signal hover:bg-signal/90 text-void font-bold text-xs font-mono flex items-center gap-2 transition-all shadow-lg shadow-signal/20 cursor-pointer"
         >
           <Plus class="w-4 h-4" />
-          <span>記述新日誌 (NEW ENTRY)</span>
+          <span>{t('log_new_btn')}</span>
         </button>
       </div>
     </div>
@@ -409,7 +413,7 @@
           <input
             type="text"
             bind:value={searchQuery}
-            placeholder="搜尋已記述之藝人、手札關鍵字、喜愛曲目或專輯..."
+            placeholder={t('log_search_placeholder')}
             class="w-full bg-chassis text-xs text-ink placeholder-[#8E9298] pl-9 pr-4 py-2 border border-wire focus:border-signal focus:outline-none font-mono"
           />
         </div>
@@ -431,9 +435,9 @@
     <!-- 溫潤舒緩的空狀態 (零威權、零作業感) -->
     <div class="py-24 text-center border border-wire border-dashed bg-void/60 p-8 font-mono text-xs text-[#A8ACB4] max-w-2xl mx-auto my-6">
       <BookOpen class="w-10 h-10 text-signal/80 mx-auto mb-3" />
-      <div class="text-base font-serif font-bold text-ink mb-1.5">尚未開啟任何聆賞手札</div>
+      <div class="text-base font-serif font-bold text-ink mb-1.5">{t('log_empty_title')}</div>
       <p class="text-xs text-[#9CA1AA] leading-relaxed max-w-md mx-auto mb-5 font-sans">
-        音樂不必打卡，感受無須排程。當哪天的一段前奏切中了窗外的雨聲或夜色，點擊下方按鈕，為心動的旋律留下真實印記。
+        {t('log_empty_desc')}
       </p>
       <button
         type="button"
@@ -441,7 +445,7 @@
         class="inline-flex items-center gap-2 px-4 py-2 border border-signal text-signal bg-signal/10 hover:bg-signal/20 text-xs font-mono font-bold transition-all cursor-pointer shadow"
       >
         <Plus class="w-4 h-4" />
-        <span>寫下第一篇聲音手札</span>
+        <span>{t('log_write_first')}</span>
       </button>
     </div>
   {:else}
@@ -480,7 +484,7 @@
                     type="button"
                     onclick={() => onopenInCrate?.(artist.id)}
                     class="text-base font-serif font-bold text-ink hover:text-signal transition-colors text-left flex items-center gap-1.5 group cursor-pointer"
-                    title="在藝人展間檢視"
+                    title={t('log_open_crate_title')}
                   >
                     <span>{artist.name}</span>
                     <ExternalLink class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-signal transition-opacity" />
@@ -519,7 +523,7 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="p-1.5 border border-wire hover:border-signal/60 bg-chassis hover:text-signal text-[#9CA1AA] transition-colors"
-                  title="在 Apple Music 聆聽"
+                  title={t('log_listen_am_title')}
                 >
                   <Music class="w-3.5 h-3.5" />
                 </a>
@@ -531,14 +535,14 @@
                 class="px-2.5 py-1 border border-wire hover:border-signal bg-chassis text-ink hover:text-signal text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Edit3 class="w-3 h-3" />
-                <span>編輯手札</span>
+                <span>{t('log_edit_btn')}</span>
               </button>
 
               <button
                 type="button"
                 onclick={() => handleDeleteLog(artist)}
                 class="p-1.5 border border-wire hover:border-rose-500/60 text-[#8E9298] hover:text-rose-400 bg-chassis transition-colors cursor-pointer"
-                title="自日誌中移除此篇手札"
+                title={t('log_delete_title')}
               >
                 <Trash2 class="w-3.5 h-3.5" />
               </button>
@@ -551,7 +555,7 @@
               {#if sceneLabel}
                 <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-sans bg-signal/15 text-signal border border-signal/40">
                   <span class="material-symbols-outlined text-[13px]">{sceneLabel.icon}</span>
-                  <span>{sceneLabel.label}</span>
+                  <span>{t(sceneLabel.labelKey)}</span>
                 </span>
               {/if}
 
@@ -619,7 +623,7 @@
         <div class="flex items-center gap-2">
           <Feather class="w-4 h-4 text-signal" />
           <span class="font-serif font-bold text-sm text-ink">
-            {isEditingExisting ? '編輯聲音手札' : '記錄新篇手札 // NEW LISTENING ENTRY'}
+            {isEditingExisting ? t('log_modal_edit_title') : t('log_modal_new_title')}
           </span>
         </div>
         <button
@@ -636,7 +640,7 @@
         <!-- 步驟 1: 選擇目標藝人 (若新建可搜尋選取，編輯時鎖定) -->
         <div>
           <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider block mb-1.5">
-            // 選擇音樂人 (SELECT_ARTIST)
+            {t('log_modal_select_artist')}
           </div>
           {#if isEditingExisting}
             <div class="p-2.5 bg-void border border-wire font-bold font-serif text-sm text-signal flex items-center justify-between">
@@ -660,9 +664,9 @@
           {@const notableAlbums = modalSelectedArtist.analysis?.notableAlbums || []}
           <div>
             <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
-              <span>// 心頭好代表專輯 (FAVORITE_ALBUMS)</span>
+              <span>{t('log_modal_fav_albums')}</span>
               {#if modalPickedAlbums.length > 0}
-                <span class="text-signal text-[10px]">已收錄 {modalPickedAlbums.length} 張</span>
+                <span class="text-signal text-[10px]">{t('log_modal_albums_count', { count: modalPickedAlbums.length })}</span>
               {/if}
             </div>
 
@@ -676,7 +680,7 @@
                       type="button"
                       onclick={() => handleModalRemovePickedAlbum(alb)}
                       class="text-signal/70 hover:text-signal p-0.5 cursor-pointer"
-                      title="移除此專輯"
+                      title={t('log_modal_remove_album_title')}
                     >
                       <X class="w-3 h-3" />
                     </button>
@@ -687,7 +691,7 @@
 
             <!-- 方式 A: 點選串流推薦名盤 (若有) -->
             {#if notableAlbums.length > 0}
-              <div class="text-[10px] font-mono text-[#8E9298] mb-1.5">點擊快速收錄推薦盤：</div>
+              <div class="text-[10px] font-mono text-[#8E9298] mb-1.5">{t('log_modal_quick_add_album')}</div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                 {#each notableAlbums as alb}
                   {@const picked = modalPickedAlbums.includes(alb.title)}
@@ -708,14 +712,14 @@
                     </div>
                     <div class="flex items-center justify-between text-[10px] font-mono text-[#8E9298] mt-1.5 pt-1 border-t border-wire/40">
                       <span>{alb.year || 'ALBUM'}</span>
-                      <span>{alb.tier === 'milestone' ? '時代基石' : '深埋寶藏'}</span>
+                      <span>{alb.tier === 'milestone' ? t('badge_milestone') : t('badge_hidden_treasure')}</span>
                     </div>
                   </button>
                 {/each}
               </div>
             {:else}
               <div class="p-2.5 border border-wire border-dashed text-xs text-[#A0A5AE] font-sans bg-void mb-2">
-                此藝人庫藏尚未列舉代表專輯，可直接在下方手動鍵入任何代表作品。
+                {t('log_modal_no_albums_hint')}
               </div>
             {/if}
 
@@ -724,7 +728,7 @@
               <input
                 type="text"
                 bind:value={modalCustomAlbumInput}
-                placeholder="手動填寫作品名稱（例如：經典單曲、Live 現場版...）後按 Enter"
+                placeholder={t('log_modal_custom_album_placeholder')}
                 onkeydown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -739,7 +743,7 @@
                 class="px-3 py-1.5 bg-chassis border border-wire hover:border-signal text-ink hover:text-signal text-xs font-mono transition-colors cursor-pointer flex items-center gap-1"
               >
                 <Plus class="w-3.5 h-3.5" />
-                <span>收錄專輯</span>
+                <span>{t('log_modal_add_album_btn')}</span>
               </button>
             </div>
           </div>
@@ -747,7 +751,7 @@
           <!-- 步驟 3: 極簡聆聽情境 (最低限度器材) -->
           <div>
             <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider mb-2">
-              // 聆聽情境 (LISTENING_SCENE)
+              {t('log_modal_scene_header')}
             </div>
             <div class="flex flex-wrap gap-2">
               {#each SCENE_OPTIONS as opt}
@@ -760,7 +764,7 @@
                     : 'border-wire bg-void text-[#A8ACB4] hover:text-ink'}"
                 >
                   <span class="material-symbols-outlined text-[14px]">{opt.icon}</span>
-                  <span>{opt.label}</span>
+                  <span>{t(opt.labelKey)}</span>
                 </button>
               {/each}
             </div>
@@ -771,7 +775,7 @@
             <!-- 加曲 -->
             <div class="border border-wire p-3 bg-void">
               <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider mb-1.5">
-                // 心選曲目 (FAVORITE_TRACKS)
+                {t('log_modal_tracks_header')}
               </div>
               <div class="flex flex-wrap gap-1.5 mb-2 min-h-[26px]">
                 {#each modalFavoriteTracks as trk}
@@ -791,7 +795,7 @@
                 <input
                   type="text"
                   bind:value={modalNewTrackInput}
-                  placeholder="輸入動人曲名後按 Enter..."
+                  placeholder={t('log_modal_track_placeholder')}
                   onkeydown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -813,19 +817,20 @@
             <!-- 點選氛圍標籤 -->
             <div class="border border-wire p-3 bg-void">
               <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider mb-1.5">
-                // 氛圍標籤 (點擊即選)
+                {t('log_modal_moods_header')}
               </div>
               <div class="flex flex-wrap gap-1.5">
-                {#each QUICK_MOOD_TAGS as tag}
-                  {@const picked = modalMoodTags.includes(tag)}
+                {#each QUICK_MOOD_TAG_KEYS as tagKey}
+                  {@const tagLabel = t(tagKey)}
+                  {@const picked = modalMoodTags.includes(tagLabel)}
                   <button
                     type="button"
-                    onclick={() => toggleModalMoodTag(tag)}
+                    onclick={() => toggleModalMoodTag(tagLabel)}
                     class="px-2 py-0.5 text-xs font-sans border transition-all cursor-pointer {picked
                       ? 'border-signal bg-signal/20 text-signal font-medium'
                       : 'border-wire bg-chassis text-[#A8ACB4] hover:text-ink'}"
                   >
-                    {picked ? '✓ ' : ''}{tag}
+                    {picked ? '✓ ' : ''}{tagLabel}
                   </button>
                 {/each}
               </div>
@@ -837,7 +842,7 @@
             <div class="flex items-center justify-between">
               <div class="font-mono text-[11px] text-[#A8ACB4] font-bold uppercase tracking-wider flex items-center gap-1.5">
                 <Feather class="w-3.5 h-3.5 text-signal" />
-                <span>// 聽感手札與生活碎片 (FIELD_NOTES)</span>
+                <span>{t('log_modal_notes_header')}</span>
               </div>
 
               <!-- AI 共鳴分析按鈕 -->
@@ -848,16 +853,16 @@
                 class="px-2.5 py-1 text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer {isAnalyzingResonance
                   ? 'bg-signal/20 text-signal border border-signal/40 animate-pulse'
                   : 'bg-chassis hover:bg-signal/15 text-signal border border-signal/40 hover:border-signal'}"
-                title="AI 將根據您寫下的文字，提煉文學題詞與推薦曲目"
+                title={t('log_modal_ai_btn_title')}
               >
                 <Sparkles class="w-3.5 h-3.5 {isAnalyzingResonance ? 'animate-spin' : ''}" />
-                <span>{isAnalyzingResonance ? 'AI 體會中...' : '✨ AI 共鳴分析'}</span>
+                <span>{isAnalyzingResonance ? t('log_modal_ai_btn_loading') : t('log_modal_ai_btn')}</span>
               </button>
             </div>
 
             <textarea
               bind:value={modalNotes}
-              placeholder="在此寫下聆聽時的隻字片語（例如：「窗外下著小雨，這張吉他延遲回音讓人想起大學宿舍的深夜」）... 點擊上方「✨ AI 共鳴分析」，AI 會嚴格依據您寫下的感觸，提煉文學題詞並推薦契合曲目。"
+              placeholder={t('log_modal_notes_placeholder')}
               rows="3"
               class="w-full bg-chassis text-xs leading-relaxed text-ink placeholder-[#8E9298] p-2.5 border border-wire focus:border-signal focus:outline-none resize-none font-sans"
             ></textarea>
@@ -868,14 +873,14 @@
                 <div class="flex items-center justify-between text-xs font-mono text-signal font-bold">
                   <div class="flex items-center gap-1.5">
                     <Sparkles class="w-3.5 h-3.5 text-signal" />
-                    <span>AI 共鳴提煉預覽 // RESONANCE ECHO</span>
+                    <span>{t('log_modal_ai_preview_title')}</span>
                   </div>
                   <button
                     type="button"
                     onclick={() => (resonancePreview = null)}
                     class="text-[#8E9298] hover:text-signal text-[11px] cursor-pointer"
                   >
-                    [✕ 關閉預覽]
+                    {t('log_modal_ai_close_preview')}
                   </button>
                 </div>
 
@@ -891,7 +896,7 @@
 
                 {#if resonancePreview.recommendedTracks.length > 0}
                   <div class="text-[11px] font-mono text-[#A8ACB4] flex items-center gap-2">
-                    <span class="text-signal font-bold">推薦心境曲目:</span>
+                    <span class="text-signal font-bold">{t('log_modal_ai_rec_tracks')}</span>
                     <span>{resonancePreview.recommendedTracks.join('、')}</span>
                   </div>
                 {/if}
@@ -903,7 +908,7 @@
                     class="px-3 py-1.5 bg-signal text-void font-bold text-xs font-mono flex items-center gap-1.5 hover:bg-signal/90 transition-all cursor-pointer shadow"
                   >
                     <Check class="w-3.5 h-3.5" />
-                    <span>採納並套用至手札草稿</span>
+                    <span>{t('log_modal_ai_apply')}</span>
                   </button>
                 </div>
               </div>
@@ -919,7 +924,7 @@
           onclick={closeModal}
           class="px-4 py-2 text-xs font-mono text-[#A8ACB4] hover:text-ink transition-colors cursor-pointer"
         >
-          取消 (CANCEL)
+          {t('log_modal_cancel')}
         </button>
 
         <button
@@ -929,7 +934,7 @@
           class="px-5 py-2 bg-signal hover:bg-signal/90 text-void font-bold text-xs font-mono flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-signal/20 disabled:opacity-50"
         >
           <Check class="w-4 h-4" />
-          <span>{isEditingExisting ? '儲存手札變更' : '完成記述並收錄手札'}</span>
+          <span>{isEditingExisting ? t('log_modal_save_edit') : t('log_modal_save_new')}</span>
         </button>
       </div>
     </div>

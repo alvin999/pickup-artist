@@ -1,7 +1,7 @@
 import type { ArtistEntry } from '$lib/types/artist';
 import { analyzeArtistWithAI, RateLimitError } from '$lib/ai/client';
 import { updateArtist } from '$lib/db';
-import type { SupportedLocale } from '$lib/i18n';
+import { t, type SupportedLocale } from '$lib/i18n';
 import type { DisambiguationContext } from '$lib/ai/prompts';
 
 /**
@@ -101,7 +101,7 @@ class AnalysisQueueService {
     }
 
     this.queue.push({ artist, locale, retries: 0 });
-    this.lastMessage = `已加入佇列：${artist.name}`;
+    this.lastMessage = t('queue_added', { name: artist.name });
     this.notify();
     this.processNext();
   }
@@ -122,7 +122,7 @@ class AnalysisQueueService {
 
     if (addedCount > 0) {
       this.totalBatchCount += addedCount;
-      this.lastMessage = `已批次排入 ${addedCount} 位藝人等候解剖`;
+      this.lastMessage = t('queue_batch_added', { count: addedCount });
       this.notify();
       this.processNext();
     }
@@ -151,12 +151,12 @@ class AnalysisQueueService {
     }
 
     this.status = 'processing';
-    this.lastMessage = `正在解剖：${item.artist.name}...`;
+    this.lastMessage = t('queue_analyzing', { name: item.artist.name });
     this.notify();
 
     try {
       await this.executeAnalysis(item);
-      this.lastMessage = `「${item.artist.name}」解剖完成`;
+      this.lastMessage = t('queue_completed', { name: item.artist.name });
       this.currentItem = null;
       this.notify();
 
@@ -168,7 +168,7 @@ class AnalysisQueueService {
       if (err instanceof RateLimitError) {
         // 攔截到 429：啟動冷卻倒數與自動重試
         const waitSec = err.retryAfterSeconds || 35;
-        this.lastMessage = `觸發頻率限制 (429)，將於 ${waitSec} 秒後自動重試「${item.artist.name}」`;
+        this.lastMessage = t('queue_rate_limit_retry', { seconds: waitSec, name: item.artist.name });
         this.status = 'cooling_down';
         this.notify();
 
@@ -179,7 +179,7 @@ class AnalysisQueueService {
           item.retries++;
           this.queue.unshift(item);
         } else {
-          this.lastMessage = `「${item.artist.name}」重試達上限，暫時跳過`;
+          this.lastMessage = t('queue_retry_exhausted', { name: item.artist.name });
         }
         this.currentItem = null;
       } else {
@@ -187,13 +187,13 @@ class AnalysisQueueService {
         if (item.retries < 1) {
           item.retries++;
           console.warn(`[AnalysisQueue] 「${item.artist.name}」發生異常，1.5 秒後自動重試:`, err);
-          this.lastMessage = `「${item.artist.name}」暫時異常，正在自動重試...`;
+          this.lastMessage = t('queue_temp_error_retry', { name: item.artist.name });
           this.notify();
           await this.sleep(1500);
           this.queue.unshift(item);
         } else {
           console.error('[AnalysisQueue] 解剖失敗:', err);
-          this.lastMessage = `「${item.artist.name}」解剖失敗: ${err?.message || err}`;
+          this.lastMessage = t('queue_failed', { name: item.artist.name, error: err?.message || err });
         }
         this.currentItem = null;
       }

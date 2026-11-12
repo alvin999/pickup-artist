@@ -150,8 +150,8 @@
     if (!isOneDriveConnected) return t('status_sync_not_synced');
     if (syncStatus === 'session_expired') return t('status_sync_session_expired');
     if (syncStatus === 'syncing') return t('status_sync_syncing');
-    if (syncStatus === 'offline') return '離線待命';
-    if (syncStatus === 'error') return '同步失敗';
+    if (syncStatus === 'offline') return t('status_sync_offline');
+    if (syncStatus === 'error') return t('status_sync_error');
     return t('status_sync_connected');
   });
 </script>
@@ -187,21 +187,21 @@
           if (searchQuery.trim()) isDropdownOpen = true;
         }}
         onkeydown={handleSearchKeyDown}
-        placeholder="搜尋藝人、流派或別名..."
+        placeholder={t('search_placeholder')}
         class="bg-transparent text-xs text-[#f4f4f6] placeholder-[#8e929d] focus:outline-none w-full font-sans tracking-wide min-w-0"
       />
       <!-- 聲學好手氣快捷按鈕 (Acoustic Serendipity) -->
       <button
         type="button"
         onclick={handleTriggerLucky}
-        title="聲學好手氣 // 隨機探勘未入庫藝人"
+        title={t('topbar_lucky_title')}
         class="group/lucky flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 transition-all cursor-pointer shrink-0 ml-1.5"
       >
         <span class="inline-block text-xs select-none group-hover/lucky:rotate-12 group-hover/lucky:scale-110 transition-transform duration-200">
           🎲
         </span>
         <span class="hidden xl:inline text-[10px] tracking-wider uppercase text-amber-400/90 group-hover/lucky:text-amber-200">
-          好手氣
+          {t('topbar_lucky_label')}
         </span>
       </button>
       <kbd class="hidden md:inline-flex items-center px-1.5 py-0.5 bg-[#1b1c24] border border-[#373a46] text-[#b4b7c2] text-[9px] font-mono tracking-wider ml-1.5 shrink-0 select-none">CMD+K</kbd>
@@ -214,8 +214,8 @@
         {#if matchingArtists.length > 0}
           <div class="p-1.5">
             <div class="px-2 py-1 text-[10px] text-ink-muted uppercase tracking-wider flex items-center justify-between">
-              <span>ARCHIVED // 既有收錄 ({matchingArtists.length})</span>
-              <span class="text-[9px] text-[#6b7080]">點擊直接定位</span>
+              <span>{t('topbar_archived_header', { count: matchingArtists.length })}</span>
+              <span class="text-[9px] text-[#6b7080]">{t('topbar_click_to_locate')}</span>
             </div>
             <div class="flex flex-col gap-0.5 mt-0.5">
               {#each matchingArtists as artist (artist.id)}
@@ -237,7 +237,7 @@
                         {artist.name}
                       </span>
                       <span class="text-[10px] text-[#8e929d] truncate">
-                        {artist.analysis?.subGenre || artist.analysis?.sector || '未定流派'}
+                        {artist.analysis?.subGenre || artist.analysis?.sector || t('topbar_unassigned_genre')}
                       </span>
                     </div>
                   </div>
@@ -269,14 +269,14 @@
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-1.5">
                   <span class="text-xs font-bold text-white group-hover:text-signal transition-colors truncate">
-                    知悉「{searchQuery.trim()}」入庫
+                    {t('topbar_pickup_into_vault', { name: searchQuery.trim() })}
                   </span>
                   {#if !hasExactMatch}
-                    <span class="text-[9px] px-1 bg-signal/30 text-red-200 border border-signal/40 rounded uppercase tracking-tighter">新藝人</span>
+                    <span class="text-[9px] px-1 bg-signal/30 text-red-200 border border-signal/40 rounded uppercase tracking-tighter">{t('topbar_new_artist_badge')}</span>
                   {/if}
                 </div>
                 <span class="text-[10px] text-[#b3b7c4] truncate">
-                  自 Apple Music 智慧檢索並建立發燒友解剖檔案
+                  {t('topbar_pickup_apple_desc')}
                 </span>
               </div>
             </div>
@@ -295,7 +295,7 @@
     <button
       type="button"
       onclick={onopenAISettings}
-      title="點擊設定 BYOK AI 金鑰與模型保管庫"
+      title={t('topbar_ai_settings_title')}
       class="group flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 sm:py-1 bg-chassis hover:bg-[#15161e] border border-wire hover:border-signal border-dashed text-[10px] text-ink-muted hover:text-ink transition-all cursor-pointer"
     >
       <span class="w-1.5 h-1.5 rounded-full {isAiConfigured ? 'bg-signal animate-pulse' : 'bg-wire group-hover:bg-signal transition-colors'}"></span>
@@ -307,7 +307,7 @@
     <button
       type="button"
       onclick={onopenCloudSync}
-      title={syncStatus === 'session_expired' ? '微軟帳戶登入已過期，點擊以重新驗證並同步' : isOneDriveConnected ? (syncStatus === 'syncing' ? '正在即時同步資料至雲端...' : '雲端即時同步已啟動，點擊管理') : '點擊設定 OneDrive 雲端即時同步'}
+      title={syncStatus === 'session_expired' ? t('topbar_sync_expired_title') : isOneDriveConnected ? (syncStatus === 'syncing' ? t('topbar_sync_syncing_title') : t('topbar_sync_connected_title')) : t('topbar_sync_setup_title')}
       class="group flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 bg-chassis hover:bg-[#15161e] border {syncStatus === 'session_expired' ? 'border-amber-500/80 text-amber-300 hover:border-amber-400 bg-amber-500/10' : syncStatus === 'error' ? 'border-red-500/70 text-red-400' : syncStatus === 'syncing' ? 'border-amber-400/70 text-amber-300' : isOneDriveConnected ? 'border-[#2d3a33] text-emerald-400/90 hover:border-emerald-500' : 'border-wire hover:border-signal text-ink-muted hover:text-ink'} text-[10px] transition-all cursor-pointer"
     >
       {#if !isOneDriveConnected}
@@ -333,7 +333,7 @@
       class="corner-cut-sm flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider sm:tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)] shrink-0"
     >
       <span class="material-symbols-outlined text-[14px] sm:text-[15px]">add</span>
-      <span>知悉</span>
+      <span>{t('pickup_button')}</span>
     </button>
 
     <!-- 語言切換選單 (全尺寸皆可見) -->

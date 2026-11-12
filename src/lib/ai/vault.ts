@@ -8,6 +8,7 @@
 
 import type { AISettings } from './client';
 import { DEFAULT_GROQ_MODEL, DEFAULT_GEMINI_MODEL } from './client';
+import { t } from '$lib/i18n';
 
 export type EncryptionMode = 'none' | 'device' | 'master_password';
 
@@ -225,12 +226,12 @@ export function lockMasterPassword(): void {
  * 驗證並解鎖主密碼保管庫
  */
 export async function unlockWithMasterPassword(password: string): Promise<{ success: boolean; settings?: AISettings; error?: string }> {
-  if (typeof window === 'undefined') return { success: false, error: '非瀏覽器環境' };
+  if (typeof window === 'undefined') return { success: false, error: t('vault_non_browser_env') };
   
   const payloadStr = localStorage.getItem(STORAGE_KEYS.PASSWORD_PAYLOAD);
   const saltStr = localStorage.getItem(STORAGE_KEYS.PASSWORD_SALT);
   if (!payloadStr || !saltStr) {
-    return { success: false, error: '尚未設定主密碼保管庫' };
+    return { success: false, error: t('vault_not_initialized') };
   }
 
   try {
@@ -245,7 +246,7 @@ export async function unlockWithMasterPassword(password: string): Promise<{ succ
 
     return { success: true, settings };
   } catch {
-    return { success: false, error: '主密碼不正確，解密失敗' };
+    return { success: false, error: t('vault_wrong_password') };
   }
 }
 
@@ -362,7 +363,7 @@ export async function saveSecureAISettings(
 
   if (targetMode === 'master_password') {
     if (!masterPassword) {
-      throw new Error('設定主密碼加密模式時必須提供主密碼');
+      throw new Error(t('vault_password_required'));
     }
 
     const salt = crypto.getRandomValues(new Uint8Array(16));

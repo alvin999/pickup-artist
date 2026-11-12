@@ -6,7 +6,7 @@ import {
   buildListeningResonancePrompt,
   type DisambiguationContext
 } from './prompts';
-import type { SupportedLocale } from '$lib/i18n';
+import { t, type SupportedLocale } from '$lib/i18n';
 import { loadSecureAISettings } from './vault';
 import type { NotableAlbum } from '$lib/types/artist';
 import { buildAppleMusicSearchUrl } from '$lib/utils/appleMusic';
@@ -99,7 +99,7 @@ export function saveAISettings(settings: Partial<AISettings>): void {
 
 // 動態探勘 Groq 模型列表
 export async function fetchGroqModels(apiKey: string): Promise<string[]> {
-  if (!apiKey.trim()) throw new Error('Groq API Key 為空');
+  if (!apiKey.trim()) throw new Error(t('ai_err_groq_key_empty'));
 
   const res = await fetch('https://api.groq.com/openai/v1/models', {
     headers: {
@@ -109,7 +109,7 @@ export async function fetchGroqModels(apiKey: string): Promise<string[]> {
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`無法取得 Groq 模型列表 (${res.status}): ${errorText}`);
+    throw new Error(t('ai_err_fetch_groq_models', { status: res.status, error: errorText }));
   }
 
   const data = await res.json();
@@ -122,7 +122,7 @@ export async function fetchGroqModels(apiKey: string): Promise<string[]> {
 
 // 動態探勘 Google Gemini 模型列表
 export async function fetchGeminiModels(apiKey: string): Promise<string[]> {
-  if (!apiKey.trim()) throw new Error('Gemini API Key 為空');
+  if (!apiKey.trim()) throw new Error(t('ai_err_gemini_key_empty'));
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`
@@ -130,7 +130,7 @@ export async function fetchGeminiModels(apiKey: string): Promise<string[]> {
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`無法取得 Gemini 模型列表 (${res.status}): ${errorText}`);
+    throw new Error(t('ai_err_fetch_gemini_models', { status: res.status, error: errorText }));
   }
 
   const data = await res.json();
@@ -163,7 +163,7 @@ function parseApiError(status: number, rawText: string): string {
 function extractAndParseJson(rawText: string): unknown {
   const trimmed = rawText.trim();
   if (!trimmed) {
-    throw new Error('AI 返回內容為空');
+    throw new Error(t('ai_err_empty_response'));
   }
 
   // 1. 嘗試直接解析
@@ -215,7 +215,7 @@ function extractAndParseJson(rawText: string): unknown {
   }
 
   console.error('[AI Output Parse Error] 完整原始輸出:', rawText);
-  throw new Error(`AI 未返回有效的 JSON 格式：${rawText.slice(0, 200)}...`);
+  throw new Error(t('ai_err_invalid_json_preview', { preview: rawText.slice(0, 200) }));
 }
 
 /**
@@ -227,7 +227,7 @@ export async function testAIConnection(
   modelName: string
 ): Promise<{ success: boolean; message: string }> {
   if (!apiKey.trim()) {
-    return { success: false, message: 'API Key 不可為空' };
+    return { success: false, message: t('ai_err_api_key_empty') };
   }
 
   try {
@@ -247,9 +247,9 @@ export async function testAIConnection(
 
       if (!res.ok) {
         const text = await res.text();
-        return { success: false, message: `Groq 驗證失敗: ${parseApiError(res.status, text)}` };
+        return { success: false, message: t('ai_test_groq_failed', { error: parseApiError(res.status, text) }) };
       }
-      return { success: true, message: 'Groq API 連線驗證成功！' };
+      return { success: true, message: t('ai_test_groq_success') };
     } else {
       const rawModel = modelName || DEFAULT_GEMINI_MODEL;
       const cleanModel = rawModel.replace(/^models\//, '');
@@ -265,12 +265,12 @@ export async function testAIConnection(
 
       if (!res.ok) {
         const text = await res.text();
-        return { success: false, message: `Gemini 驗證失敗: ${parseApiError(res.status, text)}` };
+        return { success: false, message: t('ai_test_gemini_failed', { error: parseApiError(res.status, text) }) };
       }
-      return { success: true, message: 'Gemini API 連線驗證成功！' };
+      return { success: true, message: t('ai_test_gemini_success') };
     }
   } catch (err: any) {
-    return { success: false, message: `連線異常: ${err?.message || err}` };
+    return { success: false, message: t('ai_test_connection_error', { error: err?.message || err }) };
   }
 }
 
@@ -305,14 +305,14 @@ async function callGroqStandardFallback(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+      t('ai_err_rate_limit_auto_retry', { provider: 'Groq', seconds: retrySec }),
       retrySec
     );
   }
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Groq 降級呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_groq_fallback_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -337,7 +337,7 @@ export async function analyzeArtistWithAI(
 ): Promise<ValidatedArtistAnalysisResponse> {
   const secureLoaded = await loadSecureAISettings();
   if (secureLoaded.isLocked) {
-    throw new Error('MASTER_PASSWORD_LOCKED: 主密碼保管庫目前已鎖定，請先解鎖以存取金鑰。');
+    throw new Error(t('ai_err_vault_locked'));
   }
 
   const settings = { ...secureLoaded.settings, ...customSettings };
@@ -354,7 +354,7 @@ async function callGroqAnalysisPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.groqKey?.trim()) {
-    throw new Error('未設定 Groq API Key，請至右上角設定面板輸入。');
+    throw new Error(t('ai_err_groq_key_missing_topbar'));
   }
 
   const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
@@ -383,7 +383,7 @@ async function callGroqAnalysisPayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+      t('ai_err_rate_limit_auto_retry', { provider: 'Groq', seconds: retrySec }),
       retrySec
     );
   }
@@ -400,11 +400,11 @@ async function callGroqAnalysisPayload(
       console.warn('[Groq] 伺服器端 JSON 約束未通過，自動降級為標準對話模式重試');
       return await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
     } else {
-      throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, errText) }));
     }
   } else if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -434,7 +434,7 @@ async function callGeminiAnalysisPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.geminiKey?.trim()) {
-    throw new Error('未設定 Gemini API Key，請至右上角設定面板輸入。');
+    throw new Error(t('ai_err_gemini_key_missing_topbar'));
   }
 
   const rawModel = settings.geminiModel || DEFAULT_GEMINI_MODEL;
@@ -465,7 +465,7 @@ async function callGeminiAnalysisPayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+      t('ai_err_rate_limit_auto_retry', { provider: 'Gemini', seconds: retrySec }),
       retrySec
     );
   }
@@ -497,18 +497,18 @@ async function callGeminiAnalysisPayload(
         const retryErrText = await res.text();
         const retrySec = extractRetrySeconds(res, retryErrText);
         throw new RateLimitError(
-          `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後自動重試。`,
+          t('ai_err_rate_limit_auto_retry', { provider: 'Gemini', seconds: retrySec }),
           retrySec
         );
       }
     } else {
-      throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, errText) }));
     }
   }
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -549,7 +549,7 @@ async function callGeminiAnalysisPayload(
   const validationResult = ArtistAnalysisResponseSchema.safeParse(sanitized);
   if (!validationResult.success) {
     console.error('Schema 驗證錯誤:', validationResult.error.format());
-    throw new Error(`AI 資料結構不符合發燒友標準規範: ${validationResult.error.issues.map(i => i.message).join(', ')}`);
+    throw new Error(t('ai_err_schema_validation', { issues: validationResult.error.issues.map(i => i.message).join(', ') }));
   }
 
   // 自動補齊推薦專輯的 Apple Music 搜尋 URL（前端自動合成，不浪費 LLM 生成 Token）
@@ -606,7 +606,7 @@ async function callGroqSimilarArtistsPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.groqKey?.trim()) {
-    throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_groq_key_missing_panel'));
   }
 
   const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
@@ -633,7 +633,7 @@ async function callGroqSimilarArtistsPayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Groq', seconds: retrySec }),
       retrySec
     );
   }
@@ -650,11 +650,11 @@ async function callGroqSimilarArtistsPayload(
       console.warn('[Groq] 相似藝人 JSON 約束未通過，自動降級為標準對話模式重試');
       return await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
     } else {
-      throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, errText) }));
     }
   } else if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -680,7 +680,7 @@ async function callGeminiSimilarArtistsPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.geminiKey?.trim()) {
-    throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_gemini_key_missing_panel'));
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${
@@ -709,7 +709,7 @@ async function callGeminiSimilarArtistsPayload(
     const retryErrText = await res.text();
     const retrySec = extractRetrySeconds(res, retryErrText);
     throw new RateLimitError(
-      `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Gemini', seconds: retrySec }),
       retrySec
     );
   }
@@ -726,13 +726,13 @@ async function callGeminiSimilarArtistsPayload(
         })
       });
     } else {
-      throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, errText) }));
     }
   }
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -818,7 +818,7 @@ async function callGroqNotableAlbumsPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.groqKey?.trim()) {
-    throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_groq_key_missing_panel'));
   }
 
   const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
@@ -845,7 +845,7 @@ async function callGroqNotableAlbumsPayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Groq', seconds: retrySec }),
       retrySec
     );
   }
@@ -861,11 +861,11 @@ async function callGroqNotableAlbumsPayload(
       console.warn('[Groq] 專輯探索 JSON 約束未通過，自動降級為標準對話模式重試');
       return await callGroqStandardFallback(settings.groqKey.trim(), groqModel, systemPrompt, userPrompt);
     } else {
-      throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, errText) }));
     }
   } else if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Groq 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_groq_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -891,7 +891,7 @@ async function callGeminiNotableAlbumsPayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.geminiKey?.trim()) {
-    throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_gemini_key_missing_panel'));
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${
@@ -920,7 +920,7 @@ async function callGeminiNotableAlbumsPayload(
     const retryErrText = await res.text();
     const retrySec = extractRetrySeconds(res, retryErrText);
     throw new RateLimitError(
-      `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Gemini', seconds: retrySec }),
       retrySec
     );
   }
@@ -937,13 +937,13 @@ async function callGeminiNotableAlbumsPayload(
         })
       });
     } else {
-      throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, errText)}`);
+      throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, errText) }));
     }
   }
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini 呼叫失敗: ${parseApiError(res.status, err)}`);
+    throw new Error(t('ai_err_gemini_call_failed', { error: parseApiError(res.status, err) }));
   }
 
   const data = await res.json();
@@ -1049,7 +1049,7 @@ async function callGroqListeningResonancePayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.groqKey?.trim()) {
-    throw new Error('Groq API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_groq_key_missing_panel'));
   }
 
   const groqModel = settings.groqModel || DEFAULT_GROQ_MODEL;
@@ -1076,14 +1076,14 @@ async function callGroqListeningResonancePayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Groq API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Groq', seconds: retrySec }),
       retrySec
     );
   }
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Groq API 請求失敗 (${res.status}): ${errText}`);
+    throw new Error(t('ai_err_groq_request_failed', { status: res.status, error: errText }));
   }
 
   const data = await res.json();
@@ -1096,7 +1096,7 @@ async function callGeminiListeningResonancePayload(
   userPrompt: string
 ): Promise<string> {
   if (!settings.geminiKey?.trim()) {
-    throw new Error('Gemini API Key 未設定，請至 AI 引擎設定面板完成配置');
+    throw new Error(t('ai_err_gemini_key_missing_panel'));
   }
 
   const geminiModel = settings.geminiModel || DEFAULT_GEMINI_MODEL;
@@ -1125,14 +1125,14 @@ async function callGeminiListeningResonancePayload(
     const errText = await res.text();
     const retrySec = extractRetrySeconds(res, errText);
     throw new RateLimitError(
-      `Gemini API 呼叫頻率超標 (429 Rate Limit)。已啟動冷卻保護，預計於 ${retrySec} 秒後可再次請求。`,
+      t('ai_err_rate_limit_retry_later', { provider: 'Gemini', seconds: retrySec }),
       retrySec
     );
   }
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini API 請求失敗 (${res.status}): ${errText}`);
+    throw new Error(t('ai_err_gemini_request_failed', { status: res.status, error: errText }));
   }
 
   const data = await res.json();

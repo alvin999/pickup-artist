@@ -1,4 +1,5 @@
 import type { AcousticSector, ArtistEntry } from '$lib/types/artist';
+import { t, type TranslationKey } from '$lib/i18n';
 
 export const GALAXY_CANVAS_SIZE = 2600;
 export const GALAXY_CENTER = { x: 1300, y: 1300 };
@@ -8,111 +9,130 @@ export const GALAXY_CENTER = { x: 1300, y: 1300 };
  */
 export interface SectorConfig {
   key: AcousticSector;
-  name: string;
-  shortName: string;
+  nameKey: TranslationKey;
+  descKey: TranslationKey;
+  readonly name: string;
+  readonly shortName: string;
   nameEn: string;
   icon: string;           // 專屬天體流派圖示 (Guitar, Flame, Landmark, Disc3, Waves, Cpu, Activity, Globe)
   angleDeg: number;       // 0° ~ 360°
   color: string;          // 太陽日冕主色
   secondaryColor: string; // 漸層次色
-  description: string;
+  readonly description: string;
 }
 
 export const ACOUSTIC_SECTORS: SectorConfig[] = [
   {
     key: 'ROCK',
-    name: '搖滾與後搖',
-    shortName: '搖滾與後搖',
+    nameKey: 'sector_rock_name',
+    descKey: 'sector_rock_desc',
+    get name() { return t('sector_rock_name'); },
+    get shortName() { return t('sector_rock_name'); },
     nameEn: 'Rock & Post-Rock',
     icon: 'Guitar',
     angleDeg: 0,
     color: '#FEC486',
     secondaryColor: '#E0A96D',
-    description: '器樂搖滾、數學搖滾、前衛搖滾、獨立搖滾與瞪鞋派系'
+    get description() { return t('sector_rock_desc'); }
   },
   {
     key: 'METAL',
-    name: '重型與極限金屬',
-    shortName: '重型與極限金屬',
+    nameKey: 'sector_metal_name',
+    descKey: 'sector_metal_desc',
+    get name() { return t('sector_metal_name'); },
+    get shortName() { return t('sector_metal_name'); },
     nameEn: 'Metal & Heavy',
     icon: 'Flame',
     angleDeg: 45,
     color: '#FA383E',
     secondaryColor: '#9E0A12',
-    description: '重金屬、前衛金屬、金屬核、淤泥與末日金屬等極限重型流派'
+    get description() { return t('sector_metal_desc'); }
   },
   {
     key: 'CLASSICAL',
-    name: '古典與早期音樂',
-    shortName: '古典與早期音樂',
+    nameKey: 'sector_classical_name',
+    descKey: 'sector_classical_desc',
+    get name() { return t('sector_classical_name'); },
+    get shortName() { return t('sector_classical_name'); },
     nameEn: 'Classical & Early',
     icon: 'Landmark',
     angleDeg: 90,
     color: '#A0B4D8',
     secondaryColor: '#5C749E',
-    description: '以演奏家/指揮為核心，按「時代樂派 ✕ 編制樂器」雙軸展開'
+    get description() { return t('sector_classical_desc'); }
   },
   {
     key: 'JAZZ',
-    name: '爵士與融合樂',
-    shortName: '爵士與融合樂',
+    nameKey: 'sector_jazz_name',
+    descKey: 'sector_jazz_desc',
+    get name() { return t('sector_jazz_name'); },
+    get shortName() { return t('sector_jazz_name'); },
     nameEn: 'Jazz & Fusion',
     icon: 'Disc3',
     angleDeg: 135,
     color: '#E8B06C',
     secondaryColor: '#B07530',
-    description: '現代爵士、融合爵士、硬咆哮、酷派與當代即興器樂'
+    get description() { return t('sector_jazz_desc'); }
   },
   {
     key: 'AMBIENT',
-    name: '氛圍音景與實驗',
-    shortName: '氛圍音景與實驗',
+    nameKey: 'sector_ambient_name',
+    descKey: 'sector_ambient_desc',
+    get name() { return t('sector_ambient_name'); },
+    get shortName() { return t('sector_ambient_name'); },
     nameEn: 'Ambient & Drone',
     icon: 'Waves',
     angleDeg: 180,
     color: '#84D2C5',
     secondaryColor: '#3E9687',
-    description: '氛圍音樂、新古典環境音景、無人聲器樂共振與實驗噪音'
+    get description() { return t('sector_ambient_desc'); }
   },
   {
     key: 'ELECTRONIC',
-    name: '前衛電子與合成',
-    shortName: '前衛電子與合成',
+    nameKey: 'sector_electronic_name',
+    descKey: 'sector_electronic_desc',
+    get name() { return t('sector_electronic_name'); },
+    get shortName() { return t('sector_electronic_name'); },
     nameEn: 'Electronic & Avant',
     icon: 'Cpu',
     angleDeg: 225,
     color: '#BD88EE',
     secondaryColor: '#7A48B2',
-    description: '智能舞曲 (IDM)、微聲音樂 (Glitch)、合成器氛圍波與電氣前衛'
+    get description() { return t('sector_electronic_desc'); }
   },
   {
     key: 'GROOVE',
-    name: '律動與靈魂樂',
-    shortName: '律動與靈魂樂',
+    nameKey: 'sector_groove_name',
+    descKey: 'sector_groove_desc',
+    get name() { return t('sector_groove_name'); },
+    get shortName() { return t('sector_groove_name'); },
     nameEn: 'Groove & Soul',
     icon: 'Activity',
     angleDeg: 270,
     color: '#FFA552',
     secondaryColor: '#C46A14',
-    description: '根源律動：放克、靈魂樂、新靈魂、當代節奏藍調與意識嘻哈'
+    get description() { return t('sector_groove_desc'); }
   },
   {
     key: 'WORLD',
-    name: '世界音樂與民族根源',
-    shortName: '世界音樂與民族根源',
+    nameKey: 'sector_world_name',
+    descKey: 'sector_world_desc',
+    get name() { return t('sector_world_name'); },
+    get shortName() { return t('sector_world_name'); },
     nameEn: 'World & Roots',
     icon: 'Globe',
     angleDeg: 315,
     color: '#D4B886',
     secondaryColor: '#967A48',
-    description: '跨文化世界音樂、民族傳統器樂、非洲律動、南美探戈與跨界根源聲響'
+    get description() { return t('sector_world_desc'); }
   }
 ];
 
 export interface SectorSun {
   key: AcousticSector;
-  name: string;
-  shortName: string;
+  nameKey: TranslationKey;
+  readonly name: string;
+  readonly shortName: string;
   nameEn: string;
   icon: string;
   x: number;
@@ -286,8 +306,9 @@ export function calculateHierarchicalGalaxy(
 
     suns.push({
       key: conf.key,
-      name: conf.name,
-      shortName: conf.shortName,
+      nameKey: conf.nameKey,
+      get name() { return t(conf.nameKey); },
+      get shortName() { return t(conf.nameKey); },
       nameEn: conf.nameEn,
       icon: conf.icon,
       x: sunX,

@@ -18,23 +18,40 @@ class I18nStore {
           this.locale = 'en';
         }
       }
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = this.locale;
+      }
     }
+  }
+
+  get dateLocale(): string {
+    if (this.locale === 'ja') return 'ja-JP';
+    if (this.locale === 'en') return 'en-US';
+    return 'zh-TW';
   }
 
   setLocale(newLocale: SupportedLocale) {
     this.locale = newLocale;
     if (typeof window !== 'undefined') {
       localStorage.setItem('pua_locale', newLocale);
-      document.documentElement.lang = newLocale;
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = newLocale;
+      }
     }
   }
 
-  t(key: TranslationKey): string {
+  t(key: TranslationKey, params?: Record<string, string | number>): string {
     const dict = translations[this.locale] || translations['zh-TW'];
-    return (dict as Record<string, string>)[key] || translations['zh-TW'][key] || key;
+    let text = (dict as Record<string, string>)[key] || translations['zh-TW'][key] || key;
+    if (params) {
+      for (const [paramKey, value] of Object.entries(params)) {
+        text = text.replaceAll(`{${paramKey}}`, String(value));
+      }
+    }
+    return text;
   }
 }
 
 export const i18n = new I18nStore();
-export const t = (key: TranslationKey) => i18n.t(key);
+export const t = (key: TranslationKey, params?: Record<string, string | number>) => i18n.t(key, params);
 export type { SupportedLocale, TranslationKey };

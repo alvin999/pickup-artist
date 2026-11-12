@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AcousticSector, ArtistEntry } from '$lib/types/artist';
+  import { t } from '$lib/i18n';
   import { ACOUSTIC_SECTORS } from '$lib/constants/sectors';
   import {
     buildMatrixHierarchy,
@@ -49,7 +50,7 @@
       hierarchy.sectors[0] || {
         id: 'ROCK',
         name: 'Rock & Post-Rock',
-        nameTw: '搖滾與後搖',
+        nameTw: t('sector_rock_name'),
         colorHex: '#f59e0b',
         description: '',
         count: 0,
@@ -125,7 +126,7 @@
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-signal shadow-[0_0_8px_rgba(255,42,60,0.8)] animate-pulse"></span>
-        <span class="font-mono text-xs font-bold text-ink tracking-wider">03_風格矩陣</span>
+        <span class="font-mono text-xs font-bold text-ink tracking-wider">{t('matrix_title')}</span>
       </div>
       <span class="text-wire-bright">/</span>
       <span class="font-mono text-[11px] text-ink-muted uppercase tracking-widest hidden sm:inline">
@@ -157,7 +158,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="搜尋風格/藝人/標籤..."
+          placeholder={t('matrix_search_placeholder')}
           class="w-40 sm:w-52 pl-7 pr-7 py-1 text-xs bg-panel border border-wire rounded text-ink placeholder:text-ink-dim focus:outline-none focus:border-wire-bright focus:ring-1 focus:ring-signal font-mono transition-all"
         />
         {#if searchQuery}
@@ -176,12 +177,12 @@
       <select
         bind:value={sortMode}
         class="bg-panel border border-wire rounded px-2 py-1 text-xs font-mono text-ink-muted hover:text-ink focus:outline-none focus:border-wire-bright cursor-pointer"
-        aria-label="排序依據"
+        aria-label={t('matrix_sort_aria')}
       >
-        <option value="weight">⚡ 引力權重優先</option>
-        <option value="dr">DR 動態優先</option>
-        <option value="recent">最近新增</option>
-        <option value="name">字首排序</option>
+        <option value="weight">{t('matrix_sort_weight')}</option>
+        <option value="dr">{t('matrix_sort_dr')}</option>
+        <option value="recent">{t('matrix_sort_recent')}</option>
+        <option value="name">{t('matrix_sort_name')}</option>
       </select>
     </div>
   </header>
@@ -194,7 +195,7 @@
         onclick={() => (mobileActiveTab = 'sectors')}
         class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'sectors' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
       >
-        <span>1. 大分類</span>
+        <span>{t('matrix_tab_sector')}</span>
       </button>
       <span class="text-wire-bright">&gt;</span>
       <button
@@ -202,7 +203,7 @@
         onclick={() => (mobileActiveTab = 'subgenres')}
         class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'subgenres' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
       >
-        <span>2. 子流派</span>
+        <span>{t('matrix_tab_subgenre')}</span>
       </button>
       <span class="text-wire-bright">&gt;</span>
       <button
@@ -210,7 +211,7 @@
         onclick={() => (mobileActiveTab = 'artists')}
         class="px-2 py-1 rounded transition-colors flex items-center gap-1 {mobileActiveTab === 'artists' ? 'bg-signal text-white font-bold' : 'text-ink-muted hover:text-ink'}"
       >
-        <span>3. 藝人 ({displayedArtists.length})</span>
+        <span>{t('matrix_tab_artists', { count: displayedArtists.length })}</span>
       </button>
     </div>
   </div>
@@ -224,7 +225,7 @@
       <div class="p-3 border-b border-wire flex items-center justify-between">
         <div class="font-mono text-[10px] text-ink-muted uppercase tracking-wider flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[14px] text-signal">pie_chart</span>
-          <span>LEVEL 1 // 大分類</span>
+          <span>{t('matrix_col1_header')}</span>
         </div>
         <span class="text-[9px] font-mono text-ink-dim">8-SECTORS</span>
       </div>
@@ -273,10 +274,10 @@
       <div class="p-3 border-t border-wire bg-void/60 text-[10px] text-ink-dim font-mono leading-relaxed">
         <div class="text-ink-muted font-bold mb-1 flex items-center gap-1">
           <span class="material-symbols-outlined text-[12px] text-primary">info</span>
-          <span>扇區定位</span>
+          <span>{t('matrix_sector_position')}</span>
         </div>
         <p class="text-[9px] line-clamp-3">
-          {currentSector.description || '請選擇一個大分類以展開其子流派體系。'}
+          {currentSector.description || t('matrix_sector_fallback_desc')}
         </p>
       </div>
     </aside>
@@ -292,14 +293,14 @@
             type="button"
             onclick={() => (mobileActiveTab = 'sectors')}
             class="lg:hidden p-0.5 text-ink-muted hover:text-signal"
-            title="返回大分類"
+            title={t('matrix_back_to_sectors')}
           >
             <span class="material-symbols-outlined text-[15px]">arrow_back</span>
           </button>
           <span class="material-symbols-outlined text-[14px] text-primary">category</span>
-          <span>LEVEL 2 // 子分類</span>
+          <span>{t('matrix_col2_header')}</span>
         </div>
-        <span class="text-[9px] font-mono text-ink-dim">{currentSector.subGenres.length} 流派</span>
+        <span class="text-[9px] font-mono text-ink-dim">{t('matrix_subgenre_count', { count: currentSector.subGenres.length })}</span>
       </div>
 
       <!-- 子分類清單 -->
@@ -314,7 +315,7 @@
         >
           <div class="flex items-center gap-2">
             <span class="font-mono text-[10px] text-ink-dim">[ALL]</span>
-            <span>全部子風格</span>
+            <span>{t('matrix_all_substyles')}</span>
           </div>
           <span class="font-mono text-[10px] text-ink-dim">
             {currentSector.count}
@@ -325,7 +326,7 @@
 
         {#if currentSector.subGenres.length === 0}
           <div class="py-8 text-center text-ink-dim font-mono text-[11px] px-3">
-            此大分類目前無收錄藝人
+            {t('matrix_sector_empty')}
           </div>
         {:else}
           {#each currentSector.subGenres as sub (sub.name)}
@@ -361,7 +362,7 @@
             type="button"
             onclick={() => (mobileActiveTab = 'subgenres')}
             class="lg:hidden p-0.5 text-ink-muted hover:text-signal shrink-0"
-            title="返回子流派選單"
+            title={t('matrix_back_to_subgenres')}
           >
             <span class="material-symbols-outlined text-[15px]">arrow_back</span>
           </button>
@@ -372,12 +373,12 @@
           </span>
           <span class="text-wire-bright">&gt;</span>
           <span class="text-primary font-bold truncate">
-            {activeSubGenreName === '__ALL__' ? '全部子風格' : activeSubGenreName}
+            {activeSubGenreName === '__ALL__' ? t('matrix_all_substyles') : activeSubGenreName}
           </span>
         </div>
 
         <div class="font-mono text-[10px] text-ink-muted flex-none">
-          找到 <span class="text-ink font-bold">{displayedArtists.length}</span> 位藝人
+          {t('matrix_artists_found')} <span class="text-ink font-bold">{displayedArtists.length}</span> {t('matrix_artists_unit')}
         </div>
       </div>
 
@@ -386,12 +387,12 @@
         {#if displayedArtists.length === 0}
           <div class="h-64 flex flex-col items-center justify-center text-center font-mono">
             <span class="material-symbols-outlined text-[36px] text-ink-dim mb-2">grid_off</span>
-            <div class="text-sm font-bold text-ink-muted mb-1">無符合之藝人記錄</div>
+            <div class="text-sm font-bold text-ink-muted mb-1">{t('matrix_empty_title')}</div>
             <p class="text-xs text-ink-dim max-w-sm">
               {#if searchQuery}
-                未找到與「{searchQuery}」相符的結果，請嘗試清除關鍵字或切換其他分類。
+                {t('matrix_empty_search', { query: searchQuery })}
               {:else}
-                此子分類尚未指派藝人。可在左側切換其他子分類或於上方搜尋。
+                {t('matrix_empty_subgenre')}
               {/if}
             </p>
           </div>
@@ -474,12 +475,12 @@
                     {#if topAlbum?.tier === 'hidden-treasure'}
                       <span class="px-1.5 py-0.2 rounded bg-cyan-950/40 text-cyan-400 border border-cyan-800/40 text-[9px] flex items-center gap-0.5">
                         <span class="material-symbols-outlined text-[11px]">diamond</span>
-                        <span>深埋寶藏</span>
+                        <span>{t('badge_hidden_treasure')}</span>
                       </span>
                     {:else if topAlbum?.tier === 'milestone'}
                       <span class="px-1.5 py-0.2 rounded bg-amber-950/40 text-amber-400 border border-amber-800/40 text-[9px] flex items-center gap-0.5">
                         <span class="material-symbols-outlined text-[11px]">foundation</span>
-                        <span>時代基石</span>
+                        <span>{t('badge_milestone')}</span>
                       </span>
                     {/if}
 
@@ -494,7 +495,7 @@
                             onupdateWeight(artist.id, Math.max(1, (artist.weight ?? 20) - 5));
                           }}
                           class="text-ink-dim hover:text-signal px-0.5 font-bold cursor-pointer transition-colors"
-                          title="調降權重 -5"
+                          title={t('matrix_weight_down')}
                         >-</button>
                       {/if}
                       <span class="font-bold {(artist.weight ?? 20) >= 70 ? 'text-[#FEC486]' : 'text-ink'} font-tabular">
@@ -508,7 +509,7 @@
                             onupdateWeight(artist.id, Math.min(100, (artist.weight ?? 20) + 5));
                           }}
                           class="text-ink-dim hover:text-signal px-0.5 font-bold cursor-pointer transition-colors"
-                          title="調升權重 +5"
+                          title={t('matrix_weight_up')}
                         >+</button>
                       {/if}
                     </div>
@@ -557,12 +558,12 @@
                         }}
                         disabled={isAnalyzing}
                         class="px-2 py-1 rounded bg-signal/20 hover:bg-signal/30 text-signal border border-signal/40 font-bold transition-all flex items-center gap-1 disabled:opacity-50"
-                        title="執行 AI 深度解剖"
+                        title={t('matrix_analyze_title')}
                       >
                         <span class="material-symbols-outlined text-[12px] {isAnalyzing ? 'animate-spin' : ''}">
                           {isAnalyzing ? 'sync' : 'neurology'}
                         </span>
-                        <span>解剖</span>
+                        <span>{t('matrix_analyze_btn')}</span>
                       </button>
                     {/if}
 
@@ -575,10 +576,10 @@
                         onopenInCrate?.(artist.id);
                       }}
                       class="px-2 py-1 rounded bg-chassis hover:bg-panel border border-wire hover:border-wire-bright text-ink-dim hover:text-ink transition-all flex items-center gap-1"
-                      title="前往 01_藝人展間 深究檔案"
+                      title={t('matrix_crate_title')}
                     >
                       <span class="material-symbols-outlined text-[12px]">album</span>
-                      <span>展間</span>
+                      <span>{t('matrix_crate_btn')}</span>
                     </button>
 
                     <!-- 移至星系 -->
@@ -590,10 +591,10 @@
                         onlocateInGalaxy?.(artist.id);
                       }}
                       class="px-2 py-1 rounded bg-chassis hover:bg-panel border border-wire hover:border-wire-bright text-ink-dim hover:text-ink transition-all flex items-center gap-1"
-                      title="前往 02_藝人星系 鎖定坐標"
+                      title={t('matrix_galaxy_title')}
                     >
                       <span class="material-symbols-outlined text-[12px]">hub</span>
-                      <span>星系</span>
+                      <span>{t('matrix_galaxy_btn')}</span>
                     </button>
 
                     <!-- 刪除 -->
@@ -602,13 +603,13 @@
                         type="button"
                         onclick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`確定要將「${artist.name}」自檔案庫移除嗎？`)) {
+                          if (confirm(t('matrix_delete_confirm', { name: artist.name }))) {
                             ondeleteArtist(artist.id);
                           }
                         }}
                         class="p-1 rounded text-ink-dim hover:text-signal hover:bg-signal/10 transition-all"
-                        title="移除藝人"
-                        aria-label="移除藝人"
+                        title={t('matrix_delete_aria')}
+                        aria-label={t('matrix_delete_aria')}
                       >
                         <span class="material-symbols-outlined text-[14px]">delete</span>
                       </button>

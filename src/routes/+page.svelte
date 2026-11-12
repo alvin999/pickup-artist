@@ -192,15 +192,15 @@
 
   async function handleQuickReauth() {
     isReauthenticating = true;
-    showToast("正在喚起微軟登入視窗...");
+    showToast(t('page_ms_opening'));
     try {
       await reauthenticateAndSync(async () => {
         await reloadArtists();
       });
-      showToast("微軟授權驗證成功，雲端資料庫已即時同步！");
+      showToast(t('page_ms_reauth_done'));
     } catch (err: any) {
       if (err?.errorCode !== "user_cancelled") {
-        showToast(err?.message || "重新驗證失敗");
+        showToast(err?.message || t('page_reauth_failed'));
       }
     } finally {
       isReauthenticating = false;
@@ -344,10 +344,10 @@
           );
           if (existing) {
             selectedArtistId = existing.id;
-            showToast(`藝人已在收藏庫中：${existing.name}`);
+            showToast(t('page_shortcut_exists', { name: existing.name }));
           } else {
             await handlePickup(targetArtist);
-            showToast(`已透過捷徑知悉藝人：${targetArtist}`);
+            showToast(t('page_shortcut_picked', { name: targetArtist }));
           }
         }
       }
@@ -383,9 +383,9 @@
       const newEntry = await quickPickupArtist(input, candidate);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast("已知悉");
+      showToast(t('page_picked_up'));
     } catch (err: any) {
-      showToast(err?.message || "知悉失敗");
+      showToast(err?.message || t('page_pickup_failed'));
     }
   }
 
@@ -414,9 +414,9 @@
       if (selectedArtistId === id) {
         selectedArtistId = artists[0]?.id || null;
       }
-      showToast("已自檔案庫刪除");
+      showToast(t('page_deleted'));
     } catch (err: any) {
-      showToast(err?.message || "刪除失敗");
+      showToast(err?.message || t('page_delete_failed'));
     }
   }
 
@@ -426,7 +426,7 @@
     if (secureLoaded.isLocked) {
       if (pendingArtist) pendingArtistToAnalyze = pendingArtist;
       isUnlockModalOpen = true;
-      showToast("請先解鎖主密碼保管庫");
+      showToast(t('page_unlock_vault_toast'));
       return false;
     }
 
@@ -437,7 +437,7 @@
         : !!settings.geminiKey.trim();
     if (!hasKey) {
       isAISettingsOpen = true;
-      showToast("請先設定免費 AI 金鑰（支援 Groq / Gemini）");
+      showToast(t('page_set_ai_key_full_toast'));
       return false;
     }
 
@@ -453,7 +453,7 @@
       analysisQueue.enqueue(artist, i18n.locale);
     } catch (err: any) {
       console.error("[AI Analyze Enqueue Error]:", err);
-      showToast(err?.message || "排入佇列失敗");
+      showToast(err?.message || t('page_queue_failed'));
     }
   }
 
@@ -462,7 +462,7 @@
     try {
       const inboxArtists = artists.filter((a) => a.status === "inbox");
       if (inboxArtists.length === 0) {
-        showToast("目前沒有待解剖的藝人");
+        showToast(t('page_no_inbox_artists'));
         return;
       }
       if (!(await ensureAIReady(inboxArtists[0]))) return;
@@ -470,7 +470,7 @@
       analysisQueue.enqueueBatch(inboxArtists, i18n.locale);
     } catch (err: any) {
       console.error("[AI Analyze Batch Enqueue Error]:", err);
-      showToast(err?.message || "批次排入佇列失敗");
+      showToast(err?.message || t('page_batch_queue_failed'));
     }
   }
 
@@ -494,12 +494,12 @@
     );
     if (existing) {
       selectedArtistId = existing.id;
-      showToast(`「${existing.name}」已在收藏庫中，已為您定位`);
+      showToast(t('page_similar_exists', { name: existing.name }));
       return;
     }
 
     try {
-      showToast(`檢索「${cleanName}」音樂人資料...`);
+      showToast(t('page_searching_artist', { name: cleanName }));
       const candidates = await searchAppleMusicCandidates(cleanName);
 
       if (candidates.length === 1) {
@@ -507,7 +507,7 @@
         const newEntry = await quickPickupArtist(cleanName, candidates[0]);
         await reloadArtists();
         selectedArtistId = newEntry.id;
-        showToast(`已知悉：${newEntry.name}`);
+        showToast(t('page_picked_up_name', { name: newEntry.name }));
       } else if (candidates.length > 1) {
         // 存在多名同名/相似藝人（例如 Battles）：開啟排歧選單供使用者挑選曲風與封面
         pickupModalInitialQuery = cleanName;
@@ -518,14 +518,14 @@
         const newEntry = await quickPickupArtist(cleanName);
         await reloadArtists();
         selectedArtistId = newEntry.id;
-        showToast(`已知悉：${newEntry.name}`);
+        showToast(t('page_picked_up_name', { name: newEntry.name }));
       }
     } catch (err: any) {
       console.warn("[handlePickupSimilar] 候選檢索異常，退回純文字知悉:", err);
       const newEntry = await quickPickupArtist(cleanName);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast("已知悉");
+      showToast(t('page_picked_up'));
     }
   }
 
@@ -538,7 +538,7 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast("請先解鎖主密碼保管庫以調用 AI");
+        showToast(t('page_unlock_vault_ai_toast'));
         return;
       }
 
@@ -549,7 +549,7 @@
           : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast("請先設定 AI 金鑰");
+        showToast(t('page_set_ai_key_short_toast'));
         return;
       }
 
@@ -578,7 +578,7 @@
       );
 
       if (!newSims || newSims.length === 0) {
-        showToast("AI 未探索到更多新相似音樂人，目前星系網絡已相當豐富");
+        showToast(t('page_similar_none_new'));
         return;
       }
 
@@ -596,12 +596,10 @@
       });
 
       await reloadArtists();
-      showToast(
-        `已成功為「${artist.name}」探索並擴充 ${newSims.length} 位相似音樂人！`,
-      );
+      showToast(t('page_similar_added', { name: artist.name, count: newSims.length }));
     } catch (err: any) {
       console.error("[Recommend More Similar Error]:", err);
-      showToast(err?.message || "探索推薦失敗");
+      showToast(err?.message || t('page_similar_failed'));
     } finally {
       isRecommendingMore = false;
     }
@@ -616,7 +614,7 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast("請先解鎖主密碼保管庫以調用 AI");
+        showToast(t('page_unlock_vault_ai_toast'));
         return;
       }
 
@@ -627,7 +625,7 @@
           : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast("請先設定 AI 金鑰");
+        showToast(t('page_set_ai_key_short_toast'));
         return;
       }
 
@@ -648,7 +646,7 @@
       );
 
       if (!newAlbums || newAlbums.length === 0) {
-        showToast("AI 未探索到更多新專輯，目前收錄之代表盤已相當經典");
+        showToast(t('page_albums_none_new'));
         return;
       }
 
@@ -664,12 +662,10 @@
       });
 
       await reloadArtists();
-      showToast(
-        `已成功為「${artist.name}」挖掘並收錄 ${newAlbums.length} 張發燒名盤！`,
-      );
+      showToast(t('page_albums_added', { name: artist.name, count: newAlbums.length }));
     } catch (err: any) {
       console.error("[Recommend More Albums Error]:", err);
-      showToast(err?.message || "推薦專輯過程遭遇異常");
+      showToast(err?.message || t('page_albums_failed'));
     } finally {
       isRecommendingAlbums = false;
     }
@@ -692,10 +688,11 @@
       coverImage: artist.coverImage,
     });
 
+    const targetTitle = album ? album.title : artist.name;
     if (res.alreadyExists) {
-      showToast(`《${album ? album.title : artist.name}》已在聆賞隊列中`);
+      showToast(t('page_queue_already', { title: targetTitle }));
     } else {
-      showToast(`已將《${album ? album.title : artist.name}》推入聆賞隊列`);
+      showToast(t('page_queue_added', { title: targetTitle }));
     }
   }
 
@@ -747,6 +744,10 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
+<svelte:head>
+  <title>{t('app_title')} · {t('app_subtitle')}</title>
+</svelte:head>
+
 <div
   class="min-h-screen {activeStudioView === 'honeycomb-cluster'
     ? 'h-dvh overflow-hidden'
@@ -760,10 +761,7 @@
       <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"
       ></span>
       <span class="break-words leading-relaxed">
-        ⏳ API 頻率保護中：將於 <strong
-          >{queueState.cooldownRemainingSeconds}</strong
-        >
-        秒後自動重試「{queueState.currentArtist?.name}」...
+        {t('page_rate_limit_pre')} <strong>{queueState.cooldownRemainingSeconds}</strong>{t('page_rate_limit_mid')}{queueState.currentArtist?.name}{t('page_rate_limit_post')}
       </span>
     </div>
   {:else if toastMessage}
@@ -791,7 +789,7 @@
     onpickup={handlePickup}
     onselectExisting={(artist) => {
       selectedArtistId = artist.id;
-      showToast(`已為您定位至既有藝人：${artist.name}`);
+      showToast(t('page_located_existing', { name: artist.name }));
     }}
   />
 
@@ -880,9 +878,9 @@
               >lock_clock</span
             >
             <div>
-              <span class="font-bold text-amber-300">微軟雲端授權已過期：</span>
+              <span class="font-bold text-amber-300">{t('page_ms_expired_title')}</span>
               <span class="text-amber-200/90"
-                >系統已無縫切換至「本機安全快取」模式，您的閱讀與編輯皆已妥善保存。</span
+                >{t('page_ms_expired_desc')}</span
               >
             </div>
           </div>
@@ -901,8 +899,8 @@
             </span>
             <span
               >{isReauthenticating
-                ? "正在重新驗證..."
-                : "一鍵重新連線並同步"}</span
+                ? t('page_reauth_loading')
+                : t('page_reauth_btn')}</span
             >
           </button>
         </div>
@@ -1025,7 +1023,7 @@
             {String(activeStudioView).toUpperCase()} // MODULE STANDBY
           </div>
           <p class="text-[#52565E]">
-            此聆賞模組電路已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。
+            {t('page_standby_desc')}
           </p>
         </div>
       {/if}

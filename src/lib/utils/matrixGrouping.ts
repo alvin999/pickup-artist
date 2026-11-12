@@ -1,5 +1,6 @@
 import type { AcousticSector, ArtistEntry } from '$lib/types/artist';
 import { ACOUSTIC_SECTORS, SECTOR_LIST } from '$lib/constants/sectors';
+import { t, i18n } from '$lib/i18n';
 
 export interface MatrixSubGenreGroup {
   name: string;
@@ -70,7 +71,7 @@ export function buildMatrixHierarchy(
           return (b.addedAt || 0) - (a.addedAt || 0);
         }
         case 'name': {
-          return a.name.localeCompare(b.name, 'zh-Hant');
+          return a.name.localeCompare(b.name, i18n.dateLocale);
         }
         default:
           return 0;
@@ -93,7 +94,7 @@ export function buildMatrixHierarchy(
     const subGenreMap = new Map<string, ArtistEntry[]>();
     for (const artist of sectorArtists) {
       const rawSub = artist.analysis?.subGenre?.trim();
-      const subName = rawSub && rawSub.length > 0 ? rawSub : '核心風格 // Core Style';
+      const subName = rawSub && rawSub.length > 0 ? rawSub : t('matrix_core_style');
       if (!subGenreMap.has(subName)) {
         subGenreMap.set(subName, []);
       }
@@ -116,9 +117,9 @@ export function buildMatrixHierarchy(
     sectors.push({
       id: def.id,
       name: def.name,
-      nameTw: def.nameTw,
+      nameTw: t(def.nameKey),
       colorHex: def.colorHex,
-      description: def.description,
+      description: t(def.descKey),
       count: sectorArtists.length,
       subGenres
     });
@@ -132,7 +133,7 @@ export function buildMatrixHierarchy(
   if (inboxArtists.length > 0) {
     const inboxSubGenres: MatrixSubGenreGroup[] = [
       {
-        name: '待 AI 深度解剖 // Pending Analysis',
+        name: t('matrix_pending_analysis'),
         count: inboxArtists.length,
         artists: sortArtists(inboxArtists)
       }
@@ -142,9 +143,9 @@ export function buildMatrixHierarchy(
     sectors.push({
       id: 'INBOX',
       name: 'Inbox / Unanalyzed',
-      nameTw: '待剖析收件匣',
+      nameTw: t('sector_inbox_name'),
       colorHex: '#94a3b8', // Slate / Neutral
-      description: '尚未進行 AI 音樂學解剖之收件匣藝人，可點選快速解剖賦予扇區與子流派',
+      description: t('sector_inbox_desc'),
       count: inboxArtists.length,
       subGenres: inboxSubGenres
     });

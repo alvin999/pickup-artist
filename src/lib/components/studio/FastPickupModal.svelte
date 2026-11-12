@@ -185,10 +185,10 @@
           candidate
         };
       } else {
-        luckyFeedbackMsg = '此分類下的探索名單皆已悉數收錄，可切換至「全域隨緣」或探索其他星系板塊！';
+        luckyFeedbackMsg = t('fast_lucky_exhausted');
       }
     } catch (err: any) {
-      luckyFeedbackMsg = err?.message || '好手氣探勘失敗，請稍後再試';
+      luckyFeedbackMsg = err?.message || t('fast_lucky_failed');
     } finally {
       isRollingLucky = false;
     }
@@ -297,7 +297,7 @@
     <!-- 背景遮罩點擊關閉 -->
     <button
       type="button"
-      aria-label="關閉彈窗"
+      aria-label={t('fast_close_aria')}
       onclick={handleClose}
       class="absolute inset-0 w-full h-full bg-void/85 backdrop-blur-md cursor-default border-0"
     ></button>
@@ -326,7 +326,7 @@
             class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold tracking-wider uppercase transition-all rounded-[2px] cursor-pointer {activeTab === 'input' ? 'bg-[#1e2029] text-signal border border-signal/40 shadow-[0_0_10px_rgba(255,42,60,0.2)]' : 'text-[#8e929d] hover:text-[#f4f4f6]'}"
           >
             <Radio class="w-3.5 h-3.5" />
-            <span>FAST ACK // 鍵盤知悉</span>
+            <span>{t('fast_tab_pickup')}</span>
           </button>
 
           <button
@@ -340,14 +340,14 @@
             class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold tracking-wider uppercase transition-all rounded-[2px] cursor-pointer {activeTab === 'lucky' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'text-[#8e929d] hover:text-amber-300'}"
           >
             <Sparkles class="w-3.5 h-3.5 text-amber-400" />
-            <span>🎲 聲學好手氣</span>
+            <span>{t('fast_tab_lucky')}</span>
           </button>
         </div>
 
         {#if activeTab === 'input'}
           <!-- 鍵盤知悉模式 -->
           <p class="font-sans text-xs text-[#8e929d] leading-relaxed">
-            輸入音樂人、樂團名稱，或直接貼上 Apple Music 分享連結。系統將自動比對藝人脈絡並等候聲學深度解剖。
+            {t('fast_input_desc')}
           </p>
 
           <!-- 終端輸入框（已去除具體藝人舉例） -->
@@ -359,7 +359,7 @@
               bind:value={pickupInput}
               onkeydown={(e) => e.key === 'Enter' && !isSearching && handleSubmit()}
               disabled={isSearching}
-              placeholder="輸入音樂人名稱或貼上 Apple Music 連結..."
+              placeholder={t('fast_input_placeholder')}
               class="bg-transparent text-xs text-[#f4f4f6] placeholder-[#8e929d] focus:outline-none w-full font-mono tracking-wide disabled:opacity-50"
             />
           </div>
@@ -373,7 +373,7 @@
               class="flex sm:hidden items-center gap-1.5 text-[11px] text-[#8e929d] hover:text-[#f4f4f6] font-mono cursor-pointer transition-colors"
             >
               <Smartphone class="w-3.5 h-3.5 text-signal" />
-              <span>{showMobileGuide ? '收起手機串接' : '手機聽音收錄'}</span>
+              <span>{showMobileGuide ? t('fast_mobile_guide_hide') : t('fast_mobile_guide_show')}</span>
             </button>
 
             <div class="flex items-center gap-3 sm:ml-auto">
@@ -382,7 +382,7 @@
                 onclick={handleClose}
                 class="px-3 py-1.5 text-xs text-ink-muted hover:text-ink font-mono cursor-pointer transition-colors"
               >
-                [ESC] 取消
+                {t('fast_cancel_esc')}
               </button>
               <button
                 type="button"
@@ -392,10 +392,10 @@
               >
                 {#if isSearching}
                   <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span>比對脈絡中...</span>
+                  <span>{t('fast_searching')}</span>
                 {:else}
                   <Radio class="w-3.5 h-3.5" />
-                  <span>立即知悉入庫</span>
+                  <span>{t('fast_submit_pickup')}</span>
                 {/if}
               </button>
             </div>
@@ -408,10 +408,10 @@
               <div class="flex items-center justify-between text-[11px] text-[#8e929d] font-mono">
                 <span class="flex items-center gap-1">
                   <Compass class="w-3 h-3 text-amber-400" />
-                  <span>探索星系板塊 (按風格鎖定)：</span>
+                  <span>{t('fast_lucky_sector_label')}</span>
                 </span>
                 <span class="text-[10px] text-neutral-500">
-                  {selectedLuckySector === 'ALL' ? '全域隨機' : selectedLuckySector}
+                  {selectedLuckySector === 'ALL' ? t('fast_lucky_all_random') : selectedLuckySector}
                 </span>
               </div>
 
@@ -424,7 +424,7 @@
                   }}
                   class="px-2.5 py-1 text-[11px] font-mono font-bold rounded-[2px] border transition-all cursor-pointer {selectedLuckySector === 'ALL' ? 'bg-amber-500/20 text-amber-300 border-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.25)]' : 'bg-[#121318] text-[#8e929d] border-[#262832] hover:border-[#434755] hover:text-[#f4f4f6]'}"
                 >
-                  🎲 全域隨緣
+                  {t('fast_lucky_all_chip')}
                 </button>
                 {#each SECTOR_LIST as sec}
                   <button
@@ -436,7 +436,7 @@
                     class="px-2 py-1 text-[11px] font-mono rounded-[2px] border transition-all cursor-pointer {selectedLuckySector === sec.id ? 'font-bold border-current shadow-[0_0_8px_rgba(255,255,255,0.15)]' : 'bg-[#121318] text-[#8e929d] border-[#262832] hover:border-[#434755] hover:text-[#f4f4f6]'}"
                     style={selectedLuckySector === sec.id ? `color: ${sec.colorHex}; background-color: ${sec.colorHex}18; border-color: ${sec.colorHex}80;` : ''}
                   >
-                    {sec.nameTw}
+                    {t(sec.nameKey)}
                   </button>
                 {/each}
               </div>
@@ -447,7 +447,7 @@
               <div class="p-6 bg-[#121318] border border-[#2b2d36] rounded-[2px] flex flex-col items-center justify-center gap-2.5 min-h-[140px] animate-pulse">
                 <RefreshCw class="w-6 h-6 text-amber-400 animate-spin" />
                 <span class="text-xs text-[#8e929d] font-mono tracking-widest uppercase">
-                  正在比對聲學頻率共振...
+                  {t('fast_lucky_rolling')}
                 </span>
               </div>
             {:else if luckyResult}
@@ -474,15 +474,15 @@
                       </h3>
                       {#if luckyResult.sourceType === 'local-ghost'}
                         <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                          本地 AI 頻率共振
+                          {t('fast_lucky_source_local')}
                         </span>
                       {:else if luckyResult.sourceType === 'ai-seed'}
                         <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                          AI 微種子啟發
+                          {t('fast_lucky_source_ai')}
                         </span>
                       {:else}
                         <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                          時代基石
+                          {t('fast_lucky_source_curated')}
                         </span>
                       {/if}
                     </div>
@@ -496,7 +496,7 @@
                     <!-- 推薦溯源 (Lineage) -->
                     {#if luckyResult.sourceArtists && luckyResult.sourceArtists.length > 0}
                       <p class="text-[11px] text-amber-300/80 font-mono leading-tight pt-0.5">
-                        💡 聲學溯源：源自庫中 <span class="text-white font-bold">{luckyResult.sourceArtists.join('、')}</span> 的交集推薦
+                        {t('fast_lucky_lineage_prefix')}<span class="text-white font-bold">{luckyResult.sourceArtists.join(', ')}</span>{t('fast_lucky_lineage_suffix')}
                       </p>
                     {/if}
                   </div>
@@ -510,18 +510,18 @@
                     class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#8e929d] hover:text-white font-mono bg-[#181a22] hover:bg-[#222530] border border-[#2b2d36] rounded-[2px] transition-colors cursor-pointer"
                   >
                     <RefreshCw class="w-3.5 h-3.5" />
-                    <span>換一位 (Re-roll)</span>
+                    <span>{t('fast_lucky_reroll')}</span>
                   </button>
 
                   <div class="flex items-center gap-2">
                     <button
                       type="button"
                       onclick={() => handleRollLucky(true)}
-                      title="略過本地庫存，以微種子向 AI 發起深度探索"
+                      title={t('fast_lucky_deep_ai_title')}
                       class="hidden sm:flex items-center gap-1 text-[11px] text-[#8e929d] hover:text-indigo-300 font-mono cursor-pointer transition-colors"
                     >
                       <Sparkles class="w-3 h-3 text-indigo-400" />
-                      <span>AI 深空探勘</span>
+                      <span>{t('fast_lucky_deep_ai')}</span>
                     </button>
 
                     <button
@@ -530,7 +530,7 @@
                       class="corner-cut-sm flex items-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
                     >
                       <Radio class="w-3.5 h-3.5" />
-                      <span>立即知悉入庫</span>
+                      <span>{t('fast_submit_pickup')}</span>
                     </button>
                   </div>
                 </div>
@@ -539,8 +539,8 @@
               <!-- 初始未抽取狀態 -->
               <div class="p-5 bg-[#121318] border border-[#2b2d36] rounded-[2px] text-center space-y-3">
                 <p class="text-xs text-[#8e929d] font-mono leading-relaxed">
-                  優先自本地 AI 相似星網中採掘尚未收錄之藝人，零 Token 消耗、零等待。<br>
-                  結合引力權重與隨機採樣，每次點擊皆是一場全新的聲學邂逅。
+                  {t('fast_lucky_intro_1')}<br>
+                  {t('fast_lucky_intro_2')}
                 </p>
                 <button
                   type="button"
@@ -548,7 +548,7 @@
                   class="inline-flex items-center gap-2 px-5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-[2px] font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.2)]"
                 >
                   <Sparkles class="w-4 h-4 text-amber-400" />
-                  <span>🎲 啟動聲學好手氣</span>
+                  <span>{t('fast_lucky_start')}</span>
                 </button>
               </div>
             {/if}
@@ -565,7 +565,7 @@
         {#if showMobileGuide}
           <div class="sm:hidden p-3 bg-[#121318] border border-[#262832] rounded-[2px] text-xs font-mono space-y-2.5 animate-in fade-in duration-150">
             <div class="flex items-center justify-between">
-              <span class="text-[#8e929d] text-[11px]">動態接收端點 (不寫死網域)：</span>
+              <span class="text-[#8e929d] text-[11px]">{t('fast_mobile_endpoint_label')}</span>
               <button
                 type="button"
                 onclick={copyEndpoint}
@@ -573,10 +573,10 @@
               >
                 {#if copiedUrl}
                   <CheckCheck class="w-3 h-3 text-emerald-400" />
-                  <span class="text-emerald-400">已複製</span>
+                  <span class="text-emerald-400">{t('fast_mobile_copied')}</span>
                 {:else}
                   <Copy class="w-3 h-3" />
-                  <span>複製 URL</span>
+                  <span>{t('fast_mobile_copy_url')}</span>
                 {/if}
               </button>
             </div>
@@ -585,13 +585,13 @@
             </div>
             <div class="grid grid-cols-2 gap-2 pt-1 text-[10px] text-[#8e929d]">
               <div class="p-2 bg-[#181920] border border-[#262832] rounded-[2px] space-y-1">
-                <div class="text-[#f4f4f6] font-bold">🍎 iOS 捷徑</div>
-                <div>1. 辨識歌曲 (Shazam)</div>
-                <div>2. 打開 URL：<span class="text-signal">[端點][演出者]</span></div>
+                <div class="text-[#f4f4f6] font-bold">{t('fast_mobile_ios_title')}</div>
+                <div>{t('fast_mobile_ios_step1')}</div>
+                <div>{t('fast_mobile_ios_step2')}<span class="text-signal">{t('fast_mobile_ios_step2_arg')}</span></div>
               </div>
               <div class="p-2 bg-[#181920] border border-[#262832] rounded-[2px] space-y-1">
-                <div class="text-[#f4f4f6] font-bold">🤖 Android 分享</div>
-                <div>瀏覽器點選「加入主畫面」後，任何 App 點系統分享即可見 PUA！</div>
+                <div class="text-[#f4f4f6] font-bold">{t('fast_mobile_android_title')}</div>
+                <div>{t('fast_mobile_android_desc')}</div>
               </div>
             </div>
           </div>
@@ -602,15 +602,15 @@
         <div class="flex items-center justify-between border-b border-[#21232d] pb-2.5">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
-            <span class="font-dot text-xs text-signal tracking-widest uppercase">DISAMBIGUATION // 重名排歧</span>
+            <span class="font-dot text-xs text-signal tracking-widest uppercase">{t('fast_disambig_title')}</span>
           </div>
           <span class="font-mono text-[10px] text-[#8e929d]">
-            發現 {candidates.length} 筆候選結果{#if selectedGenreFilter !== 'all'}（篩選：{filteredCandidates.length} 筆）{/if}
+            {t('fast_disambig_count', { count: candidates.length })}{#if selectedGenreFilter !== 'all'}{t('fast_disambig_filtered', { count: filteredCandidates.length })}{/if}
           </span>
         </div>
 
         <p class="font-sans text-xs text-[#b4b7c2]">
-          資料庫偵測到多位同名或關聯藝人，請點選您想收錄的目標：
+          {t('fast_disambig_prompt')}
         </p>
 
         <!-- 曲風標籤快速過濾條 (Genre Quick Filter) -->
@@ -623,7 +623,7 @@
                 ? 'bg-signal text-black font-bold'
                 : 'bg-[#181920] text-[#8e929d] hover:text-[#f4f4f6] border border-[#262832]'}"
             >
-              全部 ({candidates.length})
+              {t('fast_disambig_all', { count: candidates.length })}
             </button>
             {#each availableGenres as genre}
               {@const count = candidates.filter((c) => c.primaryGenre === genre).length}
@@ -644,7 +644,7 @@
         <div class="flex flex-col gap-2 max-h-72 sm:max-h-80 overflow-y-auto pr-1">
           {#if filteredCandidates.length === 0}
             <div class="p-6 text-center text-xs text-[#8e929d] bg-[#121318] border border-[#21232d] rounded-[2px]">
-              此風格分類下無候選結果，請切換至「全部」或其他風格標籤。
+              {t('fast_disambig_empty_filter')}
             </div>
           {/if}
           {#each filteredCandidates as c}
@@ -678,9 +678,9 @@
                   </div>
                   <span class="font-sans text-[11px] text-[#8e929d] truncate mt-0.5">
                     {#if c.albumTitle}
-                      代表作：《{c.albumTitle}》
+                      {t('fast_disambig_notable', { album: c.albumTitle })}
                     {:else}
-                      （查無代表專輯）
+                      {t('fast_disambig_no_album')}
                     {/if}
                     {#if c.releaseYear}
                       ({c.releaseYear})
@@ -697,13 +697,13 @@
                     rel="noopener noreferrer"
                     onclick={(e) => e.stopPropagation()}
                     class="p-1.5 text-[#8e929d] hover:text-signal hover:bg-[#252834] rounded transition-colors"
-                    title="在 Apple Music 中開啓預覽確認"
+                    title={t('fast_disambig_preview_title')}
                   >
                     <ExternalLink class="w-3.5 h-3.5" />
                   </a>
                 {/if}
                 <div class="flex items-center gap-1 text-[11px] font-mono text-ink-dim group-hover:text-signal transition-colors">
-                  <span class="hidden sm:inline">鎖定</span>
+                  <span class="hidden sm:inline">{t('fast_disambig_lock')}</span>
                   <Check class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
@@ -719,7 +719,7 @@
             class="flex items-center gap-1 text-[#8e929d] hover:text-[#f4f4f6] cursor-pointer transition-colors"
           >
             <ArrowLeft class="w-3.5 h-3.5" />
-            <span>重新輸入</span>
+            <span>{t('fast_disambig_reenter')}</span>
           </button>
 
           <div class="flex items-center gap-3">
@@ -728,9 +728,9 @@
               target="_blank"
               rel="noopener noreferrer"
               class="text-[11px] text-[#8e929d] hover:text-signal flex items-center gap-1 transition-colors"
-              title="在 Apple Music 官方搜尋頁尋找後複製連結貼回"
+              title={t('fast_disambig_search_am_title')}
             >
-              <span>在 Apple Music 搜尋</span>
+              <span>{t('fast_disambig_search_am')}</span>
               <ExternalLink class="w-3 h-3" />
             </a>
 
@@ -739,7 +739,7 @@
               onclick={() => commitPickup(pickupInput.trim())}
               class="text-[11px] text-[#8e929d] hover:text-signal underline underline-offset-4 cursor-pointer transition-colors"
             >
-              皆不符合？直接以此自訂名稱知悉
+              {t('fast_disambig_custom_pickup')}
             </button>
           </div>
         </div>
@@ -750,19 +750,19 @@
           <div class="flex items-center gap-2">
             <AlertTriangle class="w-4 h-4 text-signal animate-pulse" />
             <span class="font-dot text-xs text-signal tracking-widest uppercase">
-              {duplicateMatch?.isExactUrl ? 'DUPLICATE // 來源完全重複' : 'HOMONYM // 偵測到同名藝人'}
+              {duplicateMatch?.isExactUrl ? t('fast_dup_title_exact') : t('fast_dup_title_homonym')}
             </span>
           </div>
           <span class="font-mono text-[10px] text-[#8e929d]">
-            {duplicateMatch?.isExactUrl ? '已存在相同 Apple Music 來源' : '本地收藏庫已存在同名檔案'}
+            {duplicateMatch?.isExactUrl ? t('fast_dup_sub_exact') : t('fast_dup_sub_homonym')}
           </span>
         </div>
 
         <p class="font-sans text-xs text-[#b4b7c2] leading-relaxed">
           {#if duplicateMatch?.isExactUrl}
-            資料庫中已有一筆來源完全相同的藝人，建議直接定位查看以避免冗餘重複：
+            {t('fast_dup_desc_exact')}
           {:else}
-            本地庫已收錄名為「<strong class="text-signal">{duplicateMatch?.pendingName}</strong>」的藝人。若為同一人可直接定位；若為不同世代或領域的同名藝人，亦可另立新檔收錄：
+            {t('fast_dup_desc_homonym_pre')}<strong class="text-signal">{duplicateMatch?.pendingName}</strong>{t('fast_dup_desc_homonym_post')}
           {/if}
         </p>
 
@@ -794,7 +794,7 @@
                 </span>
                 {#if ex.addedAt}
                   <span class="font-mono text-[9px] text-[#636775]">
-                    收錄於 {new Date(ex.addedAt).toLocaleDateString()}
+                    {t('fast_dup_added_at', { date: new Date(ex.addedAt).toLocaleDateString() })}
                   </span>
                 {/if}
               </div>
@@ -810,7 +810,7 @@
             class="flex items-center justify-center gap-1 text-[#8e929d] hover:text-[#f4f4f6] cursor-pointer transition-colors py-1.5"
           >
             <ArrowLeft class="w-3.5 h-3.5" />
-            <span>返回修改</span>
+            <span>{t('fast_dup_back')}</span>
           </button>
 
           <div class="flex items-center gap-2 sm:ml-auto">
@@ -819,9 +819,9 @@
                 type="button"
                 onclick={handleForcePickup}
                 class="px-3 py-1.5 border border-[#303340] hover:border-[#8e929d] text-[#b4b7c2] hover:text-white rounded-[2px] transition-colors cursor-pointer text-xs"
-                title="收錄為另一位同名音樂人"
+                title={t('fast_dup_force_title')}
               >
-                仍作為新藝人收錄
+                {t('fast_dup_force')}
               </button>
             {/if}
             <button
@@ -830,7 +830,7 @@
               class="corner-cut-sm flex items-center justify-center gap-1.5 px-4 py-1.5 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
             >
               <Check class="w-3.5 h-3.5" />
-              <span>定位至既有藝人</span>
+              <span>{t('fast_dup_locate')}</span>
             </button>
           </div>
         </div>

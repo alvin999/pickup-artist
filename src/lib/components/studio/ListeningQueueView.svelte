@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ArtistEntry, NotableAlbum } from '$lib/types/artist';
+  import { t } from '$lib/i18n';
   import {
     listeningQueue,
     type ListeningQueueItem,
@@ -92,20 +93,23 @@
       window.open(item.appleMusicUrl, '_blank', 'noopener,noreferrer');
     }
     listeningQueue.updateStatus(item.id, 'listening');
-    showToast?.(`已在 Apple Music 開啟品鑑：${item.artistName} ${item.albumTitle ? `- ${item.albumTitle}` : ''}`);
+    showToast?.(t('lq_opened_am', {
+      name: item.artistName,
+      album: item.albumTitle ? ` - ${item.albumTitle}` : ''
+    }));
   }
 
   // 標記狀態
   function handleToggleStatus(item: ListeningQueueItem) {
     if (item.status === 'listening') {
       listeningQueue.updateStatus(item.id, 'completed');
-      showToast?.(`標記完成品鑑：${item.artistName}`);
+      showToast?.(t('lq_marked_completed', { name: item.artistName }));
     } else if (item.status === 'queued') {
       listeningQueue.updateStatus(item.id, 'listening');
-      showToast?.(`開始品鑑：${item.artistName}`);
+      showToast?.(t('lq_started_listening', { name: item.artistName }));
     } else {
       listeningQueue.updateStatus(item.id, 'queued');
-      showToast?.(`重設回待聆：${item.artistName}`);
+      showToast?.(t('lq_reset_queued', { name: item.artistName }));
     }
   }
 
@@ -137,7 +141,7 @@
         listeningQueue.reorder(currentIdx, idx);
       }
     });
-    showToast?.('品鑑工單順序已打亂 (SHUFFLE_COMPLETE)');
+    showToast?.(t('lq_shuffled'));
   }
 
   // 一鍵注入隨機推薦盤
@@ -156,7 +160,7 @@
       appleMusicUrl: album.appleMusicSearchUrl,
       coverImage: artist.coverImage
     });
-    showToast?.(`已將《${album.title}》推入聆賞隊列`);
+    showToast?.(t('lq_pushed_album', { title: album.title }));
   }
 </script>
 
@@ -172,10 +176,10 @@
       <div>
         <div class="flex items-center gap-2 font-mono text-xs text-signal mb-1">
           <span class="w-2 h-2 rounded-full {activeListeningItem ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse' : 'bg-signal shadow-[0_0_8px_rgba(254,196,134,0.6)]'}"></span>
-          <span>MASTER_LISTENING_SESSION // 聲學聆賞工單調度台</span>
+          <span>{t('lq_header_tag')}</span>
         </div>
         <h1 class="text-xl sm:text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2">
-          <span>聆賞隊列</span>
+          <span>{t('lq_title')}</span>
           <span class="font-mono text-xs font-normal px-2 py-0.5 border border-wire bg-panel text-ink-muted">
             {pendingItems.length} PENDING / {completedItems.length} COMPLETED
           </span>
@@ -209,7 +213,7 @@
             class="px-3.5 py-1.5 bg-signal text-void font-bold flex items-center gap-1.5 hover:bg-signal/90 transition-colors cursor-pointer"
           >
             <Play class="w-3.5 h-3.5 fill-current" />
-            <span>{activeListeningItem ? '繼續品鑑首盤' : '啟動首盤品鑑'}</span>
+            <span>{activeListeningItem ? t('lq_continue_first') : t('lq_start_first')}</span>
           </button>
         {/if}
 
@@ -218,10 +222,10 @@
           onclick={handleShuffle}
           disabled={queueItems.length <= 1}
           class="px-3 py-1.5 border border-wire bg-panel hover:bg-chassis text-ink-muted hover:text-ink flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          title="隨機打亂隊列順序"
+          title={t('lq_shuffle_title')}
         >
           <span class="material-symbols-outlined text-[13px]">shuffle</span>
-          <span>隨機漫遊</span>
+          <span>{t('lq_shuffle_btn')}</span>
         </button>
 
         {#if completedItems.length > 0}
@@ -229,10 +233,10 @@
             type="button"
             onclick={() => listeningQueue.clearCompleted()}
             class="px-3 py-1.5 border border-wire bg-panel hover:bg-chassis text-ink-dim hover:text-ink-muted flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="清空已完成品鑑項目"
+            title={t('lq_clear_done_title')}
           >
             <span class="material-symbols-outlined text-[13px]">clear_all</span>
-            <span>清除已品鑑 ({completedItems.length})</span>
+            <span>{t('lq_clear_done_btn', { count: completedItems.length })}</span>
           </button>
         {/if}
       </div>
@@ -241,15 +245,15 @@
         <button
           type="button"
           onclick={() => {
-            if (confirm('確定要清空目前整組聆賞隊列嗎？')) {
+            if (confirm(t('lq_clear_all_confirm'))) {
               listeningQueue.clearAll();
-              showToast?.('已清空聆賞隊列');
+              showToast?.(t('lq_cleared_all'));
             }
           }}
           class="text-ink-dim hover:text-rose-400 text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
         >
           <Trash2 class="w-3 h-3" />
-          <span>全清工單</span>
+          <span>{t('lq_clear_all_btn')}</span>
         </button>
       {/if}
     </div>
@@ -260,7 +264,7 @@
     <!-- 左側 (2 欄)：主品鑑卡槽列表 -->
     <div class="lg:col-span-2 flex flex-col gap-3 font-mono">
       <div class="flex items-center justify-between text-[11px] text-ink-muted uppercase tracking-wider px-1">
-        <span>// ACTIVE_QUEUE_STRIPS [待播插槽]</span>
+        <span>{t('lq_active_header')}</span>
         <span>COUNT: 0{queueItems.length}</span>
       </div>
 
@@ -268,9 +272,9 @@
         <!-- 待命中空狀態 -->
         <div class="border border-dashed border-wire bg-void/50 p-12 text-center flex flex-col items-center justify-center gap-3">
           <span class="material-symbols-outlined text-[42px] text-ink-dim">album</span>
-          <div class="text-sm font-bold text-ink">隊列電路已接通 · 暫無待聽盤片</div>
+          <div class="text-sm font-bold text-ink">{t('lq_empty_title')}</div>
           <p class="text-xs text-ink-muted max-w-md leading-relaxed">
-            在「藝人展間」展開藝人時點擊 <span class="text-signal font-bold">[+ 聆賞]</span>，或由右側「聲學補給庫」直接一鍵注入發燒友深埋寶藏盤。
+            {t('lq_empty_desc_pre')}<span class="text-signal font-bold">{t('lq_empty_desc_btn')}</span>{t('lq_empty_desc_post')}
           </p>
           {#if candidateStash.length > 0}
             <button
@@ -282,7 +286,7 @@
               class="mt-2 px-4 py-2 border border-signal/40 bg-signal/10 hover:bg-signal/20 text-signal text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
             >
               <Sparkles class="w-3.5 h-3.5" />
-              <span>自動注入 3 盤深埋寶藏啟動 Session</span>
+              <span>{t('lq_inject_treasures')}</span>
             </button>
           {/if}
         </div>
@@ -307,25 +311,25 @@
                   {#if isNowListening}
                     <span class="px-2 py-0.5 bg-signal text-void font-bold flex items-center gap-1 animate-pulse">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                      <span>NOW_LISTENING [品鑑中]</span>
+                      <span>{t('lq_status_listening')}</span>
                     </span>
                   {:else if isCompleted}
                     <span class="px-2 py-0.5 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 font-bold">
-                      COMPLETED [已品鑑]
+                      {t('lq_status_completed')}
                     </span>
                   {:else}
                     <span class="px-2 py-0.5 border border-wire bg-panel text-ink-dim">
-                      QUEUED [待聆]
+                      {t('lq_status_queued')}
                     </span>
                   {/if}
 
                   {#if isHidden}
                     <span class="px-1.5 py-0.5 border border-amber-500/40 bg-amber-500/20 text-amber-400 font-bold">
-                      深埋寶藏
+                      {t('badge_hidden_treasure')}
                     </span>
                   {:else if item.tier === 'milestone'}
                     <span class="px-1.5 py-0.5 border border-wire bg-panel text-ink-muted">
-                      時代基石
+                      {t('badge_milestone')}
                     </span>
                   {/if}
 
@@ -345,7 +349,7 @@
                     onclick={() => handleMoveUp(idx)}
                     disabled={idx === 0}
                     class="p-1 hover:text-signal disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
-                    title="向上移"
+                    title={t('lq_move_up')}
                   >
                     ▲
                   </button>
@@ -354,7 +358,7 @@
                     onclick={() => handleMoveDown(idx)}
                     disabled={idx === queueItems.length - 1}
                     class="p-1 hover:text-signal disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
-                    title="向下移"
+                    title={t('lq_move_down')}
                   >
                     ▼
                   </button>
@@ -364,7 +368,7 @@
                     type="button"
                     onclick={() => listeningQueue.remove(item.id)}
                     class="p-1 text-ink-dim hover:text-rose-400 ml-1 cursor-pointer"
-                    title="從隊列移除"
+                    title={t('lq_remove_item')}
                   >
                     <Trash2 class="w-3.5 h-3.5" />
                   </button>
@@ -379,7 +383,7 @@
                       type="button"
                       onclick={() => onselectArtist?.(item.artistId)}
                       class="text-base font-bold text-ink hover:text-signal transition-colors text-left truncate cursor-pointer"
-                      title="檢視此藝人檔案"
+                      title={t('lq_view_artist')}
                     >
                       {item.artistName}
                     </button>
@@ -402,10 +406,10 @@
                     type="button"
                     onclick={() => handleToggleStatus(item)}
                     class="px-2.5 py-1 text-xs border border-wire bg-panel hover:border-signal text-ink-muted hover:text-signal flex items-center gap-1 transition-colors cursor-pointer"
-                    title={isCompleted ? '重設為待聽' : '標記為已完播'}
+                    title={isCompleted ? t('lq_reset_to_queued') : t('lq_mark_completed')}
                   >
                     <CheckCircle2 class="w-3.5 h-3.5 {isCompleted ? 'text-emerald-400' : 'text-ink-dim'}" />
-                    <span>{isCompleted ? '已完播' : '標為完成'}</span>
+                    <span>{isCompleted ? t('lq_completed_btn') : t('lq_mark_done_btn')}</span>
                   </button>
 
                   <StreamingTrigger
@@ -422,13 +426,13 @@
                 <div class="text-[11px] font-sans text-ink-muted pt-2 border-t border-wire/60 flex flex-col gap-1 leading-relaxed">
                   {#if item.audiophileHighlight}
                     <div class="flex items-start gap-1">
-                      <span class="text-emerald-400 shrink-0 font-bold font-mono">[聲學亮點]</span>
+                      <span class="text-emerald-400 shrink-0 font-bold font-mono">{t('lq_audiophile_highlight')}</span>
                       <span>{item.audiophileHighlight}</span>
                     </div>
                   {/if}
                   {#if item.rarityReason}
                     <div class="flex items-start gap-1">
-                      <span class="text-amber-400 shrink-0 font-bold font-mono">[挖寶理由]</span>
+                      <span class="text-amber-400 shrink-0 font-bold font-mono">{t('lq_rarity_reason')}</span>
                       <span>{item.rarityReason}</span>
                     </div>
                   {/if}
@@ -446,18 +450,18 @@
     <!-- 右側 (1 欄)：聲學補給抽屜 (Acoustic Stash & Picks) -->
     <div class="flex flex-col gap-3 font-mono">
       <div class="flex items-center justify-between text-[11px] text-ink-muted uppercase tracking-wider px-1">
-        <span>// STASH_PICKS [庫存發燒補給]</span>
+        <span>{t('lq_stash_header')}</span>
         <span class="text-signal">AVAILABLE</span>
       </div>
 
       <div class="border border-wire bg-void p-4 flex flex-col gap-3">
         <div class="text-xs text-ink-dim leading-relaxed">
-          系統自您的音樂庫萃取出未入列之發燒基石與深埋盤，點擊一鍵推入聆賞排程：
+          {t('lq_stash_desc')}
         </div>
 
         {#if candidateStash.length === 0}
           <div class="text-xs text-ink-dim border border-dashed border-wire p-4 text-center">
-            暫無可補給之推薦盤，請先在展間探索藝人
+            {t('lq_stash_empty')}
           </div>
         {:else}
           <div class="flex flex-col gap-2">
@@ -466,9 +470,9 @@
                 <div class="flex items-center justify-between text-[10px]">
                   <span class="text-ink-dim">{pick.album.year || 'HIST'}</span>
                   {#if pick.album.tier === 'hidden-treasure'}
-                    <span class="text-amber-400 font-bold">[深埋寶藏]</span>
+                    <span class="text-amber-400 font-bold">{t('lq_stash_treasure_tag')}</span>
                   {:else}
-                    <span class="text-signal font-bold">[核心基石]</span>
+                    <span class="text-signal font-bold">{t('lq_stash_milestone_tag')}</span>
                   {/if}
                 </div>
 
@@ -487,7 +491,7 @@
                     class="text-[10px] px-2 py-0.5 border border-wire bg-chassis hover:border-signal hover:text-signal text-ink-muted flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <span class="material-symbols-outlined text-[12px]">add</span>
-                    <span>推入隊列</span>
+                    <span>{t('lq_push_btn')}</span>
                   </button>
                 </div>
               </div>
