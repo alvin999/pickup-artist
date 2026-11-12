@@ -55,12 +55,16 @@
     onselectArtist: (id: string) => void;
     ondeleteArtist: (id: string) => void;
     onanalyzeArtist: (artist: ArtistEntry) => void;
+    onanalyzeAllInbox?: () => void;
     onpickupSimilar: (name: string) => void;
     onrecommendMoreSimilar?: (artist: ArtistEntry) => Promise<void> | void;
     onrecommendMoreAlbums?: (artist: ArtistEntry) => Promise<void> | void;
     onaddToQueue?: (artist: ArtistEntry, album?: NotableAlbum) => void;
     onopenInLog?: (id: string) => void;
     onupdateWeight?: (id: string, weight: number) => void;
+    onopenPickupModal?: () => void;
+    onopenLuckyModal?: () => void;
+    onopenRecommend?: () => void;
     isAnalyzing?: boolean;
     isRecommendingMore?: boolean;
     isRecommendingAlbums?: boolean;
@@ -75,12 +79,16 @@
     onselectArtist,
     ondeleteArtist,
     onanalyzeArtist,
+    onanalyzeAllInbox,
     onpickupSimilar,
     onrecommendMoreSimilar,
     onrecommendMoreAlbums,
     onaddToQueue,
     onopenInLog,
     onupdateWeight,
+    onopenPickupModal,
+    onopenLuckyModal,
+    onopenRecommend,
     isAnalyzing = false,
     isRecommendingMore = false,
     isRecommendingAlbums = false,
@@ -628,6 +636,19 @@
         <span>INBOX_待解剖 [{inboxCount}]</span>
       </button>
 
+      {#if inboxCount > 0 && onanalyzeAllInbox}
+        <button
+          type="button"
+          onclick={onanalyzeAllInbox}
+          disabled={isAnalyzing}
+          title="將所有待解剖藝人排入背景 AI 分析佇列（自動控管速率）"
+          class="flex items-center gap-1 px-2.5 py-1 text-[11px] shrink-0 cursor-pointer transition-all border border-signal/60 bg-signal/15 hover:bg-signal hover:text-white text-signal font-bold rounded-[2px] disabled:opacity-50"
+        >
+          <Sparkles class="w-3 h-3 {isAnalyzing ? 'animate-spin' : ''}" />
+          <span>{isAnalyzing ? 'AI 佇列解析中...' : `一鍵解剖全部 (${inboxCount})`}</span>
+        </button>
+      {/if}
+
       <button
         type="button"
         onclick={() => (activeFilter = 'all')}
@@ -741,11 +762,43 @@
               </button>
             </div>
           {:else}
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col items-center gap-2 max-w-lg">
               <div class="text-sm font-bold text-ink uppercase tracking-wider">藝人展間尚無收錄 // DOSSIER_STANDBY</div>
-              <p class="text-xs text-ink-muted max-w-sm leading-relaxed">
-                點擊頂部導航列「+ 知悉藝人」或貼上 Apple Music 藝人連結，即刻啟動第一位音樂人聲學檔案解剖。
+              <p class="text-xs text-ink-muted leading-relaxed">
+                從零打造專屬你的發燒友音樂智庫。可以透過「聲學好手氣」隨機邂逅、前往「智慧推薦」依聆聽情境探勘，或直接輸入喜愛的音樂人開始解剖。
               </p>
+              <div class="flex flex-wrap items-center justify-center gap-2.5 mt-3">
+                {#if onopenLuckyModal}
+                  <button
+                    type="button"
+                    onclick={onopenLuckyModal}
+                    class="px-4 py-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.18)]"
+                  >
+                    <span>🎲</span>
+                    <span>聲學好手氣</span>
+                  </button>
+                {/if}
+                {#if onopenRecommend}
+                  <button
+                    type="button"
+                    onclick={onopenRecommend}
+                    class="px-4 py-2 bg-chassis hover:bg-ink hover:text-void text-ink border border-wire font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-[15px] text-signal">neurology</span>
+                    <span>06_智慧推薦</span>
+                  </button>
+                {/if}
+                {#if onopenPickupModal}
+                  <button
+                    type="button"
+                    onclick={onopenPickupModal}
+                    class="px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.3)]"
+                  >
+                    <span class="material-symbols-outlined text-[15px]">add</span>
+                    <span>手動知悉藝人</span>
+                  </button>
+                {/if}
+              </div>
             </div>
           {/if}
         </div>

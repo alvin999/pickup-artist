@@ -221,6 +221,41 @@ class ListeningQueueService {
   }
 
   /**
+   * 合併來自雲端或備份檔案的聆賞隊列項目 (依項目最新異動時間保留較新狀態)
+   */
+  public mergeItems(incoming: ListeningQueueItem[]): number {
+    if (!Array.isArray(incoming) || incoming.length === 0) return 0;
+
+    const map = new Map<string, ListeningQueueItem>();
+    for (const item of this.items) {
+      if (item && item.id) map.set(item.id, item);
+    }
+
+    let changedCount = 0;
+    const getLastTouch = (it: ListeningQueueItem) =>
+      Math.max(it.completedAt || 0, it.startedAt || 0, it.addedAt || 0);
+
+    for (const inc of incoming) {
+      if (!inc || !inc.id || !inc.artistId) continue;
+      const existing = map.get(inc.id);
+      if (!existing) {
+        map.set(inc.id, inc);
+        changedCount++;
+      } else if (getLastTouch(inc) > getLastTouch(existing)) {
+        map.set(inc.id, inc);
+        changedCount++;
+      }
+    }
+
+    if (changedCount > 0) {
+      this.items = Array.from(map.values()).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+      this.saveToStorage();
+      this.notify();
+    }
+    return changedCount;
+  }
+
+  /**
    * 清空全部隊列
    */
   public clearAll(): void {

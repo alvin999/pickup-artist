@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { AccountInfo } from '@azure/msal-browser';
+  import { createVaultBackupPayload, importVaultBackupJson } from '$lib/db';
   import {
     getActiveAccount as getOneDriveAccount,
     loginToOneDrive,
@@ -47,6 +48,8 @@
   let isLoading = $state(false);
   let statusMessage = $state<string | null>(null);
   let statusType = $state<'info' | 'success' | 'error'>('info');
+  let isDragOver = $state(false);
+  let fileInputEl = $state<HTMLInputElement | null>(null);
 
   const isAnyCloudConnected = $derived(!!oneDriveAccount || !!googleUser);
 
@@ -305,6 +308,64 @@
     statusType = 'info';
   }
 
+  // ----------------------------------------------------
+  // 本機 JSON 檔案匯出與雙向合併匯入（免雲端帳號保底方案）
+  // ----------------------------------------------------
+  async function handleLocalExport() {
+    isLoading = true;
+    try {
+      const payload = await createVaultBackupPayload();
+      const jsonStr = JSON.stringify(payload, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PUA_VAULT_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      statusMessage = `已匯出完整備份檔 (${payload.artistsCount} 位藝人${payload.listeningQueue?.length ? `、${payload.listeningQueue.length} 筆待聽隊列` : ''})。`;
+      statusType = 'success';
+    } catch (err: any) {
+      statusMessage = err?.message || '本機備份匯出失敗';
+      statusType = 'error';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function processImportedFile(file: File) {
+    isLoading = true;
+    statusMessage = `正在解析並雙向合併「${file.name}」...`;
+    statusType = 'info';
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await importVaultBackupJson(parsed);
+      if (onRestored) await onRestored();
+      statusMessage = `本機備份合併完成！共匯入/更新 ${res.importedOrUpdatedCount} 筆藝人檔案${res.queueMergedCount > 0 ? `與 ${res.queueMergedCount} 筆待聽隊列` : ''}（目前總計 ${res.totalCount} 位）。`;
+      statusType = 'success';
+    } catch (err: any) {
+      statusMessage = err?.message || '備份檔解析失敗，請確認檔案為有效 JSON 格式。';
+      statusType = 'error';
+    } finally {
+      isLoading = false;
+      if (fileInputEl) fileInputEl.value = '';
+    }
+  }
+
+  function handleFileInputChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) processImportedFile(file);
+  }
+
+  function handleFileDrop(e: DragEvent) {
+    e.preventDefault();
+    isDragOver = false;
+    const file = e.dataTransfer?.files?.[0];
+    if (file) processImportedFile(file);
+  }
+
   function formatBytes(bytes?: number): string {
     if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
@@ -450,17 +511,19 @@
                   type="button"
                   onclick={handleOneDriveBackup}
                   disabled={isLoading}
+                  title="將目前本機資料庫與聆賞隊列上傳覆寫雲端快照"
                   class="py-1.5 bg-signal hover:bg-white hover:text-void text-white font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
                 >
-                  備份 (PUSH)
+                  上傳備份 (PUSH)
                 </button>
                 <button
                   type="button"
                   onclick={handleOneDriveRestore}
                   disabled={isLoading || !oneDriveMeta}
+                  title="下載雲端快照並與本機資料進行時間戳合併（不覆蓋本機較新紀錄）"
                   class="py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
                 >
-                  還原 (PULL)
+                  合併還原 (PULL)
                 </button>
               </div>
               <button
@@ -533,17 +596,19 @@
                   type="button"
                   onclick={handleGoogleBackup}
                   disabled={isLoading}
+                  title="將目前本機資料庫與聆賞隊列上傳至 Google Drive AppData"
                   class="py-1.5 bg-[#00f0ff] hover:bg-white text-[#050505] font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
                 >
-                  備份 (PUSH)
+                  上傳備份 (PUSH)
                 </button>
                 <button
                   type="button"
                   onclick={handleGoogleRestore}
                   disabled={isLoading || !googleMeta}
+                  title="下載雲端快照並與本機資料進行時間戳合併（不覆蓋本機較新紀錄）"
                   class="py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
                 >
-                  還原 (PULL)
+                  合併還原 (PULL)
                 </button>
               </div>
               <button
@@ -558,6 +623,56 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- 本機離線檔案備份與還原艙 (無須帳號之跨裝置/iCloud 備份方案) -->
+      <div
+        role="region"
+        aria-label="本機檔案備份與還原"
+        ondragover={(e) => {
+          e.preventDefault();
+          isDragOver = true;
+        }}
+        ondragleave={() => (isDragOver = false)}
+        ondrop={handleFileDrop}
+        class="p-3.5 border border-dashed transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 {isDragOver ? 'border-signal bg-signal/10' : 'border-wire bg-void/50'}"
+      >
+        <input
+          bind:this={fileInputEl}
+          type="file"
+          accept=".json,application/json"
+          onchange={handleFileInputChange}
+          class="hidden"
+        />
+        <div class="space-y-0.5 min-w-0">
+          <div class="text-[10px] text-ink-dim uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[13px] text-signal">hard_drive</span>
+            <span>LOCAL_FILE_ARCHIVE // 離線冷備份艙（免登入帳號）</span>
+          </div>
+          <p class="text-[11px] font-sans text-ink-muted leading-snug">
+            匯出 `.json` 檔案保存至 iCloud / 本機磁碟，或直接將備份檔拖曳至此進行無損合併。
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onclick={handleLocalExport}
+            disabled={isLoading || localArtistsCount === 0}
+            class="px-3 py-1.5 bg-chassis hover:bg-ink hover:text-void border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1"
+          >
+            <span class="material-symbols-outlined text-[14px]">download</span>
+            <span>匯出 JSON</span>
+          </button>
+          <button
+            type="button"
+            onclick={() => fileInputEl?.click()}
+            disabled={isLoading}
+            class="px-3 py-1.5 bg-panel hover:bg-signal hover:text-white hover:border-signal border border-wire text-ink font-bold text-[11px] uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1"
+          >
+            <span class="material-symbols-outlined text-[14px]">upload_file</span>
+            <span>匯入合併</span>
+          </button>
+        </div>
       </div>
 
       <!-- 底部安全與雙向同步說明 -->

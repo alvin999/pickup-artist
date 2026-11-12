@@ -3,6 +3,7 @@
   import { t } from '$lib/i18n/index.svelte';
   import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
+  import { createVaultBackupPayload, importVaultBackupJson } from '$lib/db';
   import type { ArtistEntry } from '$lib/types/artist';
 
   interface Props {
@@ -12,6 +13,7 @@
     inboxCount?: number;
     artists?: ArtistEntry[];
     showToast?: (msg: string) => void;
+    onRestored?: () => Promise<void>;
     isCollapsed?: boolean;
     ontoggleCollapse?: () => void;
   }
@@ -23,9 +25,12 @@
     inboxCount = 2,
     artists = [],
     showToast,
+    onRestored,
     isCollapsed = false,
     ontoggleCollapse
   }: Props = $props();
+
+  let importInputEl = $state<HTMLInputElement | null>(null);
 
   // 1. 網路遙測與延遲動態模擬
   let isOnline = $state(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -90,10 +95,11 @@
     else if (e.key === '6') onselectView('ai-recommend');
   }
 
-  // 6. 資料庫一鍵匯出備份
-  function exportDatabase() {
+  // 6. 資料庫一鍵匯出與合併匯入備份
+  async function exportDatabase() {
     try {
-      const dataStr = JSON.stringify(artists, null, 2);
+      const payload = await createVaultBackupPayload();
+      const dataStr = JSON.stringify(payload, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -104,6 +110,23 @@
       showToast?.('已完成曲庫備份匯出：PUA_LIBRARY.JSON');
     } catch {
       showToast?.('資料庫匯出失敗');
+    }
+  }
+
+  async function handleImportBackup(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await importVaultBackupJson(parsed);
+      if (onRestored) await onRestored();
+      showToast?.(`已合併匯入 ${res.importedOrUpdatedCount} 筆藝人紀錄（總計 ${res.totalCount} 位）`);
+    } catch (err: any) {
+      showToast?.(err?.message || '備份檔匯入失敗');
+    } finally {
+      input.value = '';
     }
   }
 
@@ -424,6 +447,13 @@
   </div>
 
   <!-- 底部資料庫狀態與硬體銘牌 -->
+  <input
+    bind:this={importInputEl}
+    type="file"
+    accept=".json,application/json"
+    onchange={handleImportBackup}
+    class="hidden"
+  />
   {#if isCollapsed}
     <div class="p-2 border-t border-wire bg-void/80 flex flex-col items-center justify-center gap-2">
       <button
@@ -434,6 +464,14 @@
       >
         <span class="material-symbols-outlined text-[18px]">hard_drive</span>
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] absolute top-1 right-1"></span>
+      </button>
+      <button
+        type="button"
+        onclick={() => importInputEl?.click()}
+        class="p-1.5 text-ink-dim hover:text-signal hover:bg-panel border border-wire/60 transition-colors cursor-pointer rounded-[2px]"
+        title="匯入 JSON 備份檔並合併"
+      >
+        <span class="material-symbols-outlined text-[15px]">upload_file</span>
       </button>
       <a
         href="/privacy"
@@ -459,6 +497,26 @@
           <span>PUA_LIBRARY.JSON</span>
           <span class="material-symbols-outlined text-[13px] opacity-0 group-hover:opacity-100 text-signal transition-opacity">download</span>
         </button>
+        <div class="grid grid-cols-2 gap-1.5 mt-2">
+          <button
+            type="button"
+            onclick={exportDatabase}
+            class="px-2 py-1 bg-void hover:bg-ink hover:text-void border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
+            title="匯出完整備份檔 (.json)"
+          >
+            <span class="material-symbols-outlined text-[11px]">download</span>
+            <span>EXPORT</span>
+          </button>
+          <button
+            type="button"
+            onclick={() => importInputEl?.click()}
+            class="px-2 py-1 bg-void hover:bg-signal hover:text-white hover:border-signal border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
+            title="匯入並雙向合併 .json 備份檔"
+          >
+            <span class="material-symbols-outlined text-[11px]">upload_file</span>
+            <span>IMPORT</span>
+          </button>
+        </div>
         <div class="text-[9px] text-ink-dim mt-2 pt-1.5 border-t border-wire border-dashed flex justify-between items-center">
           <span>REV: 2026.10</span>
           <button

@@ -14,7 +14,8 @@
     Zap,
     Lock,
     Music,
-    Radio
+    Radio,
+    ExternalLink
   } from 'lucide-svelte';
   import {
     STREAMING_PLATFORMS,
@@ -487,6 +488,24 @@
               />
             {/if}
           </div>
+
+          <!-- 30 秒免費取得金鑰導引（降低一般使用者門檻） -->
+          <div class="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-[#121318] border border-[#21232d] text-[10px] font-sans text-ink-muted rounded-[2px]">
+            <span>
+              {provider === 'groq'
+                ? '還沒有 Groq 金鑰？註冊即可免費領取高配額（免信用卡）'
+                : '還沒有 Gemini 金鑰？Google 帳號登入即可一鍵建立免費金鑰'}
+            </span>
+            <a
+              href={provider === 'groq' ? 'https://console.groq.com/keys' : 'https://aistudio.google.com/apikey'}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 text-signal hover:text-white font-mono font-bold transition-colors shrink-0"
+            >
+              <span>免費取得 {provider === 'groq' ? 'Groq' : 'Gemini'} 金鑰</span>
+              <ExternalLink class="w-3 h-3" />
+            </a>
+          </div>
         </div>
 
         <!-- 動態模型探索與選擇 -->
@@ -570,7 +589,7 @@
             >
               <div class="flex items-center justify-between text-[10px] font-bold">
                 <span>裝置透明加密</span>
-                <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal">AES-GCM</span>
+                <span class="text-[8px] px-1 py-0.2 bg-signal/20 text-signal">推薦</span>
               </div>
               <span class="text-[9px] text-ink-muted leading-tight font-sans">本機硬體鎖，自動加解密</span>
             </button>

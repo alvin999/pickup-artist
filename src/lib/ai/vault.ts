@@ -166,13 +166,17 @@ async function decryptWithKey(key: CryptoKey, jsonPayload: string): Promise<stri
  * 取得當前加密模式
  */
 export function getStoredEncryptionMode(): EncryptionMode {
-  if (typeof window === 'undefined') return 'none';
+  if (typeof window === 'undefined') return 'device';
   const mode = localStorage.getItem(STORAGE_KEYS.MODE) as EncryptionMode;
   if (mode === 'device' || mode === 'master_password' || mode === 'none') {
     return mode;
   }
-  // 舊用戶相容：若已存在 plain keys 則為 none
-  return 'none';
+  // 舊用戶相容：若已存在舊版純文字金鑰則維持 none；全新使用者預設採裝置透明加密
+  const hasLegacyPlainKey = Boolean(
+    localStorage.getItem(STORAGE_KEYS.PLAIN_GROQ_KEY) ||
+    localStorage.getItem(STORAGE_KEYS.PLAIN_GEMINI_KEY)
+  );
+  return hasLegacyPlainKey ? 'none' : 'device';
 }
 
 /**

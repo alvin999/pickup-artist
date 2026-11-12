@@ -5,8 +5,9 @@
  * 支援：Gzip 壓縮全量快照、changes_ 增量更新、雙向時間戳衝突解決 (Last-Write-Wins)
  */
 
-import { db, onDatabaseChange, type Tombstone } from '$lib/db';
+import { db, onDatabaseChange, createVaultBackupPayload, autoHealArtistCovers, type Tombstone, type VaultBackupPayload } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
+import { listeningQueue } from '$lib/services/listeningQueue';
 
 export const GOOGLE_CLIENT_ID =
   ((import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID) as string) || '';
@@ -170,7 +171,7 @@ export async function refreshGoogleTokenSilent(): Promise<string> {
                 localStorage.setItem(USERINFO_KEY, JSON.stringify(u));
                 updateSyncState({ connectedAccount: u });
               })
-              .catch(() => {});
+              .catch(() => { });
           }
 
           resolve(token);
@@ -491,15 +492,7 @@ export async function deleteFileFromGoogleDrive(fileId: string): Promise<void> {
 // ----------------------------------------------------
 // Google Drive 完整備份、增量與雙向還原
 // ----------------------------------------------------
-export interface BackupDataStructure {
-  schema: 'pickup-artist-vault';
-  version: 1 | 2;
-  timestamp: number;
-  exportedAt: string;
-  artistsCount: number;
-  artists: ArtistEntry[];
-  tombstones: Tombstone[];
-}
+export type BackupDataStructure = VaultBackupPayload;
 
 export async function getGoogleDriveBackupMetadata(): Promise<GoogleDriveMetadata | null> {
   if (!isGoogleDriveConnected()) return null;
@@ -534,18 +527,7 @@ export async function getGoogleDriveBackupMetadata(): Promise<GoogleDriveMetadat
  * 產生並上傳全量壓縮快照至 Google Drive
  */
 export async function uploadBackupToGoogleDrive(): Promise<{ timestamp: number; size: number }> {
-  const artists = await db.artists.toArray();
-  const tombstones = await db.tombstones.toArray();
-
-  const backupData: BackupDataStructure = {
-    schema: 'pickup-artist-vault',
-    version: 2,
-    timestamp: Date.now(),
-    exportedAt: new Date().toISOString(),
-    artistsCount: artists.length,
-    artists,
-    tombstones
-  };
+  const backupData = await createVaultBackupPayload();
 
   const jsonContent = JSON.stringify(backupData);
   const compressedGzipBlob = await gzipCompress(jsonContent);
@@ -584,7 +566,7 @@ export async function clearGoogleDriveChangesInBackground(): Promise<void> {
     for (const f of changeFiles) {
       try {
         await deleteFileFromGoogleDrive(f.id);
-      } catch {}
+      } catch { }
     }
   } catch (err) {
     console.warn('[GoogleDrive] 清理 changes_ 零散檔案失敗:', err);
@@ -721,6 +703,10 @@ export async function restoreBackupFromGoogleDrive(): Promise<{ restoredCount: n
 
     const now = Date.now();
     localStorage.setItem(LAST_SYNC_KEY, now.toString());
+
+    if (backupData?.listeningQueue && backupData.listeningQueue.length > 0) {
+      listeningQueue.mergeItems(backupData.listeningQueue);
+    }
 
     // 若本機有較新的資料，回寫上傳給雲端以達成雙向收斂
     if (localHasNewer) {
@@ -867,6 +853,26 @@ if (typeof window !== 'undefined') {
       pendingChanges.set(event.id, { type: 'delete', id: event.id });
     }
     triggerGoogleDriveAutoSync(1500);
+  });
+
+  window.addEventListener('online', async () => {
+    if (!isGoogleDriveConnected()) return;
+    updateSyncState({ status: 'idle', errorMessage: undefined });
+    // 斷網重連保護：先執行雙向 LWW 合併，再補推離線變更並修復封面
+    try {
+      await restoreBackupFromGoogleDrive();
+    } catch (err) {
+      console.warn('[GoogleDrive AutoSync] 重連先行合併失敗:', err);
+    }
+    if (pendingChanges.size > 0 || needsFullCompaction) {
+      triggerGoogleDriveAutoSync(500);
+    }
+    autoHealArtistCovers().catch(console.warn);
+  });
+
+  window.addEventListener('offline', () => {
+    if (!isGoogleDriveConnected()) return;
+    updateSyncState({ status: 'offline', errorMessage: '網路已斷線' });
   });
 }
 

@@ -1,7 +1,7 @@
 import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
-import { db, onDatabaseChange } from '$lib/db';
+import { db, onDatabaseChange, createVaultBackupPayload, autoHealArtistCovers, type Tombstone, type VaultBackupPayload } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
-import type { Tombstone } from '$lib/db';
+import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
 
 export const ONEDRIVE_CLIENT_ID =
   ((import.meta.env.PUBLIC_ONEDRIVE_CLIENT_ID || import.meta.env.VITE_ONEDRIVE_CLIENT_ID) as string) || '';
@@ -156,15 +156,7 @@ export async function getAccessToken(allowInteractive = false): Promise<string> 
   }
 }
 
-export interface BackupDataStructure {
-  schema: 'pickup-artist-vault';
-  version: 1 | 2;
-  timestamp: number;
-  exportedAt: string;
-  artistsCount: number;
-  artists: ArtistEntry[];
-  tombstones: Tombstone[];
-}
+export type BackupDataStructure = VaultBackupPayload;
 
 export interface CloudMetadata {
   name: string;
@@ -317,17 +309,17 @@ async function deleteDriveItem(itemId: string): Promise<void> {
 
 type CloudChangeEntry =
   | {
-      itemId: string;
-      type: 'upsert';
-      artistId: string;
-      artist: ArtistEntry;
-    }
+    itemId: string;
+    type: 'upsert';
+    artistId: string;
+    artist: ArtistEntry;
+  }
   | {
-      itemId: string;
-      type: 'delete';
-      artistId: string;
-      deletedAt: number;
-    };
+    itemId: string;
+    type: 'delete';
+    artistId: string;
+    deletedAt: number;
+  };
 
 /**
  * 獲取並解析 changes/ 目錄中的所有增量變更記錄
@@ -394,6 +386,7 @@ async function clearCloudChangesInBackground(): Promise<void> {
 export interface CombinedCloudData {
   artists: ArtistEntry[];
   tombstones: Tombstone[];
+  listeningQueue?: ListeningQueueItem[];
   timestamp: number;
   changesCount: number;
   unchanged?: boolean;
@@ -511,6 +504,7 @@ async function loadCombinedCloudData(options?: { forceFullSnapshot?: boolean }):
   return {
     artists: Array.from(artistsMap.values()),
     tombstones: Array.from(tombstonesMap.values()),
+    listeningQueue: backupData?.listeningQueue,
     timestamp: backupData?.timestamp || Date.now(),
     changesCount: changes.length,
     unchanged: false,
@@ -521,18 +515,7 @@ async function loadCombinedCloudData(options?: { forceFullSnapshot?: boolean }):
  * 產生並上傳全量壓縮快照 (Snapshot Compaction)
  */
 export async function uploadBackupToOneDrive(): Promise<{ timestamp: number; size: number }> {
-  const artists = await db.artists.toArray();
-  const tombstones = await db.tombstones.toArray();
-
-  const backupData: BackupDataStructure = {
-    schema: 'pickup-artist-vault',
-    version: 2,
-    timestamp: Date.now(),
-    exportedAt: new Date().toISOString(),
-    artistsCount: artists.length,
-    artists,
-    tombstones,
-  };
+  const backupData = await createVaultBackupPayload();
 
   const jsonContent = JSON.stringify(backupData);
   // 使用 Gzip 壓縮快照
@@ -557,7 +540,7 @@ export async function uploadBackupToOneDrive(): Promise<{ timestamp: number; siz
         localStorage.setItem(SNAPSHOT_MTIME_KEY, m.lastModifiedDateTime);
       }
     })
-    .catch(() => {});
+    .catch(() => { });
 
   return {
     timestamp: now,
@@ -640,6 +623,10 @@ export async function restoreBackupFromOneDrive(): Promise<{ restoredCount: numb
         await db.tombstones.bulkPut(cloudData.tombstones);
       }
     });
+
+    if (cloudData.listeningQueue && cloudData.listeningQueue.length > 0) {
+      listeningQueue.mergeItems(cloudData.listeningQueue);
+    }
 
     return {
       restoredCount: cloudData.artists.length,
@@ -913,6 +900,11 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
       }
     });
 
+    let queueChanged = 0;
+    if (cloudData.listeningQueue && cloudData.listeningQueue.length > 0) {
+      queueChanged = listeningQueue.mergeItems(cloudData.listeningQueue);
+    }
+
     const now = Date.now();
     localStorage.setItem('pua_onedrive_last_sync', now.toString());
     updateSyncState({
@@ -1003,9 +995,18 @@ if (typeof window !== 'undefined') {
     triggerAutoCloudSync();
   });
 
-  window.addEventListener('online', () => {
+  window.addEventListener('online', async () => {
     updateSyncState({ status: 'idle', errorMessage: undefined });
-    triggerAutoCloudSync(500);
+    // 斷網重連保護：先拉取並進行 LWW 雙向合併，再補推離線期間累積的變更，並補齊離線收錄時缺失的封面
+    try {
+      await syncFromCloudOnStartup();
+    } catch (err) {
+      console.warn('[OneDrive AutoSync] 重連先行合併失敗:', err);
+    }
+    if (pendingChanges.size > 0 || needsFullCompaction) {
+      triggerAutoCloudSync(500);
+    }
+    autoHealArtistCovers().catch(console.warn);
   });
 
   window.addEventListener('offline', () => {

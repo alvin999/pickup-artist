@@ -1,35 +1,41 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { t, i18n } from '$lib/i18n/index.svelte';
+  import { onMount } from "svelte";
+  import { t, i18n } from "$lib/i18n/index.svelte";
   import {
     getArtists,
     quickPickupArtist,
     deleteArtist,
     updateArtist,
     autoHealArtistCovers,
-    onDatabaseChange
-  } from '$lib/db';
-  import type { ArtistEntry } from '$lib/types/artist';
-  import { searchAppleMusicCandidates, type ArtistCandidate } from '$lib/utils/appleMusic';
-  import StudioSidebar from '$lib/components/studio/StudioSidebar.svelte';
-  import StudioMobileNav from '$lib/components/studio/StudioMobileNav.svelte';
-  import StudioTopBar from '$lib/components/studio/StudioTopBar.svelte';
-  import CrateDiggerView from '$lib/components/studio/CrateDiggerView.svelte';
-  import HoneycombClusterView from '$lib/components/studio/HoneycombClusterView.svelte';
-  import AcousticMatrixView from '$lib/components/studio/AcousticMatrixView.svelte';
-  import ListeningQueueView from '$lib/components/studio/ListeningQueueView.svelte';
-  import ListeningLogView from '$lib/components/studio/ListeningLogView.svelte';
-  import SceneRadioView from '$lib/components/studio/SceneRadioView.svelte';
-  import FastPickupModal from '$lib/components/studio/FastPickupModal.svelte';
-  import AISettingsModal from '$lib/components/studio/AISettingsModal.svelte';
-  import MasterPasswordUnlockModal from '$lib/components/studio/MasterPasswordUnlockModal.svelte';
-  import CloudSyncModal from '$lib/components/studio/CloudSyncModal.svelte';
-  import StudioFooter from '$lib/components/studio/StudioFooter.svelte';
-  import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
-  import { loadSecureAISettings } from '$lib/ai/vault';
-  import { fetchMoreSimilarArtists, fetchMoreNotableAlbums } from '$lib/ai/client';
-  import { listeningQueue } from '$lib/services/listeningQueue';
-  import type { NotableAlbum } from '$lib/types/artist';
+    onDatabaseChange,
+  } from "$lib/db";
+  import type { ArtistEntry } from "$lib/types/artist";
+  import {
+    searchAppleMusicCandidates,
+    type ArtistCandidate,
+  } from "$lib/utils/appleMusic";
+  import StudioSidebar from "$lib/components/studio/StudioSidebar.svelte";
+  import StudioMobileNav from "$lib/components/studio/StudioMobileNav.svelte";
+  import StudioTopBar from "$lib/components/studio/StudioTopBar.svelte";
+  import CrateDiggerView from "$lib/components/studio/CrateDiggerView.svelte";
+  import HoneycombClusterView from "$lib/components/studio/HoneycombClusterView.svelte";
+  import AcousticMatrixView from "$lib/components/studio/AcousticMatrixView.svelte";
+  import ListeningQueueView from "$lib/components/studio/ListeningQueueView.svelte";
+  import ListeningLogView from "$lib/components/studio/ListeningLogView.svelte";
+  import SceneRadioView from "$lib/components/studio/SceneRadioView.svelte";
+  import FastPickupModal from "$lib/components/studio/FastPickupModal.svelte";
+  import AISettingsModal from "$lib/components/studio/AISettingsModal.svelte";
+  import MasterPasswordUnlockModal from "$lib/components/studio/MasterPasswordUnlockModal.svelte";
+  import CloudSyncModal from "$lib/components/studio/CloudSyncModal.svelte";
+  import StudioFooter from "$lib/components/studio/StudioFooter.svelte";
+  import { analysisQueue, type QueueState } from "$lib/services/analysisQueue";
+  import { loadSecureAISettings } from "$lib/ai/vault";
+  import {
+    fetchMoreSimilarArtists,
+    fetchMoreNotableAlbums,
+  } from "$lib/ai/client";
+  import { listeningQueue } from "$lib/services/listeningQueue";
+  import type { NotableAlbum } from "$lib/types/artist";
   import {
     getActiveAccount,
     subscribeSyncState,
@@ -37,32 +43,39 @@
     reauthenticateAndSync,
     getSyncState,
     type CloudSyncState,
-    type SyncStatus
-  } from '$lib/services/onedrive';
+    type SyncStatus,
+  } from "$lib/services/onedrive";
   import {
     getStoredGoogleToken,
     isGoogleDriveConnected,
     restoreBackupFromGoogleDrive,
     subscribeGoogleDriveSyncState,
     getGoogleDriveSyncState,
-    type GoogleDriveSyncState
-  } from '$lib/services/googledrive';
-  import { CheckCircle2 } from 'lucide-svelte';
+    type GoogleDriveSyncState,
+  } from "$lib/services/googledrive";
+  import { CheckCircle2 } from "lucide-svelte";
 
   // 狀態管理 (Svelte 5 Runes)
   let artists = $state<ArtistEntry[]>([]);
-  let activeStudioView = $state<'crate-digger' | 'honeycomb-cluster' | 'acoustic-matrix' | 'listening-queue' | 'listening-log' | 'ai-recommend'>('crate-digger');
+  let activeStudioView = $state<
+    | "crate-digger"
+    | "honeycomb-cluster"
+    | "acoustic-matrix"
+    | "listening-queue"
+    | "listening-log"
+    | "ai-recommend"
+  >("crate-digger");
   let selectedArtistId = $state<string | null>(null);
-  let searchQuery = $state('');
+  let searchQuery = $state("");
   let isPickupModalOpen = $state(false);
-  let pickupModalInitialTab = $state<'input' | 'lucky'>('input');
-  let pickupModalInitialQuery = $state<string>('');
+  let pickupModalInitialTab = $state<"input" | "lucky">("input");
+  let pickupModalInitialQuery = $state<string>("");
   let pickupModalInitialCandidates = $state<ArtistCandidate[]>([]);
 
   // 啟動聲學好手氣隨機探勘
   function handleOpenLuckyModal() {
-    pickupModalInitialTab = 'lucky';
-    pickupModalInitialQuery = '';
+    pickupModalInitialTab = "lucky";
+    pickupModalInitialQuery = "";
     pickupModalInitialCandidates = [];
     isPickupModalOpen = true;
   }
@@ -73,7 +86,9 @@
   let isOneDriveConnected = $state(false);
   let isAiConfigured = $state(false);
   let oneDriveSyncState = $state<CloudSyncState>(getSyncState());
-  let googleDriveSyncState = $state<GoogleDriveSyncState>(getGoogleDriveSyncState());
+  let googleDriveSyncState = $state<GoogleDriveSyncState>(
+    getGoogleDriveSyncState(),
+  );
 
   // 智慧聚合雲端同步狀態（相容 OneDrive 與 Google Drive 多軌同步）
   const cloudSyncState = $derived.by(() => {
@@ -81,43 +96,75 @@
     const isGDActive = isGoogleDriveConnected();
 
     // 若任一已連線服務正在傳輸中，優先呈現同步傳輸狀態
-    if ((isODActive && oneDriveSyncState.status === 'syncing') || (isGDActive && googleDriveSyncState.status === 'syncing')) {
+    if (
+      (isODActive && oneDriveSyncState.status === "syncing") ||
+      (isGDActive && googleDriveSyncState.status === "syncing")
+    ) {
       return {
-        status: 'syncing' as SyncStatus,
-        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+        status: "syncing" as SyncStatus,
+        lastSyncedAt:
+          Math.max(
+            oneDriveSyncState.lastSyncedAt || 0,
+            googleDriveSyncState.lastSyncedAt || 0,
+          ) || null,
       };
     }
 
     // 若任一已連線服務授權逾期，提示需重新驗證
-    if ((isODActive && oneDriveSyncState.status === 'session_expired') || (isGDActive && googleDriveSyncState.status === 'session_expired')) {
+    if (
+      (isODActive && oneDriveSyncState.status === "session_expired") ||
+      (isGDActive && googleDriveSyncState.status === "session_expired")
+    ) {
       return {
-        status: 'session_expired' as SyncStatus,
-        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+        status: "session_expired" as SyncStatus,
+        lastSyncedAt:
+          Math.max(
+            oneDriveSyncState.lastSyncedAt || 0,
+            googleDriveSyncState.lastSyncedAt || 0,
+          ) || null,
       };
     }
 
     // 若任一服務發生同步錯誤
-    if ((isODActive && oneDriveSyncState.status === 'error') || (isGDActive && googleDriveSyncState.status === 'error')) {
+    if (
+      (isODActive && oneDriveSyncState.status === "error") ||
+      (isGDActive && googleDriveSyncState.status === "error")
+    ) {
       return {
-        status: 'error' as SyncStatus,
-        errorMessage: oneDriveSyncState.errorMessage || googleDriveSyncState.errorMessage,
-        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+        status: "error" as SyncStatus,
+        errorMessage:
+          oneDriveSyncState.errorMessage || googleDriveSyncState.errorMessage,
+        lastSyncedAt:
+          Math.max(
+            oneDriveSyncState.lastSyncedAt || 0,
+            googleDriveSyncState.lastSyncedAt || 0,
+          ) || null,
       };
     }
 
     // 若任一服務已完成同步
-    if ((isODActive && oneDriveSyncState.status === 'synced') || (isGDActive && googleDriveSyncState.status === 'synced')) {
+    if (
+      (isODActive && oneDriveSyncState.status === "synced") ||
+      (isGDActive && googleDriveSyncState.status === "synced")
+    ) {
       return {
-        status: 'synced' as SyncStatus,
-        lastSyncedAt: Math.max(oneDriveSyncState.lastSyncedAt || 0, googleDriveSyncState.lastSyncedAt || 0) || null
+        status: "synced" as SyncStatus,
+        lastSyncedAt:
+          Math.max(
+            oneDriveSyncState.lastSyncedAt || 0,
+            googleDriveSyncState.lastSyncedAt || 0,
+          ) || null,
       };
     }
 
-    if (oneDriveSyncState.status === 'offline' || googleDriveSyncState.status === 'offline') {
-      return { status: 'offline' as SyncStatus, lastSyncedAt: null };
+    if (
+      oneDriveSyncState.status === "offline" ||
+      googleDriveSyncState.status === "offline"
+    ) {
+      return { status: "offline" as SyncStatus, lastSyncedAt: null };
     }
 
-    return { status: 'idle' as SyncStatus, lastSyncedAt: null };
+    return { status: "idle" as SyncStatus, lastSyncedAt: null };
   });
   let pendingArtistToAnalyze = $state<ArtistEntry | null>(null);
   let toastMessage = $state<string | null>(null);
@@ -133,27 +180,27 @@
   function toggleSidebar() {
     isSidebarCollapsed = !isSidebarCollapsed;
     try {
-      localStorage.setItem('pua_sidebar_collapsed', String(isSidebarCollapsed));
+      localStorage.setItem("pua_sidebar_collapsed", String(isSidebarCollapsed));
     } catch {}
   }
 
   // 跨視圖跳轉：自展間或外部節點跳轉至聆賞日誌並聚焦該藝人
   function handleOpenInLog(artistId: string) {
     targetLogArtistId = artistId;
-    activeStudioView = 'listening-log';
+    activeStudioView = "listening-log";
   }
 
   async function handleQuickReauth() {
     isReauthenticating = true;
-    showToast('正在喚起微軟登入視窗...');
+    showToast("正在喚起微軟登入視窗...");
     try {
       await reauthenticateAndSync(async () => {
         await reloadArtists();
       });
-      showToast('微軟授權驗證成功，雲端資料庫已即時同步！');
+      showToast("微軟授權驗證成功，雲端資料庫已即時同步！");
     } catch (err: any) {
-      if (err?.errorCode !== 'user_cancelled') {
-        showToast(err?.message || '重新驗證失敗');
+      if (err?.errorCode !== "user_cancelled") {
+        showToast(err?.message || "重新驗證失敗");
       }
     } finally {
       isReauthenticating = false;
@@ -171,7 +218,10 @@
 
     try {
       const { settings, isLocked } = await loadSecureAISettings();
-      const hasKey = settings.provider === 'groq' ? !!settings.groqKey : !!settings.geminiKey;
+      const hasKey =
+        settings.provider === "groq"
+          ? !!settings.groqKey
+          : !!settings.geminiKey;
       isAiConfigured = !isLocked && hasKey;
     } catch {
       isAiConfigured = false;
@@ -179,7 +229,9 @@
   }
 
   // 待解剖收件匣計數
-  const inboxCount = $derived(artists.filter((a) => a.status === 'inbox').length);
+  const inboxCount = $derived(
+    artists.filter((a) => a.status === "inbox").length,
+  );
 
   // 關鍵字搜尋過濾
   const filteredArtists = $derived(
@@ -187,19 +239,22 @@
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       const inName = artist.name.toLowerCase().includes(q);
-      const inAliases = artist.aliases?.some((al) => al.toLowerCase().includes(q)) ?? false;
-      const inGenres = artist.analysis?.genres.some((g) => g.toLowerCase().includes(q)) ?? false;
+      const inAliases =
+        artist.aliases?.some((al) => al.toLowerCase().includes(q)) ?? false;
+      const inGenres =
+        artist.analysis?.genres.some((g) => g.toLowerCase().includes(q)) ??
+        false;
       const inCat = artist.catalogNumber?.toLowerCase().includes(q) ?? false;
       return inName || inAliases || inGenres || inCat;
-    })
+    }),
   );
 
   onMount(() => {
     // 0. 自 localStorage 恢復側邊欄收折偏好
     try {
-      const savedCollapsed = localStorage.getItem('pua_sidebar_collapsed');
+      const savedCollapsed = localStorage.getItem("pua_sidebar_collapsed");
       if (savedCollapsed !== null) {
-        isSidebarCollapsed = savedCollapsed === 'true';
+        isSidebarCollapsed = savedCollapsed === "true";
       }
     } catch {}
 
@@ -215,15 +270,15 @@
     // 訂閱 AI 背景批次分析佇列
     const unsubQueue = analysisQueue.subscribe(async (st) => {
       queueState = st;
-      isAnalyzing = st.status === 'processing';
-      if (st.lastMessage && st.status !== 'cooling_down') {
+      isAnalyzing = st.status === "processing";
+      if (st.lastMessage && st.status !== "cooling_down") {
         showToast(st.lastMessage);
       }
     });
 
     // 監聽本機資料庫變更事件，無感即時刷新畫面
     const unsubDb = onDatabaseChange(async (e) => {
-      if (e?.type === 'upsert' || e?.type === 'batch') {
+      if (e?.type === "upsert" || e?.type === "batch") {
         await reloadArtists();
       }
     });
@@ -253,9 +308,9 @@
           restoreBackupFromGoogleDrive()
             .then((res) => !!res)
             .catch((err) => {
-              console.warn('[GoogleDrive] 背景啟動同步失敗:', err);
+              console.warn("[GoogleDrive] 背景啟動同步失敗:", err);
               return false;
-            })
+            }),
         );
       }
 
@@ -269,22 +324,23 @@
           }
         })
         .catch((err) => {
-          console.warn('[CloudSync] 背景啟動同步失敗:', err);
+          console.warn("[CloudSync] 背景啟動同步失敗:", err);
         });
 
       // 方案 A：支援透過 URL Query 參數（如 iOS 捷徑、Shazam 自動化）快速收錄藝人
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         const urlParams = new URLSearchParams(window.location.search);
-        const quickAddParam = urlParams.get('quickAdd') || urlParams.get('artist');
+        const quickAddParam =
+          urlParams.get("quickAdd") || urlParams.get("artist");
         if (quickAddParam && quickAddParam.trim()) {
           const targetArtist = quickAddParam.trim();
           // 清理網址參數，避免重新整理時重複收錄
           const cleanUrl = window.location.pathname + window.location.hash;
-          window.history.replaceState({}, '', cleanUrl || '/');
+          window.history.replaceState({}, "", cleanUrl || "/");
 
           // 防重檢查：若本機已存在該藝人，直接選取並定位，避免捷徑重複建立
           const existing = artists.find(
-            (a) => a.name.trim().toLowerCase() === targetArtist.toLowerCase()
+            (a) => a.name.trim().toLowerCase() === targetArtist.toLowerCase(),
           );
           if (existing) {
             selectedArtistId = existing.id;
@@ -327,9 +383,9 @@
       const newEntry = await quickPickupArtist(input, candidate);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast('已知悉');
+      showToast("已知悉");
     } catch (err: any) {
-      showToast(err?.message || '知悉失敗');
+      showToast(err?.message || "知悉失敗");
     }
   }
 
@@ -342,8 +398,11 @@
   // 透過搜尋下拉直接定位藝人
   function handleSelectArtistFromSearch(id: string) {
     selectedArtistId = id;
-    if (activeStudioView !== 'crate-digger' && activeStudioView !== 'honeycomb-cluster') {
-      activeStudioView = 'crate-digger';
+    if (
+      activeStudioView !== "crate-digger" &&
+      activeStudioView !== "honeycomb-cluster"
+    ) {
+      activeStudioView = "crate-digger";
     }
   }
 
@@ -355,36 +414,63 @@
       if (selectedArtistId === id) {
         selectedArtistId = artists[0]?.id || null;
       }
-      showToast('已自檔案庫刪除');
+      showToast("已自檔案庫刪除");
     } catch (err: any) {
-      showToast(err?.message || '刪除失敗');
+      showToast(err?.message || "刪除失敗");
     }
+  }
+
+  // 確認 AI 保管庫已解鎖且已設定金鑰（共用檢查邏輯）
+  async function ensureAIReady(pendingArtist?: ArtistEntry): Promise<boolean> {
+    const secureLoaded = await loadSecureAISettings();
+    if (secureLoaded.isLocked) {
+      if (pendingArtist) pendingArtistToAnalyze = pendingArtist;
+      isUnlockModalOpen = true;
+      showToast("請先解鎖主密碼保管庫");
+      return false;
+    }
+
+    const { settings } = secureLoaded;
+    const hasKey =
+      settings.provider === "groq"
+        ? !!settings.groqKey.trim()
+        : !!settings.geminiKey.trim();
+    if (!hasKey) {
+      isAISettingsOpen = true;
+      showToast("請先設定免費 AI 金鑰（支援 Groq / Gemini）");
+      return false;
+    }
+
+    return true;
   }
 
   // AI 深度聲學解剖 (透過背景批次佇列與 429 智能重試排程)
   async function handleAnalyze(artist: ArtistEntry) {
     try {
-      const secureLoaded = await loadSecureAISettings();
-      if (secureLoaded.isLocked) {
-        pendingArtistToAnalyze = artist;
-        isUnlockModalOpen = true;
-        showToast('請先解鎖主密碼保管庫');
-        return;
-      }
-
-      const { settings } = secureLoaded;
-      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
-      if (!hasKey) {
-        isAISettingsOpen = true;
-        showToast('請先設定 AI 金鑰');
-        return;
-      }
+      if (!(await ensureAIReady(artist))) return;
 
       // 排入背景佇列依序執行，徹底解決 TPM 429 併發擊穿問題
       analysisQueue.enqueue(artist, i18n.locale);
     } catch (err: any) {
-      console.error('[AI Analyze Enqueue Error]:', err);
-      showToast(err?.message || '排入佇列失敗');
+      console.error("[AI Analyze Enqueue Error]:", err);
+      showToast(err?.message || "排入佇列失敗");
+    }
+  }
+
+  // 一鍵批次解剖所有 INBOX 待處理藝人
+  async function handleAnalyzeAllInbox() {
+    try {
+      const inboxArtists = artists.filter((a) => a.status === "inbox");
+      if (inboxArtists.length === 0) {
+        showToast("目前沒有待解剖的藝人");
+        return;
+      }
+      if (!(await ensureAIReady(inboxArtists[0]))) return;
+
+      analysisQueue.enqueueBatch(inboxArtists, i18n.locale);
+    } catch (err: any) {
+      console.error("[AI Analyze Batch Enqueue Error]:", err);
+      showToast(err?.message || "批次排入佇列失敗");
     }
   }
 
@@ -403,7 +489,9 @@
     if (!cleanName) return;
 
     const lowerClean = cleanName.toLowerCase();
-    const existing = artists.find((a) => a.name.trim().toLowerCase() === lowerClean);
+    const existing = artists.find(
+      (a) => a.name.trim().toLowerCase() === lowerClean,
+    );
     if (existing) {
       selectedArtistId = existing.id;
       showToast(`「${existing.name}」已在收藏庫中，已為您定位`);
@@ -433,11 +521,11 @@
         showToast(`已知悉：${newEntry.name}`);
       }
     } catch (err: any) {
-      console.warn('[handlePickupSimilar] 候選檢索異常，退回純文字知悉:', err);
+      console.warn("[handlePickupSimilar] 候選檢索異常，退回純文字知悉:", err);
       const newEntry = await quickPickupArtist(cleanName);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast('已知悉');
+      showToast("已知悉");
     }
   }
 
@@ -450,15 +538,18 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast('請先解鎖主密碼保管庫以調用 AI');
+        showToast("請先解鎖主密碼保管庫以調用 AI");
         return;
       }
 
       const { settings } = secureLoaded;
-      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
+      const hasKey =
+        settings.provider === "groq"
+          ? !!settings.groqKey.trim()
+          : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast('請先設定 AI 金鑰');
+        showToast("請先設定 AI 金鑰");
         return;
       }
 
@@ -470,7 +561,9 @@
         excludeSet.add(a.name.trim());
         a.aliases?.forEach((al) => excludeSet.add(al.trim()));
       });
-      artist.analysis?.similarArtists?.forEach((sim) => excludeSet.add(sim.trim()));
+      artist.analysis?.similarArtists?.forEach((sim) =>
+        excludeSet.add(sim.trim()),
+      );
       excludeSet.add(artist.name.trim());
 
       const excludeList = Array.from(excludeSet);
@@ -481,30 +574,34 @@
         artist.analysis?.subGenre,
         excludeList,
         i18n.locale,
-        settings
+        settings,
       );
 
       if (!newSims || newSims.length === 0) {
-        showToast('AI 未探索到更多新相似音樂人，目前星系網絡已相當豐富');
+        showToast("AI 未探索到更多新相似音樂人，目前星系網絡已相當豐富");
         return;
       }
 
       // 合併去重並更新回資料庫（累加擴展池）
       const currentSimilar = artist.analysis?.similarArtists || [];
-      const mergedSimilar = Array.from(new Set([...currentSimilar, ...newSims]));
+      const mergedSimilar = Array.from(
+        new Set([...currentSimilar, ...newSims]),
+      );
 
       const cleanAnalysis = JSON.parse(JSON.stringify(artist.analysis || {}));
       cleanAnalysis.similarArtists = mergedSimilar;
 
       await updateArtist(artist.id, {
-        analysis: cleanAnalysis
+        analysis: cleanAnalysis,
       });
 
       await reloadArtists();
-      showToast(`已成功為「${artist.name}」探索並擴充 ${newSims.length} 位相似音樂人！`);
+      showToast(
+        `已成功為「${artist.name}」探索並擴充 ${newSims.length} 位相似音樂人！`,
+      );
     } catch (err: any) {
-      console.error('[Recommend More Similar Error]:', err);
-      showToast(err?.message || '探索推薦失敗');
+      console.error("[Recommend More Similar Error]:", err);
+      showToast(err?.message || "探索推薦失敗");
     } finally {
       isRecommendingMore = false;
     }
@@ -519,22 +616,27 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast('請先解鎖主密碼保管庫以調用 AI');
+        showToast("請先解鎖主密碼保管庫以調用 AI");
         return;
       }
 
       const { settings } = secureLoaded;
-      const hasKey = settings.provider === 'groq' ? !!settings.groqKey.trim() : !!settings.geminiKey.trim();
+      const hasKey =
+        settings.provider === "groq"
+          ? !!settings.groqKey.trim()
+          : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast('請先設定 AI 金鑰');
+        showToast("請先設定 AI 金鑰");
         return;
       }
 
       isRecommendingAlbums = true;
 
       // 收集該藝人已收錄的專輯名稱作為排除名單
-      const existingAlbums = (artist.analysis?.notableAlbums || []).map((alb) => alb.title.trim());
+      const existingAlbums = (artist.analysis?.notableAlbums || []).map((alb) =>
+        alb.title.trim(),
+      );
 
       const newAlbums = await fetchMoreNotableAlbums(
         artist.name,
@@ -542,11 +644,11 @@
         artist.analysis?.subGenre,
         existingAlbums,
         i18n.locale,
-        settings
+        settings,
       );
 
       if (!newAlbums || newAlbums.length === 0) {
-        showToast('AI 未探索到更多新專輯，目前收錄之代表盤已相當經典');
+        showToast("AI 未探索到更多新專輯，目前收錄之代表盤已相當經典");
         return;
       }
 
@@ -558,14 +660,16 @@
       cleanAnalysis.notableAlbums = mergedAlbums;
 
       await updateArtist(artist.id, {
-        analysis: cleanAnalysis
+        analysis: cleanAnalysis,
       });
 
       await reloadArtists();
-      showToast(`已成功為「${artist.name}」挖掘並收錄 ${newAlbums.length} 張發燒名盤！`);
+      showToast(
+        `已成功為「${artist.name}」挖掘並收錄 ${newAlbums.length} 張發燒名盤！`,
+      );
     } catch (err: any) {
-      console.error('[Recommend More Albums Error]:', err);
-      showToast(err?.message || '推薦專輯過程遭遇異常');
+      console.error("[Recommend More Albums Error]:", err);
+      showToast(err?.message || "推薦專輯過程遭遇異常");
     } finally {
       isRecommendingAlbums = false;
     }
@@ -585,7 +689,7 @@
       audiophileHighlight: album?.audiophileHighlight,
       dynamicRangeScore: album?.dynamicRangeScore || artist.dynamicRange,
       appleMusicUrl: album?.appleMusicSearchUrl || artist.appleMusicUrl,
-      coverImage: artist.coverImage
+      coverImage: artist.coverImage,
     });
 
     if (res.alreadyExists) {
@@ -606,7 +710,10 @@
   }
 
   // 儲存藝人在星系中的手動拖曳座標 (持久化至 IndexedDB)
-  async function handleUpdatePos(id: string, clusterPos: { x: number; y: number }) {
+  async function handleUpdatePos(
+    id: string,
+    clusterPos: { x: number; y: number },
+  ) {
     await updateArtist(id, { clusterPos });
     const target = artists.find((a) => a.id === id);
     if (target) {
@@ -625,11 +732,13 @@
 
   // 全域快捷鍵
   function handleGlobalKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      const searchInput = document.querySelector('header input') as HTMLInputElement | null;
+      const searchInput = document.querySelector(
+        "header input",
+      ) as HTMLInputElement | null;
       searchInput?.focus();
-    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
       e.preventDefault();
       toggleSidebar();
     }
@@ -638,17 +747,29 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<div class="min-h-screen {activeStudioView === 'honeycomb-cluster' ? 'h-dvh overflow-hidden' : ''} bg-void text-ink flex flex-col font-sans bg-dot-matrix selection:bg-signal selection:text-white">
+<div
+  class="min-h-screen {activeStudioView === 'honeycomb-cluster'
+    ? 'h-dvh overflow-hidden'
+    : ''} bg-void text-ink flex flex-col font-sans bg-dot-matrix selection:bg-signal selection:text-white"
+>
   <!-- 429 冷卻倒數提示條 (Rate Limit Cooldown Banner) -->
-  {#if queueState.status === 'cooling_down'}
-    <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-[#17110e] border border-amber-500 text-amber-200 rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(245,158,11,0.35)] flex items-center gap-2.5 animate-in fade-in">
-      <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
+  {#if queueState.status === "cooling_down"}
+    <div
+      class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-[#17110e] border border-amber-500 text-amber-200 rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(245,158,11,0.35)] flex items-center gap-2.5 animate-in fade-in"
+    >
+      <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"
+      ></span>
       <span class="break-words leading-relaxed">
-        ⏳ API 頻率保護中：將於 <strong>{queueState.cooldownRemainingSeconds}</strong> 秒後自動重試「{queueState.currentArtist?.name}」...
+        ⏳ API 頻率保護中：將於 <strong
+          >{queueState.cooldownRemainingSeconds}</strong
+        >
+        秒後自動重試「{queueState.currentArtist?.name}」...
       </span>
     </div>
   {:else if toastMessage}
-    <div class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-chassis border border-signal text-ink rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(255,42,60,0.4)] flex items-center gap-2.5">
+    <div
+      class="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90vw] sm:w-auto px-4 py-2.5 bg-chassis border border-signal text-ink rounded-[2px] font-mono text-xs shadow-[0_0_24px_rgba(255,42,60,0.4)] flex items-center gap-2.5"
+    >
       <span class="w-2 h-2 rounded-full bg-signal shrink-0"></span>
       <span class="break-words leading-relaxed">{toastMessage}</span>
     </div>
@@ -663,9 +784,9 @@
     initialCandidates={pickupModalInitialCandidates}
     onclose={() => {
       isPickupModalOpen = false;
-      pickupModalInitialQuery = '';
+      pickupModalInitialQuery = "";
       pickupModalInitialCandidates = [];
-      pickupModalInitialTab = 'input';
+      pickupModalInitialTab = "input";
     }}
     onpickup={handlePickup}
     onselectExisting={(artist) => {
@@ -706,6 +827,7 @@
       {inboxCount}
       {artists}
       {showToast}
+      onRestored={reloadArtists}
       isCollapsed={isSidebarCollapsed}
       ontoggleCollapse={toggleSidebar}
     />
@@ -714,7 +836,7 @@
   <!-- Studio 頂部母帶工作列 (Studio Master TopBar) -->
   <StudioTopBar
     onopenPickupModal={() => {
-      pickupModalInitialTab = 'input';
+      pickupModalInitialTab = "input";
       isPickupModalOpen = true;
     }}
     onopenLuckyModal={handleOpenLuckyModal}
@@ -734,16 +856,34 @@
   />
 
   <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移，星系視圖鎖定視窗高度) -->
-  <div class="{isSidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out {activeStudioView === 'honeycomb-cluster' ? 'h-[calc(100dvh-4rem)] overflow-hidden' : ''}">
-    <main class="flex-1 {activeStudioView === 'honeycomb-cluster' ? 'p-1 sm:p-2 pb-16 lg:pb-2 h-full overflow-hidden' : 'p-3 sm:p-4 md:p-6 pb-20 lg:pb-6'} w-full">
+  <div
+    class="{isSidebarCollapsed
+      ? 'lg:pl-16'
+      : 'lg:pl-60'} pt-16 flex-1 flex flex-col transition-[padding] duration-300 ease-in-out {activeStudioView ===
+    'honeycomb-cluster'
+      ? 'h-[calc(100dvh-4rem)] overflow-hidden'
+      : ''}"
+  >
+    <main
+      class="flex-1 {activeStudioView === 'honeycomb-cluster'
+        ? 'p-1 sm:p-2 pb-16 lg:pb-2 h-full overflow-hidden'
+        : 'p-3 sm:p-4 md:p-6 pb-20 lg:pb-6'} w-full"
+    >
       <!-- Session 過期引導橫幅 (Local-First Fallback & One-Click Re-Auth) -->
-      {#if cloudSyncState.status === 'session_expired'}
-        <div class="mb-4 p-3.5 bg-[#1a150e]/95 border border-amber-500/50 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 font-mono text-xs shadow-lg backdrop-blur-sm animate-fadeIn">
+      {#if cloudSyncState.status === "session_expired"}
+        <div
+          class="mb-4 p-3.5 bg-[#1a150e]/95 border border-amber-500/50 rounded-[2px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 font-mono text-xs shadow-lg backdrop-blur-sm animate-fadeIn"
+        >
           <div class="flex items-center gap-2.5">
-            <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">lock_clock</span>
+            <span
+              class="material-symbols-outlined text-amber-400 text-lg shrink-0"
+              >lock_clock</span
+            >
             <div>
               <span class="font-bold text-amber-300">微軟雲端授權已過期：</span>
-              <span class="text-amber-200/90">系統已無縫切換至「本機安全快取」模式，您的閱讀與編輯皆已妥善保存。</span>
+              <span class="text-amber-200/90"
+                >系統已無縫切換至「本機安全快取」模式，您的閱讀與編輯皆已妥善保存。</span
+              >
             </div>
           </div>
           <button
@@ -752,15 +892,23 @@
             disabled={isReauthenticating}
             class="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-void font-bold text-[11px] uppercase tracking-wider rounded-[2px] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <span class="material-symbols-outlined text-[15px] {isReauthenticating ? 'animate-spin' : ''}">
-              {isReauthenticating ? 'sync' : 'refresh'}
+            <span
+              class="material-symbols-outlined text-[15px] {isReauthenticating
+                ? 'animate-spin'
+                : ''}"
+            >
+              {isReauthenticating ? "sync" : "refresh"}
             </span>
-            <span>{isReauthenticating ? '正在重新驗證...' : '一鍵重新連線並同步'}</span>
+            <span
+              >{isReauthenticating
+                ? "正在重新驗證..."
+                : "一鍵重新連線並同步"}</span
+            >
           </button>
         </div>
       {/if}
 
-      {#if activeStudioView === 'crate-digger'}
+      {#if activeStudioView === "crate-digger"}
         <!-- 視圖 1: 藝人展間視圖 (Artist Showroom / Crate Digger View) -->
         <CrateDiggerView
           artists={filteredArtists}
@@ -768,12 +916,19 @@
           onselectArtist={(id) => (selectedArtistId = id)}
           ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
+          onanalyzeAllInbox={handleAnalyzeAllInbox}
           onpickupSimilar={handlePickupSimilar}
           onrecommendMoreSimilar={handleRecommendMoreSimilar}
           onrecommendMoreAlbums={handleRecommendMoreAlbums}
           onaddToQueue={handleAddToQueue}
           onopenInLog={handleOpenInLog}
           onupdateWeight={handleUpdateWeight}
+          onopenPickupModal={() => {
+            pickupModalInitialTab = "input";
+            isPickupModalOpen = true;
+          }}
+          onopenLuckyModal={handleOpenLuckyModal}
+          onopenRecommend={() => (activeStudioView = "ai-recommend")}
           globalSearchQuery={searchQuery}
           onquickPickup={handleQuickPickupFromSearch}
           {queueState}
@@ -781,7 +936,7 @@
           {isRecommendingMore}
           {isRecommendingAlbums}
         />
-      {:else if activeStudioView === 'honeycomb-cluster'}
+      {:else if activeStudioView === "honeycomb-cluster"}
         <!-- 視圖 2: 藝人星系蜂巢矩陣視圖 (Artist Constellation View) -->
         <HoneycombClusterView
           artists={filteredArtists}
@@ -793,7 +948,7 @@
           onupdateWeight={handleUpdateWeight}
           onupdatePos={handleUpdatePos}
         />
-      {:else if activeStudioView === 'acoustic-matrix'}
+      {:else if activeStudioView === "acoustic-matrix"}
         <!-- 視圖 3: 風格矩陣視圖 (Acoustic Matrix View) -->
         <AcousticMatrixView
           artists={filteredArtists}
@@ -801,57 +956,57 @@
           onselectArtist={(id) => (selectedArtistId = id)}
           onopenInCrate={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           onlocateInGalaxy={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'honeycomb-cluster';
+            activeStudioView = "honeycomb-cluster";
           }}
           ondeleteArtist={handleDelete}
           onanalyzeArtist={handleAnalyze}
           onupdateWeight={handleUpdateWeight}
           {isAnalyzing}
         />
-      {:else if activeStudioView === 'listening-queue'}
+      {:else if activeStudioView === "listening-queue"}
         <!-- 視圖 4: 聆賞隊列視圖 (Listening Queue View) -->
         <ListeningQueueView
-          artists={artists}
+          {artists}
           onselectArtist={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           onopenInCrate={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           {showToast}
         />
-      {:else if activeStudioView === 'listening-log'}
+      {:else if activeStudioView === "listening-log"}
         <!-- 視圖 5: 聆賞日誌視圖 (Listening Log View) -->
         <ListeningLogView
-          artists={artists}
+          {artists}
           initialTargetArtistId={targetLogArtistId}
           onupdateArtist={handleUpdateArtistFromLog}
           onselectArtist={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           onopenInCrate={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           {showToast}
         />
-      {:else if activeStudioView === 'ai-recommend'}
+      {:else if activeStudioView === "ai-recommend"}
         <!-- 視圖 6: AI 智慧推薦 (AI Recommendation & Acoustic Radio) -->
         <SceneRadioView
           {artists}
           onselectArtist={(id) => {
             selectedArtistId = id;
-            activeStudioView = 'crate-digger';
+            activeStudioView = "crate-digger";
           }}
           onquickPickup={(name) => {
-            pickupModalInitialTab = 'input';
+            pickupModalInitialTab = "input";
             pickupModalInitialQuery = name;
             isPickupModalOpen = true;
           }}
@@ -859,18 +1014,25 @@
         />
       {:else}
         <!-- 其他 Studio 模組待命占位 -->
-        <div class="py-24 text-center font-mono text-xs text-[#8E9298] bg-[#0D0E11] rounded-[4px] border border-[#1F2228] p-8">
-          <span class="material-symbols-outlined text-[36px] text-[#FEC486] mb-2">settings_input_component</span>
+        <div
+          class="py-24 text-center font-mono text-xs text-[#8E9298] bg-[#0D0E11] rounded-[4px] border border-[#1F2228] p-8"
+        >
+          <span
+            class="material-symbols-outlined text-[36px] text-[#FEC486] mb-2"
+            >settings_input_component</span
+          >
           <div class="text-sm font-bold text-[#EEF0F2] mb-1">
             {String(activeStudioView).toUpperCase()} // MODULE STANDBY
           </div>
-          <p class="text-[#52565E]">此聆賞模組電路已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。</p>
+          <p class="text-[#52565E]">
+            此聆賞模組電路已接線待命。點擊左側導航「藝人展間」或「藝人星系」切換主視圖。
+          </p>
         </div>
       {/if}
     </main>
 
     <!-- Google OAuth / Google APIs Terms & AI NCII 合規性宣告頁尾 (星系全螢幕漫遊視圖隱藏以保證電腦端滿版沈浸與零垂直滾動) -->
-    {#if activeStudioView !== 'honeycomb-cluster'}
+    {#if activeStudioView !== "honeycomb-cluster"}
       <div class="px-3 sm:px-4 md:px-6">
         <StudioFooter />
       </div>

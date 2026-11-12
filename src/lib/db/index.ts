@@ -7,6 +7,7 @@ import {
   type ArtistCandidate
 } from '$lib/utils/appleMusic';
 import { fetchArtistPortrait } from '$lib/utils/artistImage';
+import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
 
 export interface Tombstone {
   id: string;
@@ -57,7 +58,11 @@ export function notifyDatabaseChange(event?: DbChangeEvent): void {
 }
 
 /**
- * 離線防護檢查：若當前斷網，禁止修改本地資料庫以避免雲端狀態脫節
+ * 檢查目前瀏覽器是否處於連線狀態（保留供雲端同步或外部探索功能查詢）
+ *
+ * 設計意圖 (Why):
+ * 本地資料庫寫入採 Local-First 原則，不再以 assertOnline() 阻擋離線新增/編輯，
+ * 離線期間的變更會暫存於各雲端同步器的 pendingChanges，待連線恢復後自動 LWW 雙向合併。
  */
 export function assertOnline(): void {
   if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -117,9 +122,8 @@ export async function findDuplicateArtist(
   return checkDuplicateArtist(all, name, appleMusicUrl);
 }
 
-// 快速拾音（支援自動查詢 Apple Music 高清封面，或直接套用使用者選定之候選藝人）
+// 快速拾音（支援自動查詢 Apple Music 高清封面，或直接套用使用者選定之候選藝人；離線時亦可直接寫入本機）
 export async function quickPickupArtist(rawInput: string, candidate?: ArtistCandidate): Promise<ArtistEntry> {
-  assertOnline();
   const now = Date.now();
 
   if (candidate) {
@@ -152,20 +156,24 @@ export async function quickPickupArtist(rawInput: string, candidate?: ArtistCand
   let formatSpec = 'Lossless Hi-Res';
 
   // 視覺配置原則：優先採用 Apple Music 官方代表作母帶封面（800x800），若無封面才以代表作品交叉驗證 Wiki 肖像
-  try {
-    const meta = await fetchAppleMusicMetadata(finalName);
-    if (meta) {
-      if (meta.coverImage) coverImage = meta.coverImage;
-      if (meta.appleMusicUrl && !isUrl) appleMusicUrl = meta.appleMusicUrl;
-      if (meta.releaseYear) formatSpec = `${meta.releaseYear} // Lossless Master`;
-    }
+  // 離線狀態下跳過遠端查詢以免卡頓，待恢復連線時由 autoHealArtistCovers 自動補齊封面
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine;
+  if (isOnline) {
+    try {
+      const meta = await fetchAppleMusicMetadata(finalName);
+      if (meta) {
+        if (meta.coverImage) coverImage = meta.coverImage;
+        if (meta.appleMusicUrl && !isUrl) appleMusicUrl = meta.appleMusicUrl;
+        if (meta.releaseYear) formatSpec = `${meta.releaseYear} // Lossless Master`;
+      }
 
-    if (!coverImage) {
-      const portrait = await fetchArtistPortrait(finalName, meta?.albumTitle);
-      if (portrait) coverImage = portrait;
+      if (!coverImage) {
+        const portrait = await fetchArtistPortrait(finalName, meta?.albumTitle);
+        if (portrait) coverImage = portrait;
+      }
+    } catch (err) {
+      console.warn('[PickupArtist] 查詢藝人肖像與 Apple Music 異常:', err);
     }
-  } catch (err) {
-    console.warn('[PickupArtist] 查詢藝人肖像與 Apple Music 異常:', err);
   }
 
   const entry: ArtistEntry = {
@@ -191,7 +199,6 @@ export async function getArtists(): Promise<ArtistEntry[]> {
 
 // 更新藝人
 export async function updateArtist(id: string, updates: Partial<ArtistEntry>): Promise<void> {
-  assertOnline();
   const existing = await db.artists.get(id);
   if (!existing) return;
 
@@ -211,7 +218,6 @@ export async function updateArtist(id: string, updates: Partial<ArtistEntry>): P
 
 // 刪除藝人（記錄墓碑）
 export async function deleteArtist(id: string): Promise<void> {
-  assertOnline();
   const now = Date.now();
   await db.transaction('rw', db.artists, db.tombstones, async () => {
     await db.artists.delete(id);
@@ -255,6 +261,133 @@ export async function autoHealArtistCovers(): Promise<boolean> {
     notifyDatabaseChange();
   }
   return updatedAny;
+}
+
+export interface VaultBackupPayload {
+  schema: 'pickup-artist-vault';
+  version: 1 | 2;
+  timestamp: number;
+  exportedAt: string;
+  artistsCount: number;
+  artists: ArtistEntry[];
+  tombstones: Tombstone[];
+  listeningQueue?: ListeningQueueItem[];
+}
+
+/**
+ * 封裝完整本機備份封包（包含藝人庫、刪除墓碑與聆賞隊列）
+ */
+export async function createVaultBackupPayload(): Promise<VaultBackupPayload> {
+  const artists = await db.artists.toArray();
+  const tombstones = await db.tombstones.toArray();
+  const queueItems = listeningQueue.getItems();
+
+  return {
+    schema: 'pickup-artist-vault',
+    version: 2,
+    timestamp: Date.now(),
+    exportedAt: new Date().toISOString(),
+    artistsCount: artists.length,
+    artists,
+    tombstones,
+    listeningQueue: queueItems
+  };
+}
+
+/**
+ * 匯入並以 Last-Write-Wins 時間戳雙向合併本機 JSON 備份檔
+ * 相容新版 VaultBackupPayload 物件與舊版純 ArtistEntry[] 陣列格式
+ */
+export async function importVaultBackupJson(rawData: unknown): Promise<{
+  totalCount: number;
+  importedOrUpdatedCount: number;
+  queueMergedCount: number;
+}> {
+  let incomingArtists: ArtistEntry[] = [];
+  let incomingTombstones: Tombstone[] = [];
+  let incomingQueue: ListeningQueueItem[] = [];
+
+  if (Array.isArray(rawData)) {
+    incomingArtists = rawData.filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && typeof a.name === 'string');
+  } else if (rawData && typeof rawData === 'object') {
+    const obj = rawData as Partial<VaultBackupPayload>;
+    if (Array.isArray(obj.artists)) {
+      incomingArtists = obj.artists.filter((a) => a && typeof a === 'object' && typeof a.id === 'string' && typeof a.name === 'string');
+    }
+    if (Array.isArray(obj.tombstones)) {
+      incomingTombstones = obj.tombstones.filter((t) => t && typeof t === 'object' && typeof t.id === 'string');
+    }
+    if (Array.isArray(obj.listeningQueue)) {
+      incomingQueue = obj.listeningQueue;
+    }
+  } else {
+    throw new Error('無效的備份檔案格式：請確認為 Pickup Artist JSON 備份檔。');
+  }
+
+  if (incomingArtists.length === 0 && incomingTombstones.length === 0 && incomingQueue.length === 0) {
+    throw new Error('備份檔案中未包含有效的藝人資料或紀錄。');
+  }
+
+  let importedOrUpdatedCount = 0;
+
+  await db.transaction('rw', db.artists, db.tombstones, async () => {
+    const localArtists = await db.artists.toArray();
+    const localTombstones = await db.tombstones.toArray();
+
+    const localArtistMap = new Map(localArtists.map((a) => [a.id, a]));
+    const localTombstoneMap = new Map(localTombstones.map((t) => [t.id, t]));
+
+    for (const incArtist of incomingArtists) {
+      const cleanArtist: ArtistEntry = JSON.parse(JSON.stringify(incArtist));
+      const incTime = cleanArtist.updatedAt || cleanArtist.addedAt || 0;
+      const localTomb = localTombstoneMap.get(cleanArtist.id);
+      if (localTomb && localTomb.deletedAt > incTime) {
+        continue;
+      }
+
+      const localArtist = localArtistMap.get(cleanArtist.id);
+      if (!localArtist) {
+        await db.artists.put(cleanArtist);
+        await db.tombstones.delete(cleanArtist.id);
+        importedOrUpdatedCount++;
+      } else {
+        const localTime = localArtist.updatedAt || localArtist.addedAt || 0;
+        if (incTime > localTime) {
+          await db.artists.put(cleanArtist);
+          await db.tombstones.delete(cleanArtist.id);
+          importedOrUpdatedCount++;
+        }
+      }
+    }
+
+    for (const incTomb of incomingTombstones) {
+      const localArtist = localArtistMap.get(incTomb.id);
+      if (localArtist) {
+        const localTime = localArtist.updatedAt || localArtist.addedAt || 0;
+        if (incTomb.deletedAt > localTime) {
+          await db.artists.delete(incTomb.id);
+          await db.tombstones.put(incTomb);
+          importedOrUpdatedCount++;
+        }
+      } else {
+        const localTomb = localTombstoneMap.get(incTomb.id);
+        if (!localTomb || incTomb.deletedAt > localTomb.deletedAt) {
+          await db.tombstones.put(incTomb);
+        }
+      }
+    }
+  });
+
+  const queueMergedCount = listeningQueue.mergeItems(incomingQueue);
+  const totalCount = await db.artists.count();
+
+  notifyDatabaseChange({ type: 'batch', count: importedOrUpdatedCount });
+
+  return {
+    totalCount,
+    importedOrUpdatedCount,
+    queueMergedCount
+  };
 }
 
 
