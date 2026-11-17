@@ -10,6 +10,7 @@
 </script>
 
 <svelte:head>
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 	<link rel="icon" type="image/png" href="/favicon-32x32.png" />
 </svelte:head>
 
