@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { t } from '$lib/i18n/index.svelte';
   import {
     X,
@@ -27,6 +28,13 @@
     type LuckySectorOption,
     type LuckyCandidateResult
   } from '$lib/services/luckySerendipity';
+  import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
+  import {
+    STREAMING_PLATFORMS,
+    type StreamingPlatform,
+    getPreferredStreamingPlatform,
+    getStreamingSearchUrl
+  } from '$lib/utils/streaming';
 
   interface Props {
     open: boolean;
@@ -72,6 +80,44 @@
   } | null>(null);
   let luckyRollHistory = $state<string[]>([]);
   let luckyFeedbackMsg = $state<string | null>(null);
+  let preferredPlatform = $state<StreamingPlatform>('apple_music');
+
+  onMount(() => {
+    preferredPlatform = getPreferredStreamingPlatform();
+    const handlePlatformChange = () => {
+      preferredPlatform = getPreferredStreamingPlatform();
+    };
+    window.addEventListener('pua:streaming-platform-changed', handlePlatformChange);
+    return () => {
+      window.removeEventListener('pua:streaming-platform-changed', handlePlatformChange);
+    };
+  });
+
+  const preferredPlatformInfo = $derived(
+    STREAMING_PLATFORMS[preferredPlatform] || STREAMING_PLATFORMS.apple_music
+  );
+
+  // 點選藝人時僅搜尋藝人（Apple Music 則優先使用藝人主頁連結）
+  const luckyArtistStreamUrl = $derived(
+    luckyResult
+      ? getStreamingSearchUrl(preferredPlatform, {
+          artistName: luckyResult.name,
+          appleMusicUrl: luckyResult.candidate?.appleMusicUrl
+        })
+      : ''
+  );
+
+  // 點選專輯封面或專輯名稱時搜尋該張代表專輯（不帶藝人主頁 URL 以免蓋過專輯搜尋）；若無專輯資訊則退回藝人連結
+  const luckyAlbumStreamUrl = $derived(
+    luckyResult
+      ? luckyResult.candidate?.albumTitle
+        ? getStreamingSearchUrl(preferredPlatform, {
+            artistName: luckyResult.name,
+            albumTitle: luckyResult.candidate.albumTitle
+          })
+        : luckyArtistStreamUrl
+      : ''
+  );
 
   let inputEl = $state<HTMLInputElement | null>(null);
 
@@ -451,46 +497,100 @@
                 </span>
               </div>
             {:else if luckyResult}
-              <div class="p-4 bg-[#121318] border border-[#2b2d36] rounded-[2px] space-y-3 relative overflow-hidden">
+              <div class="p-4 bg-[#121318] border border-[#2b2d36] rounded-[2px] space-y-3 relative">
                 <div class="flex items-start gap-3.5 relative z-10">
-                  <!-- 藝人頭像/封面 -->
-                  {#if luckyResult.candidate?.coverImage}
-                    <img
-                      src={luckyResult.candidate.coverImage}
-                      alt={luckyResult.name}
-                      class="w-16 h-16 rounded-[2px] object-cover border border-[#3b3e4d] shadow-md shrink-0"
-                    />
-                  {:else}
-                    <div class="w-16 h-16 rounded-[2px] bg-[#1a1c24] border border-[#262832] flex items-center justify-center shrink-0 text-neutral-500">
-                      <Disc3 class="w-7 h-7 text-amber-400/60 animate-[spin_8s_linear_infinite]" />
+                  <!-- 藝人頭像/代表專輯封面（點擊進入預設串流對應專輯或藝人） -->
+                  <a
+                    href={luckyAlbumStreamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('stream_listen_on', { platform: preferredPlatformInfo.label }) + (luckyResult.candidate?.albumTitle ? ` · ${luckyResult.candidate.albumTitle}` : ` · ${luckyResult.name}`)}
+                    aria-label={luckyResult.candidate?.albumTitle ? `${luckyResult.name} - ${luckyResult.candidate.albumTitle}` : luckyResult.name}
+                    class="group/cover relative block w-16 h-16 rounded-[2px] overflow-hidden border border-[#3b3e4d] hover:border-amber-400/70 shadow-md shrink-0 transition-colors"
+                  >
+                    {#if luckyResult.candidate?.coverImage}
+                      <img
+                        src={luckyResult.candidate.coverImage}
+                        alt={luckyResult.candidate?.albumTitle || luckyResult.name}
+                        class="w-full h-full object-cover group-hover/cover:scale-105 transition-transform duration-200"
+                      />
+                    {:else}
+                      <div class="w-full h-full bg-[#1a1c24] flex items-center justify-center text-neutral-500">
+                        <Disc3 class="w-7 h-7 text-amber-400/60 animate-[spin_8s_linear_infinite]" />
+                      </div>
+                    {/if}
+                    <div class="absolute inset-0 bg-void/55 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center">
+                      <ExternalLink class="w-4 h-4 text-white drop-shadow" />
                     </div>
-                  {/if}
+                  </a>
 
                   <!-- 藝人資訊 -->
                   <div class="flex-1 min-w-0 space-y-1">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <h3 class="text-sm sm:text-base font-bold text-white font-mono tracking-wide truncate">
-                        {luckyResult.name}
-                      </h3>
-                      {#if luckyResult.sourceType === 'local-ghost'}
-                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                          {t('fast_lucky_source_local')}
-                        </span>
-                      {:else if luckyResult.sourceType === 'ai-seed'}
-                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                          {t('fast_lucky_source_ai')}
-                        </span>
-                      {:else}
-                        <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                          {t('fast_lucky_source_curated')}
-                        </span>
-                      {/if}
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex items-center gap-2 flex-wrap min-w-0">
+                        <a
+                          href={luckyArtistStreamUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={t('stream_listen_on', { platform: preferredPlatformInfo.label }) + ` · ${luckyResult.name}`}
+                          class="group/artist inline-flex items-center gap-1.5 min-w-0 max-w-full text-white hover:text-amber-300 transition-colors"
+                        >
+                          <h3 class="text-sm sm:text-base font-bold font-mono tracking-wide truncate">
+                            {luckyResult.name}
+                          </h3>
+                          <ExternalLink class="w-3.5 h-3.5 shrink-0 text-[#8e929d] group-hover/artist:text-amber-300 transition-colors" />
+                        </a>
+                        {#if luckyResult.sourceType === 'local-ghost'}
+                          <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            {t('fast_lucky_source_local')}
+                          </span>
+                        {:else if luckyResult.sourceType === 'ai-seed'}
+                          <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                            {t('fast_lucky_source_ai')}
+                          </span>
+                        {:else}
+                          <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                            {t('fast_lucky_source_curated')}
+                          </span>
+                        {/if}
+                      </div>
+
+                      <!-- 預設串流平台徽章 / 快速切換選單 -->
+                      <StreamingTrigger
+                        artistName={luckyResult.name}
+                        albumTitle={luckyResult.candidate?.albumTitle}
+                        appleMusicUrl={luckyResult.candidate?.appleMusicUrl}
+                        variant="subtle"
+                        className="shrink-0"
+                      />
                     </div>
 
-                    {#if luckyResult.candidate?.primaryGenre}
-                      <p class="text-[11px] text-[#8e929d] font-mono">
-                        {luckyResult.candidate.primaryGenre}
-                      </p>
+                    {#if luckyResult.candidate?.albumTitle || luckyResult.candidate?.primaryGenre}
+                      <div class="flex items-center gap-2 flex-wrap text-[11px] font-mono">
+                        {#if luckyResult.candidate?.albumTitle}
+                          <a
+                            href={luckyAlbumStreamUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={t('stream_listen_on', { platform: preferredPlatformInfo.label }) + ` · ${luckyResult.candidate.albumTitle}`}
+                            class="group/album inline-flex items-center gap-1 text-[#b8bcc8] hover:text-amber-300 transition-colors max-w-full"
+                          >
+                            <Disc3 class="w-3 h-3 shrink-0 text-[#8e929d] group-hover/album:text-amber-300" />
+                            <span class="truncate underline decoration-[#3b3e4d] group-hover/album:decoration-amber-400/70 underline-offset-2">
+                              {luckyResult.candidate.albumTitle}
+                            </span>
+                            <ExternalLink class="w-2.5 h-2.5 shrink-0 opacity-60 group-hover/album:opacity-100" />
+                          </a>
+                        {/if}
+                        {#if luckyResult.candidate?.albumTitle && luckyResult.candidate?.primaryGenre}
+                          <span class="text-[#4a4e5c]">·</span>
+                        {/if}
+                        {#if luckyResult.candidate?.primaryGenre}
+                          <span class="text-[#8e929d]">
+                            {luckyResult.candidate.primaryGenre}
+                          </span>
+                        {/if}
+                      </div>
                     {/if}
 
                     <!-- 推薦溯源 (Lineage) -->
