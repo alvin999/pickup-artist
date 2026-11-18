@@ -1,4 +1,4 @@
-import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
+import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo } from '@azure/msal-browser';
 import { db, onDatabaseChange, createVaultBackupPayload, autoHealArtistCovers, type Tombstone, type VaultBackupPayload } from '$lib/db';
 import type { ArtistEntry } from '$lib/types/artist';
 import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
@@ -120,6 +120,30 @@ export async function logoutOneDrive(): Promise<void> {
   localStorage.removeItem('pua_onedrive_last_sync');
 }
 
+const INTERACTION_REQUIRED_CODES = new Set([
+  'interaction_required',
+  'login_required',
+  'consent_required',
+  'invalid_grant',
+  'no_tokens_found',
+]);
+
+/**
+ * 判斷錯誤是否屬於「必須重新互動登入」的授權失效，而非暫時性網路或逾時異常
+ */
+function isInteractionRequiredError(err: any): boolean {
+  if (!err) return false;
+  if (err instanceof InteractionRequiredAuthError || err?.name === 'InteractionRequiredAuthError') {
+    return true;
+  }
+  const errorCode = typeof err?.errorCode === 'string' ? err.errorCode.toLowerCase() : '';
+  if (INTERACTION_REQUIRED_CODES.has(errorCode)) {
+    return true;
+  }
+  const message = typeof err?.message === 'string' ? err.message : '';
+  return /invalid_grant|AADSTS50076|AADSTS65001|AADSTS70008/i.test(message);
+}
+
 /**
  * 取得有效的 Access Token（優先從快取靜默獲取，過期自動刷新）
  * @param allowInteractive 是否允許在過期時喚起 Popup 互動（僅在使用者手勢點擊情境下啟用，避免背景被瀏覽器攔截彈窗）
@@ -139,16 +163,26 @@ export async function getAccessToken(allowInteractive = false): Promise<string> 
     });
     return tokenResponse.accessToken;
   } catch (err: any) {
+    const needsInteraction = isInteractionRequiredError(err);
+
     // 若在背景或自動同步環境，靜默獲取失敗切勿呼叫 popup，避免遭瀏覽器封鎖彈窗
     if (!allowInteractive) {
-      updateSyncState({
-        status: 'session_expired',
-        errorMessage: t('onedrive_err_session_expired_sync'),
-      });
-      throw new Error('SESSION_EXPIRED');
+      if (needsInteraction) {
+        updateSyncState({
+          status: 'session_expired',
+          errorMessage: t('onedrive_err_session_expired_sync'),
+        });
+        throw new Error('SESSION_EXPIRED');
+      }
+      // 暫時性網路異常、逾時等非授權過期錯誤，直接拋出讓外層列為 error/offline，不誤判為登出
+      throw err;
     }
 
-    // 手動操作時才允許彈窗交互
+    if (!needsInteraction) {
+      throw err;
+    }
+
+    // 手動操作且確實需要重新互動授權時，才喚起彈窗交互
     const tokenResponse = await msal.acquireTokenPopup({
       account,
       scopes: GRAPH_SCOPES,
@@ -773,10 +807,15 @@ async function executeCloudSync(): Promise<void> {
     }
   } catch (err: any) {
     console.error('[OneDrive AutoSync] 同步上傳失敗:', err);
-    if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
+    if (err?.message === 'SESSION_EXPIRED' || isInteractionRequiredError(err)) {
       updateSyncState({
         status: 'session_expired',
         errorMessage: t('onedrive_err_session_expired_sync'),
+      });
+    } else if (!navigator.onLine) {
+      updateSyncState({
+        status: 'offline',
+        errorMessage: t('onedrive_err_offline_sync'),
       });
     } else {
       updateSyncState({
@@ -929,10 +968,15 @@ export async function syncFromCloudOnStartup(): Promise<boolean> {
     return true;
   } catch (err: any) {
     console.warn('[OneDrive AutoSync] 啟動自動同步失敗:', err);
-    if (err?.message === 'SESSION_EXPIRED' || err?.name === 'InteractionRequiredAuthError') {
+    if (err?.message === 'SESSION_EXPIRED' || isInteractionRequiredError(err)) {
       updateSyncState({
         status: 'session_expired',
         errorMessage: t('onedrive_err_session_expired_pull'),
+      });
+    } else if (!navigator.onLine) {
+      updateSyncState({
+        status: 'offline',
+        errorMessage: t('onedrive_err_offline_pull'),
       });
     } else {
       updateSyncState({
