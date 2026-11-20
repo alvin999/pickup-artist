@@ -46,6 +46,7 @@
     type SyncStatus,
   } from "$lib/services/onedrive";
   import {
+    ENABLE_GOOGLE_DRIVE,
     getStoredGoogleToken,
     isGoogleDriveConnected,
     restoreBackupFromGoogleDrive,
@@ -263,9 +264,11 @@
       oneDriveSyncState = st;
     });
 
-    const unsubGDriveSync = subscribeGoogleDriveSyncState((st) => {
-      googleDriveSyncState = st;
-    });
+    const unsubGDriveSync = ENABLE_GOOGLE_DRIVE
+      ? subscribeGoogleDriveSyncState((st) => {
+          googleDriveSyncState = st;
+        })
+      : () => {};
 
     // 訂閱 AI 背景批次分析佇列
     const unsubQueue = analysisQueue.subscribe(async (st) => {
@@ -303,7 +306,7 @@
       startupSyncTasks.push(syncFromCloudOnStartup());
 
       // B: Google Drive 同步
-      if (isGoogleDriveConnected()) {
+      if (ENABLE_GOOGLE_DRIVE && isGoogleDriveConnected()) {
         startupSyncTasks.push(
           restoreBackupFromGoogleDrive()
             .then((res) => !!res)

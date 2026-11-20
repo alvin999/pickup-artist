@@ -15,6 +15,7 @@
     type CloudMetadata
   } from '$lib/services/onedrive';
   import {
+    ENABLE_GOOGLE_DRIVE,
     GOOGLE_CLIENT_ID,
     getStoredGoogleToken,
     getStoredGoogleUserInfo,
@@ -83,7 +84,7 @@
       }
 
       // 2. 刷新 Google Drive
-      if (isGoogleDriveConnected()) {
+      if (ENABLE_GOOGLE_DRIVE && isGoogleDriveConnected()) {
         googleUser = getStoredGoogleUserInfo();
         googleMeta = await getGoogleDriveBackupMetadata();
       } else {
@@ -479,7 +480,7 @@
       {/if}
 
       <!-- 雙雲端機匣卡片 (Dual Racks) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 {ENABLE_GOOGLE_DRIVE ? 'md:grid-cols-2' : ''} gap-4">
 
         <!-- 机匣 1: Microsoft OneDrive -->
         <div class="bg-panel/40 border {oneDriveAccount ? 'border-emerald-500/40' : 'border-wire'} p-4 flex flex-col justify-between gap-4 relative">
@@ -568,6 +569,7 @@
           </div>
         </div>
 
+        {#if ENABLE_GOOGLE_DRIVE}
         <!-- 机匣 2: Google Drive -->
         <div class="bg-panel/40 border {googleUser ? 'border-cyan-500/40' : 'border-wire'} p-4 flex flex-col justify-between gap-4 relative">
           <div>
@@ -652,6 +654,7 @@
             {/if}
           </div>
         </div>
+        {/if}
 
       </div>
 

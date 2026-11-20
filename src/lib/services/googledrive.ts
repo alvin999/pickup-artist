@@ -10,6 +10,13 @@ import type { ArtistEntry } from '$lib/types/artist';
 import { listeningQueue } from '$lib/services/listeningQueue';
 import { t } from '$lib/i18n';
 
+/**
+ * Google Drive 功能總開關（預設關閉，避免未完成 OAuth 驗證前觸發 Google 審查或登入警示）
+ * 若要重新啟用，請於 .env 設定 PUBLIC_ENABLE_GOOGLE_DRIVE="true" 並恢復 src/app.html 的 GIS 腳本
+ */
+export const ENABLE_GOOGLE_DRIVE =
+  ((import.meta.env.PUBLIC_ENABLE_GOOGLE_DRIVE || import.meta.env.VITE_ENABLE_GOOGLE_DRIVE) as string) === 'true';
+
 export const GOOGLE_CLIENT_ID =
   ((import.meta.env.PUBLIC_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID) as string) || '';
 
@@ -123,6 +130,7 @@ export function getStoredGoogleUserInfo(): GoogleUserInfo | null {
  * 檢查是否已連結 Google Drive 帳號（即使 Token 暫時過期，使用者帳戶仍保留）
  */
 export function isGoogleDriveConnected(): boolean {
+  if (!ENABLE_GOOGLE_DRIVE) return false;
   if (typeof window === 'undefined') return false;
   return !!localStorage.getItem(USERINFO_KEY) || !!localStorage.getItem(TOKEN_KEY);
 }
@@ -131,6 +139,9 @@ export function isGoogleDriveConnected(): boolean {
  * 嘗試靜默刷新 Google Access Token（無彈窗，需使用者在瀏覽器已登入 Google 帳號）
  */
 export async function refreshGoogleTokenSilent(): Promise<string> {
+  if (!ENABLE_GOOGLE_DRIVE) {
+    throw new Error('Google Drive sync is disabled.');
+  }
   await waitForGoogleScript();
 
   if (!GOOGLE_CLIENT_ID) {
@@ -234,6 +245,9 @@ export async function getValidGoogleToken(allowInteractive = false): Promise<str
 }
 
 export async function loginToGoogleDrive(): Promise<{ token: string; user: GoogleUserInfo; grantedScope: string }> {
+  if (!ENABLE_GOOGLE_DRIVE) {
+    throw new Error('Google Drive sync is disabled.');
+  }
   await waitForGoogleScript();
 
   if (!GOOGLE_CLIENT_ID) {
