@@ -35,7 +35,8 @@ const SceneRecommendationResponseSchema = z.object({
   externalArtists: z
     .array(ExternalArtistRecommendationSchema)
     .nullish()
-    .transform((arr) => (arr ? arr.filter((a) => Boolean(a.name)) : []))
+    .transform((arr) => (arr ? arr.filter((a) => Boolean(a.name)) : [])),
+  contextMemory: z.string().nullish().transform((v) => (v ? v.trim() : undefined))
 });
 
 /**
@@ -94,7 +95,10 @@ async function fetchGroqChat(
   });
 
   if (res.status === 429) {
-    throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Groq' }), 30);
+    const headerVal = res.headers.get('retry-after');
+    const parsed = headerVal ? parseInt(headerVal, 10) : NaN;
+    const retrySec = !isNaN(parsed) && parsed > 0 ? parsed + 1 : 30;
+    throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Groq' }), retrySec);
   }
 
   if (!res.ok) {
@@ -116,7 +120,8 @@ async function fetchGroqChat(
  */
 export async function getSceneRecommendation(
   history: SceneChatMessage[],
-  locale: SupportedLocale = 'zh-TW'
+  locale: SupportedLocale = 'zh-TW',
+  existingMemory?: string
 ): Promise<SceneRecommendationResult> {
   const secureLoaded = await loadSecureAISettings();
   if (secureLoaded.isLocked) {
@@ -124,7 +129,7 @@ export async function getSceneRecommendation(
   }
 
   const settings = secureLoaded.settings;
-  const { systemPrompt, userPrompt } = buildSceneAdvisorPrompt(history, locale);
+  const { systemPrompt, userPrompt } = buildSceneAdvisorPrompt(history, locale, existingMemory);
   let rawJsonText = '';
 
   if (settings.provider === 'groq') {
@@ -191,7 +196,10 @@ export async function getSceneRecommendation(
     });
 
     if (res.status === 429) {
-      throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Gemini' }), 30);
+      const headerVal = res.headers.get('retry-after');
+      const parsed = headerVal ? parseInt(headerVal, 10) : NaN;
+      const retrySec = !isNaN(parsed) && parsed > 0 ? parsed + 1 : 30;
+      throw new RateLimitError(t('ai_err_rate_limit_scene', { provider: 'Gemini' }), retrySec);
     }
 
     if (!res.ok) {
@@ -230,14 +238,17 @@ export async function getSceneRecommendation(
     return {
       reply: t('ai_scene_default_reply'),
       matchedGenres: [],
-      externalArtists: []
+      externalArtists: [],
+      contextMemory: existingMemory
     };
   }
 
   return {
     reply: validated.data.reply || t('ai_scene_default_reply'),
     matchedGenres: validated.data.matchedGenres,
-    externalArtists: validated.data.externalArtists
+    externalArtists: validated.data.externalArtists,
+    // 若本輪未產生新記憶（例如前 2 輪或模型略過欄位），保留既有的濃縮記憶避免遺失
+    contextMemory: validated.data.contextMemory || existingMemory
   };
 }
 

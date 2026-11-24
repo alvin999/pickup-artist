@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { i18n, t } from '$lib/i18n';
   import type { ArtistEntry } from '$lib/types/artist';
   import {
@@ -7,6 +7,7 @@
     matchLocalArtists,
     type LocalArtistMatch
   } from '$lib/services/aiSceneService';
+  import { RateLimitError } from '$lib/ai/client';
   import type { SceneChatMessage, ExternalArtistRecommendation } from '$lib/ai/scenePrompts';
   import { listeningQueue } from '$lib/services/listeningQueue';
   import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
@@ -39,9 +40,13 @@
 
   // 對話狀態
   let messages = $state<SceneChatMessage[]>([]);
+  let contextMemory = $state<string>('');
   let userInput = $state('');
   let isLoading = $state(false);
   let errorMessage = $state<string | null>(null);
+  let cooldownSeconds = $state(0);
+  let cooldownTimer: ReturnType<typeof setInterval> | null = null;
+  let turnCount = $derived(messages.filter((m) => m.role === 'user').length);
 
   // 當前策展成果狀態
   let activeMatchedGenres = $state<string[]>([]);
@@ -54,6 +59,32 @@
 
   const SESSION_KEY = 'pua_scene_chat_session_v1';
 
+  function clearCooldown() {
+    if (cooldownTimer) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+    }
+    cooldownSeconds = 0;
+  }
+
+  function startCooldown(seconds: number) {
+    clearCooldown();
+    const initial = Math.max(1, Math.ceil(seconds));
+    cooldownSeconds = initial;
+    cooldownTimer = setInterval(() => {
+      if (cooldownSeconds <= 1) {
+        clearCooldown();
+        errorMessage = null;
+      } else {
+        cooldownSeconds -= 1;
+      }
+    }, 1000);
+  }
+
+  onDestroy(() => {
+    clearCooldown();
+  });
+
   // 初始化時還原先前對話與策展狀態（切換分頁不遺失）
   onMount(() => {
     try {
@@ -61,6 +92,7 @@
       if (raw) {
         const saved = JSON.parse(raw);
         messages = saved.messages || [];
+        contextMemory = saved.contextMemory || '';
         activeMatchedGenres = saved.activeMatchedGenres || [];
         externalRecommendations = saved.externalRecommendations || [];
         if (activeMatchedGenres.length > 0 && artists.length > 0) {
@@ -80,6 +112,7 @@
         SESSION_KEY,
         JSON.stringify({
           messages,
+          contextMemory,
           activeMatchedGenres,
           externalRecommendations
         })
@@ -100,7 +133,7 @@
   // 發送情境對話（支援自定義追問文字）
   async function handleSendMessage(overrideText?: string) {
     const textToSend = (overrideText !== undefined ? overrideText : userInput).trim();
-    if (!textToSend || isLoading) return;
+    if (!textToSend || isLoading || cooldownSeconds > 0) return;
 
     errorMessage = null;
     const newHistory: SceneChatMessage[] = [
@@ -116,13 +149,20 @@
     scrollToBottom();
 
     try {
-      const result = await getSceneRecommendation(newHistory, i18n.locale);
+      const result = await getSceneRecommendation(
+        newHistory,
+        i18n.locale,
+        contextMemory || undefined
+      );
 
       messages = [
         ...newHistory,
         { role: 'assistant', content: result.reply }
       ];
 
+      if (result.contextMemory) {
+        contextMemory = result.contextMemory;
+      }
       activeMatchedGenres = result.matchedGenres;
       externalRecommendations = result.externalArtists;
 
@@ -132,6 +172,9 @@
       scrollToBottom();
     } catch (err: any) {
       console.error('[SceneRadio] 推薦失敗:', err);
+      if (err instanceof RateLimitError || err?.name === 'RateLimitError') {
+        startCooldown(err.retryAfterSeconds || 30);
+      }
       errorMessage = err?.message || t('radio_inference_failed');
       showToast?.(errorMessage ?? t('radio_error_fallback'));
     } finally {
@@ -157,11 +200,13 @@
   // 開啟新對話並清空當前歷程
   function handleReset() {
     messages = [];
+    contextMemory = '';
     userInput = '';
     activeMatchedGenres = [];
     externalRecommendations = [];
     localMatches = [];
     errorMessage = null;
+    clearCooldown();
     sessionStorage.removeItem(SESSION_KEY);
     showToast?.(t('radio_new_session_toast'));
   }
@@ -198,7 +243,7 @@
     <!-- 對話頂部狀態列 -->
     <div class="px-4 py-3 border-b border-wire bg-void/60 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
-        <span class="w-2 h-2 rounded-full {isLoading ? 'bg-amber-400 animate-ping' : 'bg-signal shadow-[0_0_8px_rgba(234,179,8,0.8)]'}"></span>
+        <span class="w-2 h-2 rounded-full {cooldownSeconds > 0 ? 'bg-red-400 animate-pulse shadow-[0_0_8px_rgba(248,113,113,0.8)]' : errorMessage ? 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]' : isLoading ? 'bg-amber-400 animate-ping' : 'bg-signal shadow-[0_0_8px_rgba(234,179,8,0.8)]'}"></span>
         <span class="font-dot text-xs tracking-widest text-ink uppercase">AI.RECOMMEND // NEURAL_CURATOR</span>
       </div>
       <div class="flex items-center gap-2">
@@ -277,23 +322,31 @@
           type="text"
           bind:value={userInput}
           onkeydown={handleKeyDown}
-          disabled={isLoading}
+          disabled={isLoading || cooldownSeconds > 0}
           placeholder={t('radio_input_placeholder')}
           class="w-full bg-chassis border border-wire focus:border-signal text-ink placeholder:text-ink-dim px-3.5 py-2.5 pr-12 text-xs font-sans rounded-[2px] outline-none transition-colors disabled:opacity-50"
         />
         <button
           type="button"
           onclick={() => handleSendMessage()}
-          disabled={!userInput.trim() || isLoading}
+          disabled={!userInput.trim() || isLoading || cooldownSeconds > 0}
           class="absolute right-1.5 p-1.5 bg-signal text-void hover:bg-signal/90 disabled:opacity-30 disabled:hover:bg-signal transition-all rounded-[2px] cursor-pointer"
           title={t('radio_send_title')}
         >
           <Send class="w-3.5 h-3.5" />
         </button>
       </div>
-      <div class="flex justify-between items-center text-[10px] text-ink-dim mt-2 px-1">
-        <span>{t('radio_hint_left')}</span>
-        <span>{t('radio_hint_right')}</span>
+      <div class="flex justify-between items-center text-[10px] text-ink-dim mt-2 px-1 gap-2">
+        {#if cooldownSeconds > 0}
+          <span class="text-red-400 font-medium">{t('radio_hint_cooldown', { seconds: cooldownSeconds })}</span>
+        {:else if turnCount >= 10}
+          <span class="text-amber-400/90">{t('radio_hint_long_session', { count: turnCount })}</span>
+        {:else if turnCount > 0}
+          <span>{t('radio_hint_turn', { count: turnCount })}</span>
+        {:else}
+          <span>{t('radio_hint_left')}</span>
+        {/if}
+        <span class="shrink-0">{t('radio_hint_right')}</span>
       </div>
     </div>
   </div>
@@ -365,7 +418,7 @@
                 <button
                   type="button"
                   onclick={() => handleAskAboutArtist(match.artist.name)}
-                  disabled={isLoading}
+                  disabled={isLoading || cooldownSeconds > 0}
                   class="px-1.5 py-1 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
                   title={t('radio_ask_ai_title')}
                 >
@@ -426,7 +479,7 @@
                   <button
                     type="button"
                     onclick={() => handleAskAboutArtist(ext.name)}
-                    disabled={isLoading}
+                    disabled={isLoading || cooldownSeconds > 0}
                     class="px-1.5 py-0.5 text-[10px] text-ink-muted hover:text-signal hover:bg-void border border-wire hover:border-signal/50 rounded-[2px] transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40"
                     title={t('radio_ask_ai_title')}
                   >
