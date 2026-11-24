@@ -23,6 +23,7 @@
   import ListeningQueueView from "$lib/components/studio/ListeningQueueView.svelte";
   import ListeningLogView from "$lib/components/studio/ListeningLogView.svelte";
   import SceneRadioView from "$lib/components/studio/SceneRadioView.svelte";
+  import CuratorAgentDrawer from "$lib/components/studio/CuratorAgentDrawer.svelte";
   import FastPickupModal from "$lib/components/studio/FastPickupModal.svelte";
   import AISettingsModal from "$lib/components/studio/AISettingsModal.svelte";
   import MasterPasswordUnlockModal from "$lib/components/studio/MasterPasswordUnlockModal.svelte";
@@ -34,7 +35,10 @@
     fetchMoreSimilarArtists,
     fetchMoreNotableAlbums,
   } from "$lib/ai/client";
-  import { listeningQueue } from "$lib/services/listeningQueue";
+  import { listeningQueue, type ListeningQueueItem } from "$lib/services/listeningQueue";
+  import { curatorAgent } from "$lib/services/curatorAgent.svelte";
+  import { buildAgentPageContext } from "$lib/ai/agentContext";
+  import type { AgentActionProposal } from "$lib/ai/scenePrompts";
   import type { NotableAlbum } from "$lib/types/artist";
   import {
     getActiveAccount,
@@ -66,6 +70,22 @@
     | "listening-log"
     | "ai-recommend"
   >("crate-digger");
+  let previousStudioView = $state<
+    | "crate-digger"
+    | "honeycomb-cluster"
+    | "acoustic-matrix"
+    | "listening-queue"
+    | "listening-log"
+  >("crate-digger");
+
+  // 確保全螢幕「智慧推薦」與右側「AI 助手」抽屜互斥，不重複同時開啟
+  $effect(() => {
+    if (activeStudioView === "ai-recommend") {
+      curatorAgent.closeDrawer();
+    } else {
+      previousStudioView = activeStudioView;
+    }
+  });
   let selectedArtistId = $state<string | null>(null);
   let searchQuery = $state("");
   let isPickupModalOpen = $state(false);
@@ -89,6 +109,17 @@
   let oneDriveSyncState = $state<CloudSyncState>(getSyncState());
   let googleDriveSyncState = $state<GoogleDriveSyncState>(
     getGoogleDriveSyncState(),
+  );
+  let listeningQueueItems = $state<ListeningQueueItem[]>([]);
+
+  const agentPageContext = $derived(
+    buildAgentPageContext({
+      activeView: activeStudioView,
+      artists,
+      selectedArtistId,
+      searchQuery,
+      queueItems: listeningQueueItems,
+    }),
   );
 
   // 智慧聚合雲端同步狀態（相容 OneDrive 與 Google Drive 多軌同步）
@@ -270,6 +301,11 @@
         })
       : () => {};
 
+    // 訂閱聆賞隊列狀態（提供給跨頁 AI 策展副駕即時感知）
+    const unsubListeningQueue = listeningQueue.subscribe((items) => {
+      listeningQueueItems = items;
+    });
+
     // 訂閱 AI 背景批次分析佇列
     const unsubQueue = analysisQueue.subscribe(async (st) => {
       queueState = st;
@@ -289,6 +325,7 @@
     (async () => {
       // 1. 【樂觀優先】立即自本機 IndexedDB 載入真實快取資料，達成 0 毫秒首頁秒開
       await reloadArtists();
+      curatorAgent.initFromSession(artists);
 
       if (artists.length > 0 && !selectedArtistId) {
         selectedArtistId = artists[0].id;
@@ -364,6 +401,8 @@
 
     return () => {
       unsubSync();
+      unsubGDriveSync();
+      unsubListeningQueue();
       unsubQueue();
       unsubDb();
     };
@@ -730,6 +769,158 @@
     }
   }
 
+  // 透過名稱或別名查找庫內藝人（供 Agent Action 安全對接）
+  function findArtistByName(name?: string): ArtistEntry | undefined {
+    if (!name?.trim()) return undefined;
+    const q = name.trim().toLowerCase();
+    return (
+      artists.find((a) => a.name.trim().toLowerCase() === q) ||
+      artists.find((a) => a.aliases?.some((al) => al.trim().toLowerCase() === q)) ||
+      artists.find((a) => a.name.toLowerCase().includes(q))
+    );
+  }
+
+  // 執行跨頁 AI Agent 結構化動作提案（Human-in-the-Loop 點擊確認後觸發）
+  async function handleExecuteAgentAction(action: AgentActionProposal) {
+    try {
+      switch (action.type) {
+        case "navigate_artist": {
+          const target = findArtistByName(action.artistName);
+          if (!target) {
+            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            return;
+          }
+          selectedArtistId = target.id;
+          if (action.targetView) {
+            if (action.targetView === "listening-log") {
+              targetLogArtistId = target.id;
+            }
+            activeStudioView = action.targetView;
+          } else if (
+            activeStudioView !== "crate-digger" &&
+            activeStudioView !== "honeycomb-cluster"
+          ) {
+            activeStudioView = "crate-digger";
+          }
+          showToast(t('agent_act_navigated', { name: target.name }));
+          break;
+        }
+        case "filter_library": {
+          const q = (action.query || "").trim();
+          searchQuery = q;
+          if (
+            activeStudioView !== "crate-digger" &&
+            activeStudioView !== "acoustic-matrix"
+          ) {
+            activeStudioView = "acoustic-matrix";
+          }
+          showToast(t('agent_act_filtered', { query: q }));
+          break;
+        }
+        case "add_to_queue": {
+          const target = findArtistByName(action.artistName);
+          if (!target) {
+            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            return;
+          }
+          const matchedAlbum = action.albumTitle
+            ? target.analysis?.notableAlbums?.find(
+                (alb) => alb.title.toLowerCase() === action.albumTitle?.toLowerCase(),
+              )
+            : target.analysis?.notableAlbums?.[0];
+          listeningQueue.add({
+            artistId: target.id,
+            artistName: target.name,
+            albumTitle: matchedAlbum?.title || action.albumTitle || t('radio_featured_work_fallback'),
+            albumYear: matchedAlbum?.year,
+            appleMusicUrl: matchedAlbum?.appleMusicSearchUrl || target.appleMusicUrl,
+            losslessSpec: matchedAlbum?.losslessSpec,
+            dynamicRangeScore: matchedAlbum?.dynamicRangeScore,
+            coverImage: target.coverImage,
+          });
+          showToast(t('agent_act_queued', { name: target.name }));
+          break;
+        }
+        case "quick_pickup": {
+          const name = (action.artistName || "").trim();
+          if (!name) return;
+          pickupModalInitialTab = "input";
+          pickupModalInitialQuery = name;
+          isPickupModalOpen = true;
+          break;
+        }
+        case "enqueue_analysis": {
+          const target = findArtistByName(action.artistName);
+          if (!target) {
+            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            return;
+          }
+          await handleAnalyze(target);
+          showToast(t('agent_act_enqueued_analysis', { name: target.name }));
+          break;
+        }
+        case "analyze_all_inbox": {
+          await handleAnalyzeAllInbox();
+          break;
+        }
+        case "update_artist_weight": {
+          const target = findArtistByName(action.artistName);
+          if (!target) {
+            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            return;
+          }
+          const nextWeight = Math.max(1, Math.min(100, Math.round(action.weight ?? 50)));
+          await handleUpdateWeight(target.id, nextWeight);
+          showToast(t('agent_act_weight_updated', { name: target.name, weight: nextWeight }));
+          break;
+        }
+        case "append_artist_notes": {
+          const target = findArtistByName(action.artistName);
+          if (!target) {
+            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            return;
+          }
+          const existingNotes = (target.personalNotes || "").trim();
+          const newNote = (action.notes || "").trim();
+          const mergedNotes = newNote
+            ? existingNotes
+              ? `${existingNotes}\n\n[AI Curator] ${newNote}`
+              : `[AI Curator] ${newNote}`
+            : existingNotes;
+          const existingTags = target.listeningContext?.moodTags || [];
+          const mergedTags = Array.from(
+            new Set([...existingTags, ...(action.moodTags || [])]),
+          );
+          await updateArtist(target.id, {
+            personalNotes: mergedNotes,
+            listeningContext: {
+              ...target.listeningContext,
+              moodTags: mergedTags,
+              lastLoggedAt: Date.now(),
+            },
+          });
+          await reloadArtists();
+          showToast(t('agent_act_notes_appended', { name: target.name }));
+          break;
+        }
+      }
+      curatorAgent.markActionExecuted(action.id);
+    } catch (err: any) {
+      console.error("[AgentAction] 執行失敗:", err);
+      showToast(err?.message || t('radio_error_fallback'));
+    }
+  }
+
+  // 在全螢幕「智慧推薦」與側邊「AI 助手」之間流暢切換
+  function handleToggleAgentDrawer() {
+    if (activeStudioView === "ai-recommend") {
+      activeStudioView = previousStudioView;
+      curatorAgent.openDrawer();
+    } else {
+      curatorAgent.toggleDrawer();
+    }
+  }
+
   // 全域快捷鍵
   function handleGlobalKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -741,6 +932,9 @@
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
       e.preventDefault();
       toggleSidebar();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+      e.preventDefault();
+      handleToggleAgentDrawer();
     }
   }
 </script>
@@ -854,6 +1048,8 @@
     lastSyncedAt={cloudSyncState.lastSyncedAt}
     {isSidebarCollapsed}
     ontoggleSidebar={toggleSidebar}
+    isAgentOpen={curatorAgent.isOpen || activeStudioView === "ai-recommend"}
+    ontoggleAgent={handleToggleAgentDrawer}
   />
 
   <!-- Studio 主畫布內容區 (帶左側 60/16 欄位動態位移與頂部 16 欄位位移，星系視圖鎖定視窗高度) -->
@@ -1002,6 +1198,7 @@
         <!-- 視圖 6: AI 智慧推薦 (AI Recommendation & Acoustic Radio) -->
         <SceneRadioView
           {artists}
+          pageContext={agentPageContext}
           onselectArtist={(id) => {
             selectedArtistId = id;
             activeStudioView = "crate-digger";
@@ -1011,6 +1208,8 @@
             pickupModalInitialQuery = name;
             isPickupModalOpen = true;
           }}
+          onexecuteAction={handleExecuteAgentAction}
+          oncollapseToDrawer={handleToggleAgentDrawer}
           {showToast}
         />
       {:else}
@@ -1039,6 +1238,31 @@
       </div>
     {/if}
   </div>
+
+  <!-- 跨頁常駐 AI 助手抽屜（於全螢幕智慧推薦視圖時自動隱藏避免重複） -->
+  {#if activeStudioView !== "ai-recommend"}
+    <CuratorAgentDrawer
+      {artists}
+      pageContext={agentPageContext}
+      onselectArtist={(id) => {
+        selectedArtistId = id;
+        if (
+          activeStudioView !== "crate-digger" &&
+          activeStudioView !== "honeycomb-cluster"
+        ) {
+          activeStudioView = "crate-digger";
+        }
+      }}
+      onquickPickup={(name) => {
+        pickupModalInitialTab = "input";
+        pickupModalInitialQuery = name;
+        isPickupModalOpen = true;
+      }}
+      onexpandFullView={() => (activeStudioView = "ai-recommend")}
+      onexecuteAction={handleExecuteAgentAction}
+      {showToast}
+    />
+  {/if}
 
   <!-- 行動端底部發燒友機架導航 (螢幕寬度小於 1024px 時常駐) -->
   <StudioMobileNav

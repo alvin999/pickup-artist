@@ -8,8 +8,10 @@ import {
 import {
   buildSceneAdvisorPrompt,
   type SceneChatMessage,
-  type SceneRecommendationResult
+  type SceneRecommendationResult,
+  type AgentActionProposal
 } from '$lib/ai/scenePrompts';
+import type { AgentPageContext } from '$lib/ai/agentContext';
 import { t, type SupportedLocale } from '$lib/i18n';
 import type { ArtistEntry } from '$lib/types/artist';
 
@@ -26,6 +28,38 @@ const ExternalArtistRecommendationSchema = z.object({
   curationHighlight: z.string().nullish().transform((v) => (v ? v.trim() : undefined))
 });
 
+const AgentActionProposalSchema = z.object({
+  type: z.enum([
+    'navigate_artist',
+    'filter_library',
+    'add_to_queue',
+    'quick_pickup',
+    'enqueue_analysis',
+    'analyze_all_inbox',
+    'update_artist_weight',
+    'append_artist_notes'
+  ]),
+  label: z.string().nullish().transform((v) => (v ? v.trim() : '')),
+  description: z.string().nullish().transform((v) => (v ? v.trim() : undefined)),
+  artistName: z.string().nullish().transform((v) => (v ? v.trim() : undefined)),
+  albumTitle: z.string().nullish().transform((v) => (v ? v.trim() : undefined)),
+  targetView: z
+    .enum(['crate-digger', 'honeycomb-cluster', 'listening-log'])
+    .nullish()
+    .transform((v) => v ?? undefined),
+  query: z.string().nullish().transform((v) => (v ? v.trim() : undefined)),
+  weight: z
+    .number()
+    .finite()
+    .nullish()
+    .transform((v) => (typeof v === 'number' ? Math.max(1, Math.min(100, Math.round(v))) : undefined)),
+  notes: z.string().nullish().transform((v) => (v ? v.trim() : undefined)),
+  moodTags: z
+    .array(z.string())
+    .nullish()
+    .transform((arr) => (arr ? arr.map((s) => s.trim()).filter(Boolean) : undefined))
+});
+
 const SceneRecommendationResponseSchema = z.object({
   reply: z.string().nullish().transform((v) => (v ? v.trim() : '')),
   matchedGenres: z
@@ -36,6 +70,10 @@ const SceneRecommendationResponseSchema = z.object({
     .array(ExternalArtistRecommendationSchema)
     .nullish()
     .transform((arr) => (arr ? arr.filter((a) => Boolean(a.name)) : [])),
+  actions: z
+    .array(AgentActionProposalSchema)
+    .nullish()
+    .transform((arr) => (arr ? arr.filter((act) => Boolean(act.label)) : [])),
   contextMemory: z.string().nullish().transform((v) => (v ? v.trim() : undefined))
 });
 
@@ -121,7 +159,8 @@ async function fetchGroqChat(
 export async function getSceneRecommendation(
   history: SceneChatMessage[],
   locale: SupportedLocale = 'zh-TW',
-  existingMemory?: string
+  existingMemory?: string,
+  pageContext?: AgentPageContext
 ): Promise<SceneRecommendationResult> {
   const secureLoaded = await loadSecureAISettings();
   if (secureLoaded.isLocked) {
@@ -129,7 +168,12 @@ export async function getSceneRecommendation(
   }
 
   const settings = secureLoaded.settings;
-  const { systemPrompt, userPrompt } = buildSceneAdvisorPrompt(history, locale, existingMemory);
+  const { systemPrompt, userPrompt } = buildSceneAdvisorPrompt(
+    history,
+    locale,
+    existingMemory,
+    pageContext
+  );
   let rawJsonText = '';
 
   if (settings.provider === 'groq') {
@@ -239,14 +283,22 @@ export async function getSceneRecommendation(
       reply: t('ai_scene_default_reply'),
       matchedGenres: [],
       externalArtists: [],
+      actions: [],
       contextMemory: existingMemory
     };
   }
+
+  const batchTimestamp = Date.now();
+  const normalizedActions: AgentActionProposal[] = (validated.data.actions || []).map((act, idx) => ({
+    ...act,
+    id: `act_${batchTimestamp}_${idx}`
+  }));
 
   return {
     reply: validated.data.reply || t('ai_scene_default_reply'),
     matchedGenres: validated.data.matchedGenres,
     externalArtists: validated.data.externalArtists,
+    actions: normalizedActions,
     // 若本輪未產生新記憶（例如前 2 輪或模型略過欄位），保留既有的濃縮記憶避免遺失
     contextMemory: validated.data.contextMemory || existingMemory
   };

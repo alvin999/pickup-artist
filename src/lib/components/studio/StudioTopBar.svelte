@@ -21,6 +21,8 @@
     lastSyncedAt?: number | null;
     isSidebarCollapsed?: boolean;
     ontoggleSidebar?: () => void;
+    isAgentOpen?: boolean;
+    ontoggleAgent?: () => void;
   }
 
   let {
@@ -38,7 +40,9 @@
     syncStatus = 'idle',
     lastSyncedAt = null,
     isSidebarCollapsed = false,
-    ontoggleSidebar
+    ontoggleSidebar,
+    isAgentOpen = false,
+    ontoggleAgent
   }: Props = $props();
 
   let searchInputEl = $state<HTMLInputElement | null>(null);
@@ -335,6 +339,21 @@
       <span class="material-symbols-outlined text-[14px] sm:text-[15px]">add</span>
       <span>{t('pickup_button')}</span>
     </button>
+
+    <!-- 跨頁 AI 策展副駕切換按鈕 -->
+    {#if ontoggleAgent}
+      <button
+        type="button"
+        onclick={ontoggleAgent}
+        title={t('topbar_agent_title')}
+        class="group flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 border {isAgentOpen
+          ? 'bg-signal/20 border-signal text-signal shadow-[0_0_12px_rgba(255,42,60,0.25)]'
+          : 'bg-chassis hover:bg-[#15161e] border-wire hover:border-signal text-ink-muted hover:text-ink'} text-[10px] font-mono transition-all cursor-pointer shrink-0 rounded-[2px]"
+      >
+        <span class="material-symbols-outlined text-[14px] {isAgentOpen ? 'text-signal' : 'text-signal/80 group-hover:text-signal'}">auto_awesome</span>
+        <span class="hidden md:inline font-sans font-bold">{t('topbar_agent_btn')}</span>
+      </button>
+    {/if}
 
     <!-- 語言切換選單 (全尺寸皆可見) -->
     <div class="shrink-0">
