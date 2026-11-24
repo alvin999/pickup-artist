@@ -4,6 +4,7 @@
   import { tsParticles } from '@tsparticles/engine';
   import { loadSlim } from '@tsparticles/slim';
   import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
+  import { ENABLE_GOOGLE_DRIVE } from '$lib/services/googledrive';
   import SpecBadge from '$lib/components/SpecBadge.svelte';
   import TactileButton from '$lib/components/TactileButton.svelte';
   import StreamingTrigger from '$lib/components/studio/StreamingTrigger.svelte';
@@ -1868,15 +1869,17 @@
           </div>
 
           <!-- 微型法律合規條款標籤 (Google Maps 式右下角輕量連結，不佔據文檔高度) -->
-          <div class="hidden sm:flex items-center gap-2 pr-1 font-mono text-[9px] text-[#52565E]">
-            <a
-              href="/privacy"
-              class="hover:text-[#FEC486] transition-colors"
-              title={t('galaxy_privacy_link_title')}
-            >
-              PRIVACY & TERMS
-            </a>
-          </div>
+          {#if ENABLE_GOOGLE_DRIVE}
+            <div class="hidden sm:flex items-center gap-2 pr-1 font-mono text-[9px] text-[#52565E]">
+              <a
+                href="/privacy"
+                class="hover:text-[#FEC486] transition-colors"
+                title={t('galaxy_privacy_link_title')}
+              >
+                PRIVACY & TERMS
+              </a>
+            </div>
+          {/if}
         </div>
 
         <!-- 宇宙深空本體 (2600 x 2600 空間，Google Map 式航行平滑過渡) -->
@@ -2501,14 +2504,16 @@
               <div class="flex items-center justify-between border-t border-[#1F232E] pt-3 font-mono text-[11px] text-[#8E9298]">
                 <div class="flex items-center gap-2 text-[10px]">
                   <span>{t('galaxy_manual_hint_pre')} <kbd class="px-1 py-0.5 bg-[#1C2027] border border-[#2B303C] rounded text-[#FEC486] font-bold">?</kbd> {t('galaxy_manual_hint_post')}</span>
-                  <span class="text-[#2B303C]">|</span>
-                  <a
-                    href="/privacy"
-                    class="hover:text-[#FEC486] underline transition-colors"
-                    title={t('galaxy_privacy_link_title')}
-                  >
-                    {t('galaxy_manual_privacy')}
-                  </a>
+                  {#if ENABLE_GOOGLE_DRIVE}
+                    <span class="text-[#2B303C]">|</span>
+                    <a
+                      href="/privacy"
+                      class="hover:text-[#FEC486] underline transition-colors"
+                      title={t('galaxy_privacy_link_title')}
+                    >
+                      {t('galaxy_manual_privacy')}
+                    </a>
+                  {/if}
                 </div>
                 <button
                   type="button"

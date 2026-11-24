@@ -28,7 +28,6 @@
   import AISettingsModal from "$lib/components/studio/AISettingsModal.svelte";
   import MasterPasswordUnlockModal from "$lib/components/studio/MasterPasswordUnlockModal.svelte";
   import CloudSyncModal from "$lib/components/studio/CloudSyncModal.svelte";
-  import StudioFooter from "$lib/components/studio/StudioFooter.svelte";
   import { analysisQueue, type QueueState } from "$lib/services/analysisQueue";
   import { loadSecureAISettings } from "$lib/ai/vault";
   import {
@@ -1277,13 +1276,6 @@
         </div>
       {/if}
     </main>
-
-    <!-- Google OAuth / Google APIs Terms & AI NCII 合規性宣告頁尾 (星系全螢幕漫遊視圖隱藏以保證電腦端滿版沈浸與零垂直滾動) -->
-    {#if activeStudioView !== "honeycomb-cluster"}
-      <div class="px-3 sm:px-4 md:px-6">
-        <StudioFooter />
-      </div>
-    {/if}
   </div>
 
   <!-- 跨頁常駐 AI 助手抽屜（於全螢幕智慧推薦視圖時自動隱藏避免重複） -->

@@ -712,13 +712,15 @@
       <div class="text-[10px] text-ink-dim border-t border-wire pt-3 flex items-center justify-between">
         <span>{t('cloud_footer_lww')}</span>
         <div class="flex items-center gap-3">
-          <a
-            href="/privacy"
-            class="text-ink-muted hover:text-signal transition-colors underline"
-            title={t('cloud_privacy_title')}
-          >
-            {t('cloud_privacy_link')}
-          </a>
+          {#if ENABLE_GOOGLE_DRIVE}
+            <a
+              href="/privacy"
+              class="text-ink-muted hover:text-signal transition-colors underline"
+              title={t('cloud_privacy_title')}
+            >
+              {t('cloud_privacy_link')}
+            </a>
+          {/if}
           <span class="text-ink-muted">CLOUD_VAULT // v2.0</span>
         </div>
       </div>

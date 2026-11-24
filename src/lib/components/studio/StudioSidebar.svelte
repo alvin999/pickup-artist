@@ -3,7 +3,6 @@
   import { t } from '$lib/i18n/index.svelte';
   import { listeningQueue, type ListeningQueueItem } from '$lib/services/listeningQueue';
   import { analysisQueue, type QueueState } from '$lib/services/analysisQueue';
-  import { createVaultBackupPayload, importVaultBackupJson } from '$lib/db';
   import type { ArtistEntry } from '$lib/types/artist';
 
   interface Props {
@@ -29,8 +28,6 @@
     isCollapsed = false,
     ontoggleCollapse
   }: Props = $props();
-
-  let importInputEl = $state<HTMLInputElement | null>(null);
 
   // 1. 網路遙測與延遲動態模擬
   let isOnline = $state(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -93,56 +90,6 @@
     else if (e.key === '4') onselectView('listening-queue');
     else if (e.key === '5') onselectView('listening-log');
     else if (e.key === '6') onselectView('ai-recommend');
-  }
-
-  // 6. 資料庫一鍵匯出與合併匯入備份
-  async function exportDatabase() {
-    try {
-      const payload = await createVaultBackupPayload();
-      const dataStr = JSON.stringify(payload, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `PUA_LIBRARY_${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast?.(t('sidebar_export_success'));
-    } catch {
-      showToast?.(t('sidebar_export_fail'));
-    }
-  }
-
-  async function handleImportBackup(e: Event) {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const res = await importVaultBackupJson(parsed);
-      if (onRestored) await onRestored();
-      showToast?.(t('sidebar_import_success', { imported: res.importedOrUpdatedCount, total: res.totalCount }));
-    } catch (err: any) {
-      showToast?.(err?.message || t('sidebar_import_fail'));
-    } finally {
-      input.value = '';
-    }
-  }
-
-  // 7. SHA-256 真實雜湊完整性校驗
-  async function verifySha256() {
-    try {
-      const rawText = JSON.stringify(artists);
-      const enc = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(rawText));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-      const shortHash = hashHex.slice(0, 12);
-      showToast?.(t('sidebar_sha_verified', { hash: shortHash }));
-    } catch {
-      showToast?.(t('sidebar_sha_ready'));
-    }
   }
 
   onMount(() => {
@@ -445,102 +392,5 @@
       </nav>
     </div>
   </div>
-
-  <!-- 底部資料庫狀態與硬體銘牌 -->
-  <input
-    bind:this={importInputEl}
-    type="file"
-    accept=".json,application/json"
-    onchange={handleImportBackup}
-    class="hidden"
-  />
-  {#if isCollapsed}
-    <div class="p-2 border-t border-wire bg-void/80 flex flex-col items-center justify-center gap-2">
-      <button
-        type="button"
-        onclick={exportDatabase}
-        class="p-2 text-ink-muted hover:text-signal hover:bg-panel border border-wire/60 transition-colors cursor-pointer rounded-[2px] relative group"
-        title={t('sidebar_db_ready_export')}
-      >
-        <span class="material-symbols-outlined text-[18px]">hard_drive</span>
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] absolute top-1 right-1"></span>
-      </button>
-      <button
-        type="button"
-        onclick={() => importInputEl?.click()}
-        class="p-1.5 text-ink-dim hover:text-signal hover:bg-panel border border-wire/60 transition-colors cursor-pointer rounded-[2px]"
-        title={t('sidebar_import_merge_title')}
-      >
-        <span class="material-symbols-outlined text-[15px]">upload_file</span>
-      </button>
-      <a
-        href="/privacy"
-        class="p-1 text-ink-dim hover:text-signal transition-colors flex items-center justify-center"
-        title={t('sidebar_privacy_title')}
-      >
-        <span class="material-symbols-outlined text-[15px]">policy</span>
-      </a>
-    </div>
-  {:else}
-    <div class="p-4 border-t border-wire bg-void/80 font-mono">
-      <div class="border border-wire p-2.5 bg-chassis relative">
-        <div class="flex items-center justify-between text-[10px] text-ink-muted">
-          <span>DB_MOUNT</span>
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"></span>
-        </div>
-        <button
-          type="button"
-          onclick={exportDatabase}
-          class="text-left w-full text-xs text-ink font-bold tracking-tight mt-0.5 hover:text-signal transition-colors cursor-pointer flex items-center justify-between group"
-          title={t('sidebar_export_click_title')}
-        >
-          <span>PUA_LIBRARY.JSON</span>
-          <span class="material-symbols-outlined text-[13px] opacity-0 group-hover:opacity-100 text-signal transition-opacity">download</span>
-        </button>
-        <div class="grid grid-cols-2 gap-1.5 mt-2">
-          <button
-            type="button"
-            onclick={exportDatabase}
-            class="px-2 py-1 bg-void hover:bg-ink hover:text-void border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
-            title={t('sidebar_export_full_title')}
-          >
-            <span class="material-symbols-outlined text-[11px]">download</span>
-            <span>EXPORT</span>
-          </button>
-          <button
-            type="button"
-            onclick={() => importInputEl?.click()}
-            class="px-2 py-1 bg-void hover:bg-signal hover:text-white hover:border-signal border border-wire text-[9px] text-ink-muted font-bold tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1"
-            title={t('sidebar_import_full_title')}
-          >
-            <span class="material-symbols-outlined text-[11px]">upload_file</span>
-            <span>IMPORT</span>
-          </button>
-        </div>
-        <div class="text-[9px] text-ink-dim mt-2 pt-1.5 border-t border-wire border-dashed flex justify-between items-center">
-          <span>REV: 2026.10</span>
-          <button
-            type="button"
-            onclick={verifySha256}
-            class="text-signal hover:underline hover:text-signal/80 cursor-pointer font-bold tracking-wider"
-            title={t('sidebar_sha_click_title')}
-          >
-            SHA-256
-          </button>
-        </div>
-        <div class="mt-2 pt-1.5 border-t border-wire/60 text-[9px] text-ink-muted flex items-center justify-between">
-          <a
-            href="/privacy"
-            class="hover:text-signal transition-colors flex items-center gap-1 font-mono tracking-wider"
-            title={t('sidebar_privacy_full_title')}
-          >
-            <span class="material-symbols-outlined text-[11px]">policy</span>
-            <span>PRIVACY & TERMS</span>
-          </a>
-          <span class="text-[8px] text-ink-dim">PUA v0.0.1</span>
-        </div>
-      </div>
-    </div>
-  {/if}
 </aside>
 

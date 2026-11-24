@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { ENABLE_GOOGLE_DRIVE } from '$lib/services/googledrive';
+</script>
+
 <!--
   @component StudioFooter.svelte
   @description 音響器材機架微型規格銘牌 (Chassis Spec & Compliance Footnote)
@@ -11,26 +15,30 @@
         <span class="font-bold tracking-wider text-[#8e94a0]">PICKUP ARTIST</span>
         <span class="text-[#363a42]">/</span>
         <span>Local-first Artist Knowledge & Music Curation Workstation</span>
-        <span class="text-[#363a42]">/</span>
-        <a
-          href="/privacy"
-          class="text-[#8e94a0] hover:text-signal transition-colors underline underline-offset-2"
-        >
-          Privacy Policy & Terms
-        </a>
+        {#if ENABLE_GOOGLE_DRIVE}
+          <span class="text-[#363a42]">/</span>
+          <a
+            href="/privacy"
+            class="text-[#8e94a0] hover:text-signal transition-colors underline underline-offset-2"
+          >
+            Privacy Policy & Terms
+          </a>
+        {/if}
       </div>
       <div class="text-[9px] text-[#41454e]">
-        REV: 2026.10 · INDEXEDDB LOCAL STORAGE
+        INDEXEDDB LOCAL STORAGE
       </div>
     </div>
 
     <!-- 微型安規與合規註腳 (如同音響後面板 FCC/CE 認證標記，低調內斂) -->
     <div class="text-[9px] text-[#464a52] flex flex-wrap items-center gap-x-2 pt-0.5">
       <span>PURPOSE: Personal artist intelligence & music curation catalog.</span>
-      <span class="text-[#2e323a]">|</span>
-      <span>
-        GOOGLE API & AI NCII: Uses <code class="text-[#606570]">drive.appdata</code> solely for JSON catalog backups. Strictly complies with Google APIs Terms of Service and does not use Google APIs for AI NCII (AI-generated Non-Consensual Intimate Imagery).
-      </span>
+      {#if ENABLE_GOOGLE_DRIVE}
+        <span class="text-[#2e323a]">|</span>
+        <span>
+          GOOGLE API & AI NCII: Uses <code class="text-[#606570]">drive.appdata</code> solely for JSON catalog backups. Strictly complies with Google APIs Terms of Service and does not use Google APIs for AI NCII (AI-generated Non-Consensual Intimate Imagery).
+        </span>
+      {/if}
     </div>
   </div>
 </footer>
