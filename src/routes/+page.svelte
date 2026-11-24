@@ -1125,7 +1125,7 @@
             isPickupModalOpen = true;
           }}
           onopenLuckyModal={handleOpenLuckyModal}
-          onopenRecommend={() => (activeStudioView = "ai-recommend")}
+          onopenRecommend={() => curatorAgent.openDrawer()}
           globalSearchQuery={searchQuery}
           onquickPickup={handleQuickPickupFromSearch}
           {queueState}

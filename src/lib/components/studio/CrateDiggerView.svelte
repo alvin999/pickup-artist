@@ -784,7 +784,7 @@
                     onclick={onopenRecommend}
                     class="px-4 py-2 bg-chassis hover:bg-ink hover:text-void text-ink border border-wire font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span class="material-symbols-outlined text-[15px] text-signal">neurology</span>
+                    <span class="material-symbols-outlined text-[15px] text-signal">auto_awesome</span>
                     <span>{t('crate_recommend_btn')}</span>
                   </button>
                 {/if}
