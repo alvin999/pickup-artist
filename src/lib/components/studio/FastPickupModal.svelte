@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { t } from '$lib/i18n/index.svelte';
   import {
     X,
@@ -15,7 +15,8 @@
     ExternalLink,
     Sparkles,
     RefreshCw,
-    Compass
+    Compass,
+    Key
   } from 'lucide-svelte';
   import { searchAppleMusicCandidates, buildAppleMusicSearchUrl, type ArtistCandidate } from '$lib/utils/appleMusic';
   import type { ArtistEntry, AcousticSector } from '$lib/types/artist';
@@ -24,7 +25,6 @@
   import {
     pickLuckyFromLocal,
     pickLuckyFromAI,
-    pickLuckyFromCurated,
     type LuckySectorOption,
     type LuckyCandidateResult
   } from '$lib/services/luckySerendipity';
@@ -41,6 +41,8 @@
     onclose: () => void;
     onpickup: (nameOrUrl: string, candidate?: ArtistCandidate) => void;
     existingArtists?: ArtistEntry[];
+    isAiConfigured?: boolean;
+    onopenAISettings?: () => void;
     onselectExisting?: (artist: ArtistEntry) => void;
     initialQuery?: string;
     initialCandidates?: ArtistCandidate[];
@@ -52,6 +54,8 @@
     onclose,
     onpickup,
     existingArtists = [],
+    isAiConfigured = false,
+    onopenAISettings,
     onselectExisting,
     initialQuery = '',
     initialCandidates = [],
@@ -72,7 +76,7 @@
   let isRollingLucky = $state(false);
   let luckyResult = $state<{
     name: string;
-    sourceType: 'local-ghost' | 'ai-seed' | 'curated-seed';
+    sourceType: 'local-ghost' | 'ai-seed';
     sourceArtists: string[];
     sector?: AcousticSector;
     subGenre?: string;
@@ -81,6 +85,12 @@
   let luckyRollHistory = $state<string[]>([]);
   let luckyFeedbackMsg = $state<string | null>(null);
   let preferredPlatform = $state<StreamingPlatform>('apple_music');
+
+  // 判斷無 AI 金鑰且曲庫完全沒有可抽的本地關聯名單（無法啟動任何好手氣探勘）
+  const hasAnyLocalLucky = $derived(
+    pickLuckyFromLocal('ALL', existingArtists, []) !== null
+  );
+  const isLuckyBlockedEmpty = $derived(!isAiConfigured && !hasAnyLocalLucky);
 
   onMount(() => {
     preferredPlatform = getPreferredStreamingPlatform();
@@ -120,14 +130,20 @@
   );
 
   let inputEl = $state<HTMLInputElement | null>(null);
+  let autoRolledForCurrentOpen = false;
 
   // 當外部傳入候選人或初始查詢字串時，自動代入輸入框或直接開啟排歧選單
   $effect(() => {
     if (open) {
       if (initialTab) {
         activeTab = initialTab;
-        if (initialTab === 'lucky' && !luckyResult && !isRollingLucky) {
-          handleRollLucky();
+        if (initialTab === 'lucky' && !autoRolledForCurrentOpen) {
+          autoRolledForCurrentOpen = true;
+          untrack(() => {
+            if (!isLuckyBlockedEmpty && !luckyResult && !isRollingLucky) {
+              handleRollLucky();
+            }
+          });
         }
       }
       if (initialCandidates && initialCandidates.length > 0) {
@@ -174,6 +190,7 @@
   });
 
   function resetState() {
+    autoRolledForCurrentOpen = false;
     pickupInput = '';
     isSearching = false;
     candidates = [];
@@ -190,6 +207,7 @@
 
   async function handleRollLucky(forceAI = false) {
     if (isRollingLucky) return;
+    if (forceAI && !isAiConfigured) return;
     isRollingLucky = true;
     luckyFeedbackMsg = null;
 
@@ -197,18 +215,13 @@
       let result: LuckyCandidateResult | null = null;
 
       if (!forceAI) {
-        // 優先從本地已分析藝人的 AI 相似名單中挑選（零 Token、零等待、混合加權隨機）
+        // 優先從本地已分析藝人的關聯名單中挑選（零 Token、零等待、混合加權隨機）
         result = pickLuckyFromLocal(selectedLuckySector, existingArtists, luckyRollHistory);
       }
 
-      // 若本地池為空或使用者強制指定深空 AI 探勘
-      if (!result) {
+      // 若本地池為空或使用者強制指定深空 AI 探勘（需已設定且解鎖 AI 金鑰）
+      if (!result && isAiConfigured) {
         result = await pickLuckyFromAI(selectedLuckySector, existingArtists, luckyRollHistory);
-      }
-
-      // 若 AI 連線不順，退回發燒友保底種子庫
-      if (!result) {
-        result = pickLuckyFromCurated(selectedLuckySector, existingArtists, luckyRollHistory);
       }
 
       if (result) {
@@ -231,7 +244,9 @@
           candidate
         };
       } else {
-        luckyFeedbackMsg = t('fast_lucky_exhausted');
+        luckyFeedbackMsg = isAiConfigured
+          ? t('fast_lucky_exhausted')
+          : t('fast_lucky_exhausted_no_ai');
       }
     } catch (err: any) {
       luckyFeedbackMsg = err?.message || t('fast_lucky_failed');
@@ -448,6 +463,48 @@
           </div>
         {:else}
           <!-- 聲學好手氣模式 (Acoustic Serendipity) -->
+          {#if isLuckyBlockedEmpty}
+            <!-- 無藝人／無關聯且無 AI 金鑰之引導狀態 -->
+            <div class="p-6 bg-[#121318] border border-[#2b2d36] rounded-[2px] text-center space-y-4">
+              <div class="mx-auto w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                <Compass class="w-5 h-5 text-amber-400" />
+              </div>
+              <p class="text-xs text-[#b8bcc8] font-mono leading-relaxed max-w-md mx-auto">
+                {existingArtists.length === 0
+                  ? t('fast_lucky_empty_no_artist')
+                  : t('fast_lucky_empty_no_affinity')}
+              </p>
+              <div class="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onclick={() => {
+                    activeTab = 'input';
+                    step = 'input';
+                    setTimeout(() => {
+                      inputEl?.focus();
+                    }, 60);
+                  }}
+                  class="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-signal hover:bg-white hover:text-void text-white font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all cursor-pointer shadow-[0_0_12px_rgba(255,42,60,0.25)]"
+                >
+                  <Radio class="w-3.5 h-3.5" />
+                  <span>{t('fast_lucky_goto_pickup')}</span>
+                </button>
+                {#if onopenAISettings}
+                  <button
+                    type="button"
+                    onclick={() => {
+                      onclose();
+                      onopenAISettings?.();
+                    }}
+                    class="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1a1c24] hover:bg-[#252834] text-indigo-300 border border-indigo-500/40 font-mono text-xs font-bold uppercase tracking-wider rounded-[2px] transition-all cursor-pointer"
+                  >
+                    <Key class="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{t('fast_lucky_goto_ai')}</span>
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {:else}
           <div class="space-y-3.5">
             <!-- 自選分類標籤列 -->
             <div class="space-y-1.5">
@@ -544,13 +601,9 @@
                           <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
                             {t('fast_lucky_source_local')}
                           </span>
-                        {:else if luckyResult.sourceType === 'ai-seed'}
+                        {:else}
                           <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                             {t('fast_lucky_source_ai')}
-                          </span>
-                        {:else}
-                          <span class="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            {t('fast_lucky_source_curated')}
                           </span>
                         {/if}
                       </div>
@@ -616,11 +669,12 @@
                   <div class="flex items-center gap-2">
                     <button
                       type="button"
+                      disabled={!isAiConfigured}
                       onclick={() => handleRollLucky(true)}
-                      title={t('fast_lucky_deep_ai_title')}
-                      class="hidden sm:flex items-center gap-1 text-[11px] text-[#8e929d] hover:text-indigo-300 font-mono cursor-pointer transition-colors"
+                      title={isAiConfigured ? t('fast_lucky_deep_ai_title') : t('fast_lucky_deep_ai_no_key')}
+                      class="flex items-center gap-1 text-[11px] font-mono transition-colors {isAiConfigured ? 'text-[#8e929d] hover:text-indigo-300 cursor-pointer' : 'text-[#555863] opacity-50 cursor-not-allowed'}"
                     >
-                      <Sparkles class="w-3 h-3 text-indigo-400" />
+                      <Sparkles class="w-3 h-3 {isAiConfigured ? 'text-indigo-400' : 'text-[#555863]'}" />
                       <span>{t('fast_lucky_deep_ai')}</span>
                     </button>
 
@@ -659,6 +713,7 @@
               </p>
             {/if}
           </div>
+          {/if}
         {/if}
 
         <!-- 手機聽音收錄極簡引導面板（展開時僅在行動端顯示） -->

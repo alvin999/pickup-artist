@@ -7,50 +7,11 @@ export type LuckySectorOption = AcousticSector | 'ALL';
 
 export interface LuckyCandidateResult {
   name: string;
-  sourceType: 'local-ghost' | 'ai-seed' | 'curated-seed';
+  sourceType: 'local-ghost' | 'ai-seed';
   sourceArtists: string[]; // 推薦溯源名單 (Lineage)
   sector?: AcousticSector;
   subGenre?: string;
 }
-
-/**
- * 8 大聲學板塊精選種子庫（發燒友基石與冷門珍寶）
- * 作用：當本地 AI 相似庫見底且未配置 AI 金鑰時，提供零延遲、零 Token 的高品質後備保底
- */
-const CURATED_SEEDS: Record<AcousticSector, string[]> = {
-  ROCK: [
-    'toe', 'Elephant Gym', 'LITE', 'Tortoise', 'Mono', 
-    'American Football', 'Don Caballero', 'Chon', 'Enemies', 'mouse on the keys'
-  ],
-  METAL: [
-    'Animals as Leaders', 'Gojira', 'Deafheaven', 'Between the Buried and Me', 
-    'Meshuggah', 'Cult of Luna', 'Ne Obliviscaris', 'Leprous', 'The Ocean', 'Boris'
-  ],
-  CLASSICAL: [
-    'Glenn Gould', 'Hilary Hahn', 'Víkingur Ólafsson', 'Hélène Grimaud', 
-    'Max Richter', 'Jordi Savall', 'Krystian Zimerman', 'Patricia Kopatchinskaja', 'Teodor Currentzis', 'Janine Jansen'
-  ],
-  JAZZ: [
-    'Bill Evans', 'Miles Davis', 'Hiromi Uehara', 'Tigran Hamasyan', 
-    'Brad Mehldau', 'Snarky Puppy', 'Avishai Cohen', 'GoGo Penguin', 'Kamasi Washington', 'Christian McBride'
-  ],
-  AMBIENT: [
-    'Brian Eno', 'Stars of the Lid', 'Tim Hecker', 'Celer', 
-    'William Basinski', 'Harold Budd', 'Fennesz', 'Alva Noto', 'Gas', 'Chihei Hatakeyama'
-  ],
-  ELECTRONIC: [
-    'Aphex Twin', 'Boards of Canada', 'Autechre', 'Jon Hopkins', 
-    'Tycho', 'Four Tet', 'Floating Points', 'Moderat', 'Clark', 'Rival Consoles'
-  ],
-  GROOVE: [
-    'D’Angelo', 'Erykah Badu', 'Vulfpeck', 'Hiatus Kaiyote', 
-    'Tom Misch', 'FKJ', 'Masego', 'Moonchild', 'Thundercat', 'Khruangbin'
-  ],
-  WORLD: [
-    'Tinariwen', 'Ali Farka Touré', 'Anoushka Shankar', 'Toumani Diabaté', 
-    'Buena Vista Social Club', 'Mulatu Astatke', 'Songhoy Blues', 'Rokia Traoré', 'Astor Piazzolla', 'Ballaké Sissoko'
-  ]
-};
 
 /**
  * 取得在庫所有藝人名稱與別名的標準化集合
@@ -233,43 +194,8 @@ export async function pickLuckyFromAI(
       };
     }
   } catch (err) {
-    console.warn('[pickLuckyFromAI] AI 探勘連線異常，轉入保底種子庫:', err);
+    console.warn('[pickLuckyFromAI] AI 探勘連線異常:', err);
   }
 
-  // 4. 若 AI 連線失敗或未回傳，退回保底種子庫
-  return pickLuckyFromCurated(targetSector, allArtists, recentRolls);
-}
-
-/**
- * 保底種子庫隨機抽取（零網路、零 Token）
- */
-export function pickLuckyFromCurated(
-  sector: LuckySectorOption,
-  allArtists: ArtistEntry[],
-  recentRolls: string[] = []
-): LuckyCandidateResult | null {
-  const existingSet = getExistingNamesSet(allArtists);
-  const recentSet = new Set(recentRolls.map((r) => r.toLowerCase().trim()));
-
-  const targetSector: AcousticSector =
-    sector === 'ALL'
-      ? (['ROCK', 'JAZZ', 'CLASSICAL', 'ELECTRONIC', 'AMBIENT', 'GROOVE', 'METAL', 'WORLD'][
-          Math.floor(Math.random() * 8)
-        ] as AcousticSector)
-      : sector;
-
-  const seeds = CURATED_SEEDS[targetSector] || [];
-  const available = seeds.filter(
-    (name) => !existingSet.has(name.toLowerCase().trim()) && !recentSet.has(name.toLowerCase().trim())
-  );
-
-  if (available.length === 0) return null;
-
-  const winner = available[Math.floor(Math.random() * available.length)];
-  return {
-    name: winner,
-    sourceType: 'curated-seed',
-    sourceArtists: [],
-    sector: targetSector
-  };
+  return null;
 }

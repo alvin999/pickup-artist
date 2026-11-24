@@ -35,7 +35,10 @@
     fetchMoreSimilarArtists,
     fetchMoreNotableAlbums,
   } from "$lib/ai/client";
-  import { listeningQueue, type ListeningQueueItem } from "$lib/services/listeningQueue";
+  import {
+    listeningQueue,
+    type ListeningQueueItem,
+  } from "$lib/services/listeningQueue";
   import { curatorAgent } from "$lib/services/curatorAgent.svelte";
   import { buildAgentPageContext } from "$lib/ai/agentContext";
   import type { AgentActionProposal } from "$lib/ai/scenePrompts";
@@ -224,15 +227,15 @@
 
   async function handleQuickReauth() {
     isReauthenticating = true;
-    showToast(t('page_ms_opening'));
+    showToast(t("page_ms_opening"));
     try {
       await reauthenticateAndSync(async () => {
         await reloadArtists();
       });
-      showToast(t('page_ms_reauth_done'));
+      showToast(t("page_ms_reauth_done"));
     } catch (err: any) {
       if (err?.errorCode !== "user_cancelled") {
-        showToast(err?.message || t('page_reauth_failed'));
+        showToast(err?.message || t("page_reauth_failed"));
       }
     } finally {
       isReauthenticating = false;
@@ -384,10 +387,10 @@
           );
           if (existing) {
             selectedArtistId = existing.id;
-            showToast(t('page_shortcut_exists', { name: existing.name }));
+            showToast(t("page_shortcut_exists", { name: existing.name }));
           } else {
             await handlePickup(targetArtist);
-            showToast(t('page_shortcut_picked', { name: targetArtist }));
+            showToast(t("page_shortcut_picked", { name: targetArtist }));
           }
         }
       }
@@ -425,9 +428,9 @@
       const newEntry = await quickPickupArtist(input, candidate);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast(t('page_picked_up'));
+      showToast(t("page_picked_up"));
     } catch (err: any) {
-      showToast(err?.message || t('page_pickup_failed'));
+      showToast(err?.message || t("page_pickup_failed"));
     }
   }
 
@@ -456,9 +459,9 @@
       if (selectedArtistId === id) {
         selectedArtistId = artists[0]?.id || null;
       }
-      showToast(t('page_deleted'));
+      showToast(t("page_deleted"));
     } catch (err: any) {
-      showToast(err?.message || t('page_delete_failed'));
+      showToast(err?.message || t("page_delete_failed"));
     }
   }
 
@@ -468,7 +471,7 @@
     if (secureLoaded.isLocked) {
       if (pendingArtist) pendingArtistToAnalyze = pendingArtist;
       isUnlockModalOpen = true;
-      showToast(t('page_unlock_vault_toast'));
+      showToast(t("page_unlock_vault_toast"));
       return false;
     }
 
@@ -479,7 +482,7 @@
         : !!settings.geminiKey.trim();
     if (!hasKey) {
       isAISettingsOpen = true;
-      showToast(t('page_set_ai_key_full_toast'));
+      showToast(t("page_set_ai_key_full_toast"));
       return false;
     }
 
@@ -495,7 +498,7 @@
       analysisQueue.enqueue(artist, i18n.locale);
     } catch (err: any) {
       console.error("[AI Analyze Enqueue Error]:", err);
-      showToast(err?.message || t('page_queue_failed'));
+      showToast(err?.message || t("page_queue_failed"));
     }
   }
 
@@ -504,7 +507,7 @@
     try {
       const inboxArtists = artists.filter((a) => a.status === "inbox");
       if (inboxArtists.length === 0) {
-        showToast(t('page_no_inbox_artists'));
+        showToast(t("page_no_inbox_artists"));
         return;
       }
       if (!(await ensureAIReady(inboxArtists[0]))) return;
@@ -512,7 +515,7 @@
       analysisQueue.enqueueBatch(inboxArtists, i18n.locale);
     } catch (err: any) {
       console.error("[AI Analyze Batch Enqueue Error]:", err);
-      showToast(err?.message || t('page_batch_queue_failed'));
+      showToast(err?.message || t("page_batch_queue_failed"));
     }
   }
 
@@ -536,12 +539,12 @@
     );
     if (existing) {
       selectedArtistId = existing.id;
-      showToast(t('page_similar_exists', { name: existing.name }));
+      showToast(t("page_similar_exists", { name: existing.name }));
       return;
     }
 
     try {
-      showToast(t('page_searching_artist', { name: cleanName }));
+      showToast(t("page_searching_artist", { name: cleanName }));
       const candidates = await searchAppleMusicCandidates(cleanName);
 
       if (candidates.length === 1) {
@@ -549,7 +552,7 @@
         const newEntry = await quickPickupArtist(cleanName, candidates[0]);
         await reloadArtists();
         selectedArtistId = newEntry.id;
-        showToast(t('page_picked_up_name', { name: newEntry.name }));
+        showToast(t("page_picked_up_name", { name: newEntry.name }));
       } else if (candidates.length > 1) {
         // 存在多名同名/相似藝人（例如 Battles）：開啟排歧選單供使用者挑選曲風與封面
         pickupModalInitialQuery = cleanName;
@@ -560,14 +563,14 @@
         const newEntry = await quickPickupArtist(cleanName);
         await reloadArtists();
         selectedArtistId = newEntry.id;
-        showToast(t('page_picked_up_name', { name: newEntry.name }));
+        showToast(t("page_picked_up_name", { name: newEntry.name }));
       }
     } catch (err: any) {
       console.warn("[handlePickupSimilar] 候選檢索異常，退回純文字知悉:", err);
       const newEntry = await quickPickupArtist(cleanName);
       await reloadArtists();
       selectedArtistId = newEntry.id;
-      showToast(t('page_picked_up'));
+      showToast(t("page_picked_up"));
     }
   }
 
@@ -580,7 +583,7 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast(t('page_unlock_vault_ai_toast'));
+        showToast(t("page_unlock_vault_ai_toast"));
         return;
       }
 
@@ -591,7 +594,7 @@
           : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast(t('page_set_ai_key_short_toast'));
+        showToast(t("page_set_ai_key_short_toast"));
         return;
       }
 
@@ -620,7 +623,7 @@
       );
 
       if (!newSims || newSims.length === 0) {
-        showToast(t('page_similar_none_new'));
+        showToast(t("page_similar_none_new"));
         return;
       }
 
@@ -638,10 +641,12 @@
       });
 
       await reloadArtists();
-      showToast(t('page_similar_added', { name: artist.name, count: newSims.length }));
+      showToast(
+        t("page_similar_added", { name: artist.name, count: newSims.length }),
+      );
     } catch (err: any) {
       console.error("[Recommend More Similar Error]:", err);
-      showToast(err?.message || t('page_similar_failed'));
+      showToast(err?.message || t("page_similar_failed"));
     } finally {
       isRecommendingMore = false;
     }
@@ -656,7 +661,7 @@
       if (secureLoaded.isLocked) {
         pendingArtistToAnalyze = artist;
         isUnlockModalOpen = true;
-        showToast(t('page_unlock_vault_ai_toast'));
+        showToast(t("page_unlock_vault_ai_toast"));
         return;
       }
 
@@ -667,7 +672,7 @@
           : !!settings.geminiKey.trim();
       if (!hasKey) {
         isAISettingsOpen = true;
-        showToast(t('page_set_ai_key_short_toast'));
+        showToast(t("page_set_ai_key_short_toast"));
         return;
       }
 
@@ -688,7 +693,7 @@
       );
 
       if (!newAlbums || newAlbums.length === 0) {
-        showToast(t('page_albums_none_new'));
+        showToast(t("page_albums_none_new"));
         return;
       }
 
@@ -704,10 +709,12 @@
       });
 
       await reloadArtists();
-      showToast(t('page_albums_added', { name: artist.name, count: newAlbums.length }));
+      showToast(
+        t("page_albums_added", { name: artist.name, count: newAlbums.length }),
+      );
     } catch (err: any) {
       console.error("[Recommend More Albums Error]:", err);
-      showToast(err?.message || t('page_albums_failed'));
+      showToast(err?.message || t("page_albums_failed"));
     } finally {
       isRecommendingAlbums = false;
     }
@@ -732,9 +739,9 @@
 
     const targetTitle = album ? album.title : artist.name;
     if (res.alreadyExists) {
-      showToast(t('page_queue_already', { title: targetTitle }));
+      showToast(t("page_queue_already", { title: targetTitle }));
     } else {
-      showToast(t('page_queue_added', { title: targetTitle }));
+      showToast(t("page_queue_added", { title: targetTitle }));
     }
   }
 
@@ -775,7 +782,9 @@
     const q = name.trim().toLowerCase();
     return (
       artists.find((a) => a.name.trim().toLowerCase() === q) ||
-      artists.find((a) => a.aliases?.some((al) => al.trim().toLowerCase() === q)) ||
+      artists.find((a) =>
+        a.aliases?.some((al) => al.trim().toLowerCase() === q),
+      ) ||
       artists.find((a) => a.name.toLowerCase().includes(q))
     );
   }
@@ -787,7 +796,11 @@
         case "navigate_artist": {
           const target = findArtistByName(action.artistName);
           if (!target) {
-            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            showToast(
+              t("agent_act_artist_not_found", {
+                name: action.artistName || "",
+              }),
+            );
             return;
           }
           selectedArtistId = target.id;
@@ -802,7 +815,7 @@
           ) {
             activeStudioView = "crate-digger";
           }
-          showToast(t('agent_act_navigated', { name: target.name }));
+          showToast(t("agent_act_navigated", { name: target.name }));
           break;
         }
         case "filter_library": {
@@ -814,31 +827,40 @@
           ) {
             activeStudioView = "acoustic-matrix";
           }
-          showToast(t('agent_act_filtered', { query: q }));
+          showToast(t("agent_act_filtered", { query: q }));
           break;
         }
         case "add_to_queue": {
           const target = findArtistByName(action.artistName);
           if (!target) {
-            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            showToast(
+              t("agent_act_artist_not_found", {
+                name: action.artistName || "",
+              }),
+            );
             return;
           }
           const matchedAlbum = action.albumTitle
             ? target.analysis?.notableAlbums?.find(
-                (alb) => alb.title.toLowerCase() === action.albumTitle?.toLowerCase(),
+                (alb) =>
+                  alb.title.toLowerCase() === action.albumTitle?.toLowerCase(),
               )
             : target.analysis?.notableAlbums?.[0];
           listeningQueue.add({
             artistId: target.id,
             artistName: target.name,
-            albumTitle: matchedAlbum?.title || action.albumTitle || t('radio_featured_work_fallback'),
+            albumTitle:
+              matchedAlbum?.title ||
+              action.albumTitle ||
+              t("radio_featured_work_fallback"),
             albumYear: matchedAlbum?.year,
-            appleMusicUrl: matchedAlbum?.appleMusicSearchUrl || target.appleMusicUrl,
+            appleMusicUrl:
+              matchedAlbum?.appleMusicSearchUrl || target.appleMusicUrl,
             losslessSpec: matchedAlbum?.losslessSpec,
             dynamicRangeScore: matchedAlbum?.dynamicRangeScore,
             coverImage: target.coverImage,
           });
-          showToast(t('agent_act_queued', { name: target.name }));
+          showToast(t("agent_act_queued", { name: target.name }));
           break;
         }
         case "quick_pickup": {
@@ -852,11 +874,15 @@
         case "enqueue_analysis": {
           const target = findArtistByName(action.artistName);
           if (!target) {
-            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            showToast(
+              t("agent_act_artist_not_found", {
+                name: action.artistName || "",
+              }),
+            );
             return;
           }
           await handleAnalyze(target);
-          showToast(t('agent_act_enqueued_analysis', { name: target.name }));
+          showToast(t("agent_act_enqueued_analysis", { name: target.name }));
           break;
         }
         case "analyze_all_inbox": {
@@ -866,18 +892,34 @@
         case "update_artist_weight": {
           const target = findArtistByName(action.artistName);
           if (!target) {
-            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            showToast(
+              t("agent_act_artist_not_found", {
+                name: action.artistName || "",
+              }),
+            );
             return;
           }
-          const nextWeight = Math.max(1, Math.min(100, Math.round(action.weight ?? 50)));
+          const nextWeight = Math.max(
+            1,
+            Math.min(100, Math.round(action.weight ?? 50)),
+          );
           await handleUpdateWeight(target.id, nextWeight);
-          showToast(t('agent_act_weight_updated', { name: target.name, weight: nextWeight }));
+          showToast(
+            t("agent_act_weight_updated", {
+              name: target.name,
+              weight: nextWeight,
+            }),
+          );
           break;
         }
         case "append_artist_notes": {
           const target = findArtistByName(action.artistName);
           if (!target) {
-            showToast(t('agent_act_artist_not_found', { name: action.artistName || '' }));
+            showToast(
+              t("agent_act_artist_not_found", {
+                name: action.artistName || "",
+              }),
+            );
             return;
           }
           const existingNotes = (target.personalNotes || "").trim();
@@ -900,14 +942,14 @@
             },
           });
           await reloadArtists();
-          showToast(t('agent_act_notes_appended', { name: target.name }));
+          showToast(t("agent_act_notes_appended", { name: target.name }));
           break;
         }
       }
       curatorAgent.markActionExecuted(action.id);
     } catch (err: any) {
       console.error("[AgentAction] 執行失敗:", err);
-      showToast(err?.message || t('radio_error_fallback'));
+      showToast(err?.message || t("radio_error_fallback"));
     }
   }
 
@@ -942,7 +984,7 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 <svelte:head>
-  <title>{t('app_title')} · {t('app_subtitle')}</title>
+  <title>{t("app_title")} · {t("app_subtitle")}</title>
 </svelte:head>
 
 <div
@@ -958,7 +1000,10 @@
       <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"
       ></span>
       <span class="break-words leading-relaxed">
-        {t('page_rate_limit_pre')} <strong>{queueState.cooldownRemainingSeconds}</strong>{t('page_rate_limit_mid')}{queueState.currentArtist?.name}{t('page_rate_limit_post')}
+        {t("page_rate_limit_pre")}
+        <strong>{queueState.cooldownRemainingSeconds}</strong>{t(
+          "page_rate_limit_mid",
+        )}{queueState.currentArtist?.name}{t("page_rate_limit_post")}
       </span>
     </div>
   {:else if toastMessage}
@@ -974,6 +1019,8 @@
   <FastPickupModal
     open={isPickupModalOpen}
     existingArtists={artists}
+    isAiConfigured={isAiConfigured}
+    onopenAISettings={() => (isAISettingsOpen = true)}
     initialTab={pickupModalInitialTab}
     initialQuery={pickupModalInitialQuery}
     initialCandidates={pickupModalInitialCandidates}
@@ -986,7 +1033,7 @@
     onpickup={handlePickup}
     onselectExisting={(artist) => {
       selectedArtistId = artist.id;
-      showToast(t('page_located_existing', { name: artist.name }));
+      showToast(t("page_located_existing", { name: artist.name }));
     }}
   />
 
@@ -1077,10 +1124,10 @@
               >lock_clock</span
             >
             <div>
-              <span class="font-bold text-amber-300">{t('page_ms_expired_title')}</span>
-              <span class="text-amber-200/90"
-                >{t('page_ms_expired_desc')}</span
+              <span class="font-bold text-amber-300"
+                >{t("page_ms_expired_title")}</span
               >
+              <span class="text-amber-200/90">{t("page_ms_expired_desc")}</span>
             </div>
           </div>
           <button
@@ -1098,8 +1145,8 @@
             </span>
             <span
               >{isReauthenticating
-                ? t('page_reauth_loading')
-                : t('page_reauth_btn')}</span
+                ? t("page_reauth_loading")
+                : t("page_reauth_btn")}</span
             >
           </button>
         </div>
@@ -1225,7 +1272,7 @@
             {String(activeStudioView).toUpperCase()} // MODULE STANDBY
           </div>
           <p class="text-[#52565E]">
-            {t('page_standby_desc')}
+            {t("page_standby_desc")}
           </p>
         </div>
       {/if}
