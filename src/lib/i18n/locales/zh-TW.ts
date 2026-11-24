@@ -550,6 +550,15 @@ export const zhTW = {
   matrix_delete_aria: '移除藝人',
   matrix_weight_down: '調降權重 -5',
   matrix_weight_up: '調升權重 +5',
+  matrix_level1_hint: '選擇聲學板塊展開子流派矩陣，或直接點擊熱門標籤直達藝人清單',
+  matrix_level2_hint: '選擇子流派以專注瀏覽收錄藝人，或檢視此板塊完整名單',
+  matrix_search_direct_badge: '跨層搜尋結果',
+  matrix_clear_search: '清除搜尋',
+  matrix_quick_switch_sector: '快速切換大分類',
+  matrix_quick_switch_subgenre: '快速切換子流派',
+  matrix_top_artists_preview: '代表藝人',
+  matrix_all_sector_desc: '瀏覽此聲學板塊下所有收錄藝人',
+  matrix_more_subgenres: '+{count} 更多',
 
   // 聆賞隊列 (ListeningQueueView)
   lq_opened_am: '已在 Apple Music 開啟品鑑：{name}{album}',
