@@ -448,9 +448,13 @@ async function callGeminiAnalysisPayload(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [
         {
-          parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          role: 'user',
+          parts: [{ text: userPrompt }]
         }
       ],
       generationConfig: {
@@ -481,9 +485,13 @@ async function callGeminiAnalysisPayload(
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: systemPrompt }]
+          },
           contents: [
             {
-              parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+              role: 'user',
+              parts: [{ text: userPrompt }]
             }
           ],
           generationConfig: {
@@ -552,13 +560,11 @@ async function callGeminiAnalysisPayload(
     throw new Error(t('ai_err_schema_validation', { issues: validationResult.error.issues.map(i => i.message).join(', ') }));
   }
 
-  // 自動補齊推薦專輯的 Apple Music 搜尋 URL（前端自動合成，不浪費 LLM 生成 Token）
+  // 強制由前端安全合成推薦專輯的 Apple Music 搜尋 URL，不採信模型輸出的任意連結
   if (validationResult.data.notableAlbums) {
     validationResult.data.notableAlbums = validationResult.data.notableAlbums.map((alb) => ({
       ...alb,
-      appleMusicSearchUrl:
-        alb.appleMusicSearchUrl ||
-        `https://music.apple.com/search?term=${encodeURIComponent(artistName + ' ' + alb.title)}`
+      appleMusicSearchUrl: buildAppleMusicSearchUrl(`${artistName} ${alb.title}`)
     }));
   }
 
@@ -693,9 +699,13 @@ async function callGeminiSimilarArtistsPayload(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [
         {
-          parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          role: 'user',
+          parts: [{ text: userPrompt }]
         }
       ],
       generationConfig: {
@@ -721,7 +731,8 @@ async function callGeminiSimilarArtistsPayload(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           generationConfig: { temperature: 0.3 }
         })
       });
@@ -904,9 +915,13 @@ async function callGeminiNotableAlbumsPayload(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [
         {
-          parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          role: 'user',
+          parts: [{ text: userPrompt }]
         }
       ],
       generationConfig: {
@@ -932,7 +947,8 @@ async function callGeminiNotableAlbumsPayload(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           generationConfig: { temperature: 0.3 }
         })
       });
@@ -1108,10 +1124,13 @@ async function callGeminiListeningResonancePayload(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
+      },
       contents: [
         {
           role: 'user',
-          parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          parts: [{ text: userPrompt }]
         }
       ],
       generationConfig: {

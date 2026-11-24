@@ -1,4 +1,5 @@
 import type { SupportedLocale } from '$lib/i18n';
+import { sanitizePromptInput } from './prompts';
 
 export interface SceneChatMessage {
   role: 'user' | 'assistant';
@@ -78,7 +79,10 @@ ${languageRule}
   // 保留最近 6 則對話脈絡（約 3 輪問答），既能精準支援追問微調，又能大幅抑制 Token 消耗並避免 429 限流
   const recentHistory = conversationHistory.slice(-6);
   const historyText = recentHistory
-    .map((msg) => `${msg.role === 'user' ? 'User' : 'Curator'}: ${msg.content}`)
+    .map((msg) => {
+      const safeContent = sanitizePromptInput(msg.content, 800, true);
+      return `${msg.role === 'user' ? 'User' : 'Curator'}: ${safeContent}`;
+    })
     .join('\n\n');
 
   const userPrompt = `以下是我們目前的對話脈絡：\n\n${historyText}\n\n請以音樂策展人身分，根據對話脈絡給出最新一輪的分析與推薦結果 (JSON)。`;

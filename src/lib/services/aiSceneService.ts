@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { loadSecureAISettings } from '$lib/ai/vault';
 import {
   DEFAULT_GROQ_MODEL,
@@ -17,6 +18,25 @@ export interface LocalArtistMatch {
   hitScore: number;
   hitGenres: string[];
 }
+
+const ExternalArtistRecommendationSchema = z.object({
+  name: z.string().nullish().transform((v) => (v ? v.trim() : '')),
+  subGenre: z.string().nullish().transform((v) => (v ? v.trim() : '')),
+  recommendReason: z.string().nullish().transform((v) => (v ? v.trim() : '')),
+  curationHighlight: z.string().nullish().transform((v) => (v ? v.trim() : undefined))
+});
+
+const SceneRecommendationResponseSchema = z.object({
+  reply: z.string().nullish().transform((v) => (v ? v.trim() : '')),
+  matchedGenres: z
+    .array(z.string())
+    .nullish()
+    .transform((arr) => (arr ? arr.map((g) => g.trim()).filter(Boolean) : [])),
+  externalArtists: z
+    .array(ExternalArtistRecommendationSchema)
+    .nullish()
+    .transform((arr) => (arr ? arr.filter((a) => Boolean(a.name)) : []))
+});
 
 /**
  * 清理並解析 LLM 傳回之 JSON 字串
@@ -153,10 +173,13 @@ export async function getSceneRecommendation(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemPrompt }]
+        },
         contents: [
           {
             role: 'user',
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+            parts: [{ text: userPrompt }]
           }
         ],
         generationConfig: {
@@ -202,10 +225,19 @@ export async function getSceneRecommendation(
       throw new Error(t('ai_err_invalid_json_parse', { error: parseErr?.message || parseErr }));
     }
   }
+  const validated = SceneRecommendationResponseSchema.safeParse(parsed);
+  if (!validated.success) {
+    return {
+      reply: t('ai_scene_default_reply'),
+      matchedGenres: [],
+      externalArtists: []
+    };
+  }
+
   return {
-    reply: parsed.reply || t('ai_scene_default_reply'),
-    matchedGenres: Array.isArray(parsed.matchedGenres) ? parsed.matchedGenres : [],
-    externalArtists: Array.isArray(parsed.externalArtists) ? parsed.externalArtists : []
+    reply: validated.data.reply || t('ai_scene_default_reply'),
+    matchedGenres: validated.data.matchedGenres,
+    externalArtists: validated.data.externalArtists
   };
 }
 

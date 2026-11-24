@@ -8,6 +8,22 @@ export interface DisambiguationContext {
 }
 
 /**
+ * 輕量輸入清理器：移除控制字元並限制長度，避免異常輸入或過長內容破壞 Prompt 結構或浪費 Token
+ */
+export function sanitizePromptInput(
+  value: string | undefined | null,
+  maxLength: number,
+  allowNewlines = false
+): string {
+  if (!value) return '';
+  // 移除不可見控制字元（保留 \n 視 allowNewlines 而定）
+  const cleaned = allowNewlines
+    ? value.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '').trim()
+    : value.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned.length > maxLength ? cleaned.slice(0, maxLength) : cleaned;
+}
+
+/**
  * 人文音樂學家與藝術評論 Prompt 架構
  * 
  * 設計意圖與架構決策 (Why & Design Trade-offs)：
@@ -36,6 +52,7 @@ export function buildArtistAnalysisPrompt(
   systemPrompt: string;
   userPrompt: string;
 } {
+  const safeArtistName = sanitizePromptInput(artistName, 120) || 'Unknown Artist';
   const languageRules =
     locale === 'zh-TW'
       ? `必須使用繁體中文（台灣標準繁體）與具備人文深度之音樂學筆觸，著重創作哲學、歌詞意境、時代隱喻、演奏手感質地、樂思對話與情感張力。稱呼以「音樂人/藝人」為主。`
@@ -65,19 +82,24 @@ ROCK, METAL, CLASSICAL, JAZZ, AMBIENT, ELECTRONIC, GROOVE, WORLD.
   // 構造同名消歧義錨點提示
   let disambiguationNotice = '';
   if (context && (context.albumTitle || context.releaseYear || context.genre)) {
+    const safeAlbum = sanitizePromptInput(context.albumTitle, 150);
+    const safeYear = sanitizePromptInput(context.releaseYear, 32);
+    const safeGenre = sanitizePromptInput(context.genre, 80);
     const details = [
-      context.albumTitle ? `代表作品：《${context.albumTitle}》` : '',
-      context.releaseYear ? `活躍/發行年代：${context.releaseYear}` : '',
-      context.genre ? `主要領域/曲風：${context.genre}` : ''
+      safeAlbum ? `代表作品：《${safeAlbum}》` : '',
+      safeYear ? `活躍/發行年代：${safeYear}` : '',
+      safeGenre ? `主要領域/曲風：${safeGenre}` : ''
     ].filter(Boolean).join('、');
     
-    disambiguationNotice = `\n【同名排歧脈絡錨點】：\n目標藝人帶有以下背景特徵：${details}。\n請依此脈絡專注剖析該特定音樂人。\n`;
+    if (details) {
+      disambiguationNotice = `\n【同名排歧脈絡錨點】：\n目標藝人帶有以下背景特徵：${details}。\n請依此脈絡專注剖析該特定音樂人。\n`;
+    }
   }
 
-  const userPrompt = `請深度剖析音樂人的人文精神與演奏美學：「${artistName}」${disambiguationNotice}
+  const userPrompt = `請深度剖析音樂人的人文精神與演奏美學：「${safeArtistName}」${disambiguationNotice}
 嚴格輸出符合下列結構的單一 JSON：
 {
-  "name": "${artistName}",
+  "name": "${safeArtistName}",
   "aliases": ["本國母語原生表記", "國際標準羅馬化表記", "官方英文藝名或代表性稱號"],
   "sector": "8 軸板塊選一：CLASSICAL | JAZZ | ROCK | METAL | AMBIENT | ELECTRONIC | GROOVE | WORLD",
   "subGenre": "代表性二級風格子流派",
@@ -136,6 +158,10 @@ export function buildMoreSimilarArtistsPrompt(
   systemPrompt: string;
   userPrompt: string;
 } {
+  const safeArtistName = sanitizePromptInput(artistName, 120) || 'Unknown Artist';
+  const safeSector = sanitizePromptInput(sector, 60);
+  const safeSubGenre = sanitizePromptInput(subGenre, 80);
+
   const languageRules =
     locale === 'zh-TW'
       ? `請以繁體中文或該音樂人的通用官方藝名輸出。`
@@ -153,15 +179,17 @@ Your task is to recommend 4 to 5 strictly distinct musical artists who share hig
 4. The output must strictly be a single valid JSON object containing only the "similarArtists" array key.`;
 
   const contextHints = [
-    sector ? `核心領域：${sector}` : '',
-    subGenre ? `代表子流派：${subGenre}` : ''
+    safeSector ? `核心領域：${safeSector}` : '',
+    safeSubGenre ? `代表子流派：${safeSubGenre}` : ''
   ].filter(Boolean).join('、');
 
   // 取最多 40 個已存在名字做為排除名單，節省 Prompt Token
-  const cleanExclude = Array.from(new Set(excludeList.map((n) => n.trim()).filter(Boolean))).slice(0, 40);
+  const cleanExclude = Array.from(
+    new Set(excludeList.map((n) => sanitizePromptInput(n, 120)).filter(Boolean))
+  ).slice(0, 40);
   const excludeText = cleanExclude.length > 0 ? `\n【已收錄或已推薦排除名單】：\n${cleanExclude.join('、')}\n` : '';
 
-  const userPrompt = `Provide 4 to 5 artistic and stylistic kindred artists for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+  const userPrompt = `Provide 4 to 5 artistic and stylistic kindred artists for "${safeArtistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
 Respond in valid JSON format:
 {
   "similarArtists": ["Artist 1", "Artist 2", "Artist 3", "Artist 4"]
@@ -188,6 +216,10 @@ export function buildMoreNotableAlbumsPrompt(
   systemPrompt: string;
   userPrompt: string;
 } {
+  const safeArtistName = sanitizePromptInput(artistName, 120) || 'Unknown Artist';
+  const safeSector = sanitizePromptInput(sector, 60);
+  const safeSubGenre = sanitizePromptInput(subGenre, 80);
+
   const languageRules =
     locale === 'zh-TW'
       ? `請以繁體中文撰寫說明、創作背景與演奏曲義精華；作品名稱請維持其官方原始發行名稱。`
@@ -196,7 +228,7 @@ export function buildMoreNotableAlbumsPrompt(
       : `Write descriptions and performance highlights in English; maintain official work or album titles.`;
 
   const systemPrompt = `You are an insightful musicologist and artistic archivist for "Pickup Artist (大音悉聲)".
-Your mission is to explore and recommend 2 to 3 ADDITIONAL standout works for the artist "${artistName}".
+Your mission is to explore and recommend 2 to 3 ADDITIONAL standout works for the artist "${safeArtistName}".
 
 【雙軌代表作推薦標準】
 1. 【時代基石 (milestone)】：定義其音樂生涯分水嶺、精神核心或代表性經典之作。
@@ -206,14 +238,16 @@ Your mission is to explore and recommend 2 to 3 ADDITIONAL standout works for th
 5. 必須嚴格輸出合法的單一 JSON 物件，包含 "notableAlbums" 陣列。`;
 
   const contextHints = [
-    sector ? `核心領域：${sector}` : '',
-    subGenre ? `代表子流派：${subGenre}` : ''
+    safeSector ? `核心領域：${safeSector}` : '',
+    safeSubGenre ? `代表子流派：${safeSubGenre}` : ''
   ].filter(Boolean).join('、');
 
-  const cleanExclude = Array.from(new Set(excludeAlbums.map((t) => t.trim()).filter(Boolean))).slice(0, 30);
+  const cleanExclude = Array.from(
+    new Set(excludeAlbums.map((t) => sanitizePromptInput(t, 150)).filter(Boolean))
+  ).slice(0, 30);
   const excludeText = cleanExclude.length > 0 ? `\n【已收錄作品清單】：\n${cleanExclude.join('、')}\n` : '';
 
-  const userPrompt = `Explore 2 to 3 additional notable works or treasure releases for "${artistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
+  const userPrompt = `Explore 2 to 3 additional notable works or treasure releases for "${safeArtistName}"${contextHints ? ` (${contextHints})` : ''}.${excludeText}
 Output format strictly matching:
 {
   "notableAlbums": [
@@ -251,6 +285,13 @@ export function buildListeningResonancePrompt(
   availableAlbums: string[] = [],
   locale: SupportedLocale = 'zh-TW'
 ): { systemPrompt: string; userPrompt: string } {
+  const safeArtistName = sanitizePromptInput(artistName, 120) || 'Unknown Artist';
+  const safeNotes = sanitizePromptInput(userNotes, 1000, true);
+  const safeAlbums = availableAlbums
+    .map((a) => sanitizePromptInput(a, 150))
+    .filter(Boolean)
+    .slice(0, 20);
+
   const languageRules =
     locale === 'zh-TW'
       ? `請以繁體中文撰寫感言潤飾與推薦理由；歌名請維持原發行名稱。`
@@ -259,7 +300,7 @@ export function buildListeningResonancePrompt(
       : `Write thoughtful reflections in English; maintain official track names.`;
 
   const systemPrompt = `You are a sensitive and poetic music essayist and curator for "Pickup Artist (大音悉聲)".
-Your mission is to help a listener articulate their emotional connection with the music of "${artistName}".
+Your mission is to help a listener articulate their emotional connection with the music of "${safeArtistName}".
 
 【人文美學與情感共振引領 (Positive Affirmative Guidance)】
 1. 深度同理與專屬呼應：真摯回應使用者所描繪的真實心境感受與情緒印記，提煉細膩溫潤的心靈共鳴。
@@ -268,15 +309,15 @@ Your mission is to help a listener articulate their emotional connection with th
 4. ${languageRules}
 5. 請直接輸出標準結構的單一 JSON 物件。`;
 
-  const albumsHint = availableAlbums.length > 0
-    ? `\n該藝人代表作品參考：${availableAlbums.join('、')}`
+  const albumsHint = safeAlbums.length > 0
+    ? `\n該藝人代表作品參考：${safeAlbums.join('、')}`
     : '';
 
-  const notesHint = userNotes.trim().length > 0
-    ? `【使用者真摯寫下的聽感與心境印記】：\n「${userNotes.trim()}」\n請全然融入上述使用者的真實心境，提煉極富共鳴的文學題詞、感言潤飾與心靈契合曲目。`
-    : `使用者交由你引領共鳴，請以「${artistName}」最核心的靈魂特質與情感底蘊出發，為深夜或日常聆聽寫下一段優美深邃的導讀手札。`;
+  const notesHint = safeNotes.length > 0
+    ? `【使用者真摯寫下的聽感與心境印記】：\n「${safeNotes}」\n請全然融入上述使用者的真實心境，提煉極富共鳴的文學題詞、感言潤飾與心靈契合曲目。`
+    : `使用者交由你引領共鳴，請以「${safeArtistName}」最核心的靈魂特質與情感底蘊出發，為深夜或日常聆聽寫下一段優美深邃的導讀手札。`;
 
-  const userPrompt = `請為音樂人「${artistName}」提煉人文聽感共鳴與心境選曲：${albumsHint}
+  const userPrompt = `請為音樂人「${safeArtistName}」提煉人文聽感共鳴與心境選曲：${albumsHint}
 ${notesHint}
 
 請輸出符合下列嚴格 JSON 格式：
